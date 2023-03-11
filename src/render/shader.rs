@@ -1,12 +1,17 @@
 use glow::{self, HasContext};
 
-pub struct Shader {
+pub struct Shader<'a> {
     kind: u32,
     handle: u32,
+    gl: &'a glow::Context,
 }
 
-impl Shader {
-    pub fn from_file(gl: &glow::Context, shader_path: &std::path::Path, kind: u32) -> Shader {
+impl<'a> Shader<'a> {
+    pub fn from_file(
+        gl: &'a glow::Context,
+        shader_path: &std::path::Path,
+        kind: u32,
+    ) -> Shader<'a> {
         let shader_source =
             std::fs::read_to_string(shader_path).expect("Failed to load shader source code from");
 
@@ -22,7 +27,7 @@ impl Shader {
             handle
         };
 
-        Shader { kind, handle }
+        Shader { kind, handle, gl }
     }
 
     pub fn handle(&self) -> u32 {
@@ -31,5 +36,9 @@ impl Shader {
 
     pub fn kind(&self) -> u32 {
         self.kind
+    }
+
+    pub fn delete(self) {
+        unsafe { self.gl.delete_shader(self.handle) };
     }
 }
