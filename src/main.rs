@@ -1,8 +1,5 @@
 use kalimorfia::{
-    math::affine,
-    primitives::color::Color,
-    render::{gl_program::GlProgram, shader::Shader},
-    window::Window,
+    mouse::MouseState, primitives::color::Color, render::gl_program::GlProgram, window::Window,
 };
 
 use std::{path::Path, time::Instant};
@@ -21,15 +18,11 @@ const CLEAR_COLOR: Color = Color {
 
 #[derive(Debug)]
 struct State {
-    pub left_mouse_button_down: bool,
-    pub right_mouse_button_down: bool,
-    pub current_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
-    pub previous_mouse_position: Option<glutin::dpi::PhysicalPosition<f64>>,
-    pub scroll_delta: f32,
+    pub mouse: MouseState,
     pub resolution: glutin::dpi::PhysicalSize<u32>,
 }
 
-fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
+fn build_ui(ui: &mut imgui::Ui, _state: &mut State) {
     ui.window("ProForma")
         .size([500.0, 300.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
@@ -44,11 +37,7 @@ fn main() {
     let mut last_frame = Instant::now();
 
     let mut app_state = State {
-        left_mouse_button_down: false,
-        right_mouse_button_down: false,
-        current_mouse_position: None,
-        previous_mouse_position: None,
-        scroll_delta: 0.0,
+        mouse: MouseState::new(),
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
     };
 
@@ -100,7 +89,7 @@ fn main() {
                 },
             ..
         } => {
-            app_state.scroll_delta = delta;
+            app_state.mouse.scroll_delta = delta;
         }
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
@@ -111,51 +100,14 @@ fn main() {
             window.gl().delete_vertex_array(vertex_array);
         },
         event => {
-            match event {
-                Event::WindowEvent {
-                    event: WindowEvent::MouseInput { state, button, .. },
-                    ..
-                } => {
-                    use glutin::event::{ElementState, MouseButton};
-                    match (state, button) {
-                        (ElementState::Pressed, MouseButton::Left) => {
-                            app_state.left_mouse_button_down = true
-                        }
+            if let Event::WindowEvent { ref event, .. } = event {
+                app_state.mouse.handle_window_event(event);
 
-                        (ElementState::Released, MouseButton::Left) => {
-                            app_state.left_mouse_button_down = false
-                        }
-                        (ElementState::Pressed, MouseButton::Right) => {
-                            app_state.right_mouse_button_down = true
-                        }
-                        (ElementState::Released, MouseButton::Right) => {
-                            app_state.right_mouse_button_down = false
-                        }
-                        _ => {}
-                    }
+                if let WindowEvent::Resized(size) = event {
+                    app_state.resolution = *size;
                 }
-                Event::WindowEvent {
-                    event: WindowEvent::CursorLeft { .. },
-                    ..
-                } => {
-                    app_state.left_mouse_button_down = false;
-                    app_state.right_mouse_button_down = false;
-                }
-                Event::WindowEvent {
-                    event: WindowEvent::CursorMoved { position, .. },
-                    ..
-                } => {
-                    app_state.previous_mouse_position = app_state.current_mouse_position;
-                    app_state.current_mouse_position = Some(position);
-                }
-                Event::WindowEvent {
-                    event: WindowEvent::Resized(size),
-                    ..
-                } => {
-                    app_state.resolution = size;
-                }
-                _ => {}
             }
+
             window.handle_event(event);
         }
     });
