@@ -7,9 +7,11 @@ use imgui_winit_support::WinitPlatform;
 
 pub struct Window {
     windowed_context: glutin::WindowedContext<glutin::PossiblyCurrent>,
-    imgui_renderer: imgui_glow_renderer::AutoRenderer,
-    imgui_context: imgui::Context,
     winit_platform: WinitPlatform,
+    gl: glow::Context,
+    imgui_renderer: imgui_glow_renderer::Renderer,
+    imgui_context: imgui::Context,
+    imgui_texture_map: imgui_glow_renderer::SimpleTextureMap,
 }
 
 impl Window {
@@ -32,15 +34,23 @@ impl Window {
             glow::Context::from_loader_function(|s| windowed_context.get_proc_address(s).cast())
         };
 
-        let imgui_renderer =
-            imgui_glow_renderer::AutoRenderer::initialize(gl, &mut imgui_context).unwrap();
+        let mut imgui_texture_map = imgui_glow_renderer::SimpleTextureMap::default();
+        let imgui_renderer = imgui_glow_renderer::Renderer::initialize(
+            &gl,
+            &mut imgui_context,
+            &mut imgui_texture_map,
+            true,
+        )
+        .unwrap();
 
         (
             Window {
                 windowed_context,
-                imgui_renderer,
                 winit_platform,
+                gl,
+                imgui_renderer,
                 imgui_context,
+                imgui_texture_map,
             },
             event_loop,
         )
@@ -69,11 +79,11 @@ impl Window {
     }
 
     pub fn gl(&self) -> &glow::Context {
-        self.imgui_renderer.gl_context()
+        &self.gl
     }
 
     pub fn set_clear_color(&self, color: Color) {
-        unsafe { self.gl().clear_color(color.r, color.g, color.b, color.a) };
+        unsafe { self.gl.clear_color(color.r, color.g, color.b, color.a) };
     }
 
     pub fn update_delta_time(&mut self, duration: std::time::Duration) {
@@ -95,7 +105,9 @@ impl Window {
             .prepare_render(ui, self.windowed_context.window());
         let draw_data = self.imgui_context.render();
 
-        self.imgui_renderer.render(draw_data).unwrap();
+        self.imgui_renderer
+            .render(&self.gl, &self.imgui_texture_map, draw_data)
+            .unwrap();
         self.windowed_context.swap_buffers().unwrap();
     }
 
@@ -113,7 +125,7 @@ impl Window {
         {
             self.windowed_context.resize(size);
             unsafe {
-                self.gl()
+                self.gl
                     .viewport(0, 0, size.width as i32, size.height as i32)
             };
         }
