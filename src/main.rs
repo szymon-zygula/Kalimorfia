@@ -26,15 +26,21 @@ const CLEAR_COLOR: Color = Color {
 struct State {
     pub mouse: MouseState,
     pub resolution: glutin::dpi::PhysicalSize<u32>,
+    pub torus: Torus,
+    pub tube_points: u32,
+    pub round_points: u32,
 }
 
-fn build_ui(ui: &mut imgui::Ui, _state: &mut State) {
+fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
     ui.window("Kalimorfia")
         .size([500.0, 300.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.separator();
-            ui.text("Imgui works");
+            ui.slider("R", 0.1, 10.0, &mut state.torus.inner_radius);
+            ui.slider("r", 0.1, 10.0, &mut state.torus.tube_radius);
+            ui.slider("M", 3, 50, &mut state.round_points);
+            ui.slider("m", 3, 50, &mut state.tube_points);
         });
 }
 
@@ -45,6 +51,9 @@ fn main() {
     let mut app_state = State {
         mouse: MouseState::new(),
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+        torus: Torus::with_radii(7.0, 2.0),
+        tube_points: 10,
+        round_points: 10,
     };
 
     let gl_program = GlProgram::with_shader_paths(
@@ -65,16 +74,6 @@ fn main() {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
     }
 
-    let torus = Torus::with_radii(4.0, 2.0);
-    let (vertices, topology) = torus.grid(20, 10);
-    let mut mesh = LineMesh::new(gl.clone(), vertices, topology);
-    let projection_transform = transforms::projection(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 100.0);
-    let view_transform = transforms::look_at(
-        Point3::new(0.0, 0.0, 0.0),
-        Point3::new(10.0, 10.0, 10.0),
-        Vector3::new(0.0, 1.0, 0.0),
-    );
-
     use glutin::event::{Event, WindowEvent};
 
     event_loop.run(move |event, _, control_flow| match event {
@@ -90,7 +89,23 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
             }
 
-            mesh.transform(transforms::translate(Vector3::new(0.00, 0.00, -0.03)));
+            let projection_transform = transforms::projection(
+                std::f32::consts::FRAC_PI_2,
+                app_state.resolution.width as f32 / app_state.resolution.height as f32,
+                0.1,
+                100.0,
+            );
+
+            let view_transform = transforms::look_at(
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(10.0, 10.0, 10.0),
+                Vector3::new(0.0, 1.0, 0.0),
+            );
+
+            let (vertices, topology) = app_state
+                .torus
+                .grid(app_state.round_points, app_state.tube_points);
+            let mut mesh = LineMesh::new(gl.clone(), vertices, topology);
 
             gl_program
                 .uniform_matrix_4_f32_slice("model_transform", mesh.model_transform().as_slice());

@@ -89,11 +89,12 @@ pub fn look_at<T: RealField + Copy>(
     up: Vector3<T>,
 ) -> Matrix4<T> {
     let to_camera = (camera - observation).normalize();
-    let right = up.cross(&to_camera);
+    let right = up.cross(&to_camera).normalize();
+    let head = to_camera.cross(&right);
 
     Matrix4::from_columns(&[
         right.to_homogeneous(),
-        up.to_homogeneous(),
+        head.to_homogeneous(),
         to_camera.to_homogeneous(),
         camera.to_homogeneous(),
     ])
