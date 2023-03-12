@@ -8,14 +8,13 @@ use imgui_winit_support::WinitPlatform;
 pub struct Window {
     windowed_context: glutin::WindowedContext<glutin::PossiblyCurrent>,
     winit_platform: WinitPlatform,
-    gl: glow::Context,
     imgui_renderer: imgui_glow_renderer::Renderer,
     imgui_context: imgui::Context,
     imgui_texture_map: imgui_glow_renderer::SimpleTextureMap,
 }
 
 impl Window {
-    pub fn new(title: &str, width: u32, height: u32) -> (Window, EventLoop<()>) {
+    pub fn new(title: &str, width: u32, height: u32) -> (Window, EventLoop<()>, glow::Context) {
         let event_loop = glutin::event_loop::EventLoop::new();
         let window = glutin::window::WindowBuilder::new()
             .with_title(title)
@@ -47,12 +46,12 @@ impl Window {
             Window {
                 windowed_context,
                 winit_platform,
-                gl,
                 imgui_renderer,
                 imgui_context,
                 imgui_texture_map,
             },
             event_loop,
+            gl,
         )
     }
 
@@ -78,14 +77,6 @@ impl Window {
         (imgui_context, winit_platform)
     }
 
-    pub fn gl(&self) -> &glow::Context {
-        &self.gl
-    }
-
-    pub fn set_clear_color(&self, color: Color) {
-        unsafe { self.gl.clear_color(color.r, color.g, color.b, color.a) };
-    }
-
     pub fn update_delta_time(&mut self, duration: std::time::Duration) {
         self.imgui_context.io_mut().update_delta_time(duration);
     }
@@ -97,7 +88,7 @@ impl Window {
         self.windowed_context.window().request_redraw();
     }
 
-    pub fn render<F: FnOnce(&mut imgui::Ui)>(&mut self, build_ui: F) {
+    pub fn render<F: FnOnce(&mut imgui::Ui)>(&mut self, gl: &glow::Context, build_ui: F) {
         let ui = self.imgui_context.frame();
         build_ui(ui);
 
@@ -106,7 +97,7 @@ impl Window {
         let draw_data = self.imgui_context.render();
 
         self.imgui_renderer
-            .render(&self.gl, &self.imgui_texture_map, draw_data)
+            .render(gl, &self.imgui_texture_map, draw_data)
             .unwrap();
         self.windowed_context.swap_buffers().unwrap();
     }
@@ -115,7 +106,7 @@ impl Window {
         self.imgui_context.io().want_capture_mouse
     }
 
-    pub fn handle_event(&mut self, event: glutin::event::Event<()>) {
+    pub fn handle_event(&mut self, event: glutin::event::Event<()>, gl: &glow::Context) {
         use glutin::event::{Event, WindowEvent};
 
         if let Event::WindowEvent {
@@ -125,9 +116,8 @@ impl Window {
         {
             self.windowed_context.resize(size);
             unsafe {
-                self.gl
-                    .viewport(0, 0, size.width as i32, size.height as i32)
-            };
+                gl.viewport(0, 0, size.width as i32, size.height as i32);
+            }
         }
 
         self.winit_platform.handle_event(

@@ -37,7 +37,7 @@ fn build_ui(ui: &mut imgui::Ui, _state: &mut State) {
 }
 
 fn main() {
-    let (mut window, event_loop) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
+    let (mut window, event_loop, gl) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut last_frame = Instant::now();
 
     let mut app_state = State {
@@ -45,12 +45,13 @@ fn main() {
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
     };
 
-    let gl = window.gl();
-
     let mut gl_program = Some(GlProgram::with_shader_paths(
-        gl,
+        &gl,
         vec![
-            (Path::new("shaders/perspective_vertex.glsl"), glow::VERTEX_SHADER),
+            (
+                Path::new("shaders/perspective_vertex.glsl"),
+                glow::VERTEX_SHADER,
+            ),
             (
                 Path::new("shaders/simple_fragment.glsl"),
                 glow::FRAGMENT_SHADER,
@@ -58,11 +59,13 @@ fn main() {
         ],
     ));
 
-    window.set_clear_color(CLEAR_COLOR);
+    unsafe {
+        gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
+    }
 
     let torus = Torus::with_radii(0.4, 0.15);
     let (vertices, topology) = torus.grid(20, 10);
-    let mesh = LineMesh::new(gl, vertices, topology);
+    let mesh = LineMesh::new(&gl, vertices, topology);
 
     use glutin::event::{Event, WindowEvent};
 
@@ -75,16 +78,14 @@ fn main() {
         }
         Event::MainEventsCleared => window.request_redraw(),
         Event::RedrawRequested(_) => {
-            let gl = window.gl();
-
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
-                gl_program.as_ref().unwrap().use_by(gl);
+                gl_program.as_ref().unwrap().use_by(&gl);
 
-                mesh.draw(gl);
+                mesh.draw(&gl);
             }
 
-            window.render(|ui| build_ui(ui, &mut app_state));
+            window.render(&gl, |ui| build_ui(ui, &mut app_state));
         }
         Event::WindowEvent {
             event:
@@ -100,7 +101,7 @@ fn main() {
             event: WindowEvent::CloseRequested,
             ..
         } => *control_flow = glutin::event_loop::ControlFlow::Exit,
-        Event::LoopDestroyed => gl_program.take().unwrap().delete(window.gl()),
+        Event::LoopDestroyed => gl_program.take().unwrap().delete(&gl),
         event => {
             if let Event::WindowEvent { ref event, .. } = event {
                 app_state.mouse.handle_window_event(event);
@@ -110,7 +111,7 @@ fn main() {
                 }
             }
 
-            window.handle_event(event);
+            window.handle_event(event, &gl);
         }
     });
 }
