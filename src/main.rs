@@ -29,6 +29,10 @@ struct State {
     pub torus: Torus,
     pub tube_points: u32,
     pub round_points: u32,
+    pub horizontal_view_angle: f32,
+    pub vertical_view_angle: f32,
+    pub cursor_distance: f32,
+    pub cursor_position: Vector3<f32>,
 }
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
@@ -48,12 +52,16 @@ fn main() {
     let (mut window, event_loop, gl) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut last_frame = Instant::now();
 
-    let mut app_state = State {
+    let mut state = State {
         mouse: MouseState::new(),
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
         torus: Torus::with_radii(7.0, 2.0),
         tube_points: 10,
         round_points: 10,
+        horizontal_view_angle: 0.0,
+        vertical_view_angle: 0.0,
+        cursor_distance: 10.0,
+        cursor_position: Vector3::new(0.0, 0.0, 0.0),
     };
 
     let gl_program = GlProgram::with_shader_paths(
@@ -89,23 +97,37 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
             }
 
+            let mouse_delta = state.mouse.position_delta();
+
+            if !window.imgui_using_mouse() {
+                if state.mouse.is_middle_button_down() {
+                    state.horizontal_view_angle += mouse_delta.x as f32 * 0.05;
+                    state.vertical_view_angle += mouse_delta.y as f32 * 0.05;
+                }
+
+                state.cursor_distance -= state.mouse.scroll_delta();
+
+                if state.cursor_distance < 0.0 {
+                    state.cursor_distance = 0.0;
+                }
+            }
+
+            let view_transform = (transforms::translate(state.cursor_position)
+                * transforms::rotate_y(-state.horizontal_view_angle)
+                * transforms::rotate_x(-state.vertical_view_angle)
+                * transforms::translate(Vector3::new(0.0, 0.0, state.cursor_distance)))
+            .try_inverse()
+            .unwrap();
+
             let projection_transform = transforms::projection(
                 std::f32::consts::FRAC_PI_2,
-                app_state.resolution.width as f32 / app_state.resolution.height as f32,
+                state.resolution.width as f32 / state.resolution.height as f32,
                 0.1,
                 100.0,
             );
 
-            let view_transform = transforms::look_at(
-                Point3::new(0.0, 0.0, 0.0),
-                Point3::new(10.0, 10.0, 10.0),
-                Vector3::new(0.0, 1.0, 0.0),
-            );
-
-            let (vertices, topology) = app_state
-                .torus
-                .grid(app_state.round_points, app_state.tube_points);
-            let mut mesh = LineMesh::new(gl.clone(), vertices, topology);
+            let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
+            let mesh = LineMesh::new(gl.clone(), vertices, topology);
 
             gl_program
                 .uniform_matrix_4_f32_slice("model_transform", mesh.model_transform().as_slice());
@@ -116,17 +138,7 @@ fn main() {
             );
             gl_program.enable();
             mesh.draw();
-            window.render(&gl, |ui| build_ui(ui, &mut app_state));
-        }
-        Event::WindowEvent {
-            event:
-                WindowEvent::MouseWheel {
-                    delta: glutin::event::MouseScrollDelta::LineDelta(_, delta),
-                    ..
-                },
-            ..
-        } => {
-            app_state.mouse.scroll_delta = delta;
+            window.render(&gl, |ui| build_ui(ui, &mut state));
         }
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
@@ -134,10 +146,10 @@ fn main() {
         } => *control_flow = glutin::event_loop::ControlFlow::Exit,
         event => {
             if let Event::WindowEvent { ref event, .. } = event {
-                app_state.mouse.handle_window_event(event);
+                state.mouse.handle_window_event(event);
 
                 if let WindowEvent::Resized(size) = event {
-                    app_state.resolution = *size;
+                    state.resolution = *size;
                 }
             }
 
