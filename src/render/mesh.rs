@@ -58,6 +58,14 @@ impl LineMesh {
             gl,
         }
     }
+
+    pub fn model_transform(&self) -> Matrix4<f32> {
+        self.model_transform
+    }
+
+    pub fn transform(&mut self, transform: Matrix4<f32>) {
+        self.model_transform = transform * self.model_transform;
+    }
 }
 
 impl Drop for LineMesh {

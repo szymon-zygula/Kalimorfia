@@ -1,14 +1,16 @@
+use glow::HasContext;
 use kalimorfia::{
-    math::geometry::{gridable::Gridable, torus::Torus},
+    math::{
+        affine::transforms,
+        geometry::{gridable::Gridable, torus::Torus},
+    },
     mouse::MouseState,
     primitives::color::Color,
     render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
     window::Window,
 };
-
+use nalgebra::{Matrix4, Point3, RowVector4, Vector3};
 use std::{path::Path, time::Instant};
-
-use glow::HasContext;
 
 const WINDOW_TITLE: &str = "Kalimorfia";
 const WINDOW_WIDTH: u32 = 1280;
@@ -45,7 +47,7 @@ fn main() {
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
     };
 
-    let gl_program = Some(GlProgram::with_shader_paths(
+    let gl_program = GlProgram::with_shader_paths(
         gl.clone(),
         vec![
             (
@@ -57,15 +59,21 @@ fn main() {
                 glow::FRAGMENT_SHADER,
             ),
         ],
-    ));
+    );
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
     }
 
-    let torus = Torus::with_radii(0.4, 0.15);
+    let torus = Torus::with_radii(4.0, 2.0);
     let (vertices, topology) = torus.grid(20, 10);
-    let mesh = LineMesh::new(gl.clone(), vertices, topology);
+    let mut mesh = LineMesh::new(gl.clone(), vertices, topology);
+    let projection_transform = transforms::projection(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 100.0);
+    let view_transform = transforms::look_at(
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(10.0, 10.0, 10.0),
+        Vector3::new(0.0, 1.0, 0.0),
+    );
 
     use glutin::event::{Event, WindowEvent};
 
@@ -80,9 +88,18 @@ fn main() {
         Event::RedrawRequested(_) => {
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
-                gl_program.as_ref().unwrap().enable();
             }
 
+            mesh.transform(transforms::translate(Vector3::new(0.00, 0.00, -0.03)));
+
+            gl_program
+                .uniform_matrix_4_f32_slice("model_transform", mesh.model_transform().as_slice());
+            gl_program.uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
+            gl_program.uniform_matrix_4_f32_slice(
+                "projection_transform",
+                projection_transform.as_slice(),
+            );
+            gl_program.enable();
             mesh.draw();
             window.render(&gl, |ui| build_ui(ui, &mut app_state));
         }

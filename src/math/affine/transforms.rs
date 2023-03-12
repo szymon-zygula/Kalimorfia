@@ -1,10 +1,10 @@
-use nalgebra::{Matrix4, Vector3};
+use nalgebra::{Matrix4, Point3, RealField, Vector3};
 
-pub fn rotate_x(angle: f64) -> Matrix4<f64> {
+pub fn rotate_x<T: RealField + Copy>(angle: T) -> Matrix4<T> {
     let mut rot_x = Matrix4::zeros();
 
-    rot_x[(0, 0)] = 1.0;
-    rot_x[(3, 3)] = 1.0;
+    rot_x[(0, 0)] = T::one();
+    rot_x[(3, 3)] = T::one();
 
     rot_x[(1, 1)] = angle.cos();
     rot_x[(1, 2)] = -angle.sin();
@@ -14,11 +14,11 @@ pub fn rotate_x(angle: f64) -> Matrix4<f64> {
     rot_x
 }
 
-pub fn rotate_y(angle: f64) -> Matrix4<f64> {
+pub fn rotate_y<T: RealField + Copy>(angle: T) -> Matrix4<T> {
     let mut rot_y = Matrix4::zeros();
 
-    rot_y[(1, 1)] = 1.0;
-    rot_y[(3, 3)] = 1.0;
+    rot_y[(1, 1)] = T::one();
+    rot_y[(3, 3)] = T::one();
 
     rot_y[(0, 0)] = angle.cos();
     rot_y[(0, 2)] = angle.sin();
@@ -28,11 +28,11 @@ pub fn rotate_y(angle: f64) -> Matrix4<f64> {
     rot_y
 }
 
-pub fn rotate_z(angle: f64) -> Matrix4<f64> {
+pub fn rotate_z<T: RealField + Copy>(angle: T) -> Matrix4<T> {
     let mut rot_z = Matrix4::zeros();
 
-    rot_z[(2, 2)] = 1.0;
-    rot_z[(3, 3)] = 1.0;
+    rot_z[(2, 2)] = T::one();
+    rot_z[(3, 3)] = T::one();
 
     rot_z[(0, 0)] = angle.cos();
     rot_z[(0, 1)] = -angle.sin();
@@ -42,7 +42,7 @@ pub fn rotate_z(angle: f64) -> Matrix4<f64> {
     rot_z
 }
 
-pub fn translate(vector: Vector3<f64>) -> Matrix4<f64> {
+pub fn translate<T: RealField + Copy>(vector: Vector3<T>) -> Matrix4<T> {
     let mut translation = Matrix4::identity();
 
     translation[(0, 3)] = vector[0];
@@ -52,28 +52,51 @@ pub fn translate(vector: Vector3<f64>) -> Matrix4<f64> {
     translation
 }
 
-pub fn scale(sx: f64, sy: f64, sz: f64) -> Matrix4<f64> {
+pub fn scale<T: RealField + Copy>(sx: T, sy: T, sz: T) -> Matrix4<T> {
     let mut scaling = Matrix4::zeros();
 
     scaling[(0, 0)] = sx;
     scaling[(1, 1)] = sy;
     scaling[(2, 2)] = sz;
-    scaling[(3, 3)] = 1.0;
+    scaling[(3, 3)] = T::one();
 
     scaling
 }
 
-pub fn projection(fov: f32, aspect_ration: f32, near_plane: f32, far_plane: f32) -> Matrix4<f32> {
+pub fn projection<T: RealField + Copy>(
+    fov: T,
+    aspect_ration: T,
+    near_plane: T,
+    far_plane: T,
+) -> Matrix4<T> {
     let mut projection_matrix = Matrix4::zeros();
 
-    let ctg_fov_over_2 = 1.0 / (fov / 2.0).tan();
+    let ctg_fov_over_2 = T::one() / (fov * T::from_f32(0.5).unwrap()).tan();
     let view_distance = far_plane - near_plane;
 
     projection_matrix[(0, 0)] = ctg_fov_over_2 / aspect_ration;
     projection_matrix[(1, 1)] = ctg_fov_over_2;
-    projection_matrix[(2, 2)] = (far_plane + near_plane) / view_distance;
-    projection_matrix[(2, 3)] = -2.0 * far_plane * near_plane / view_distance;
-    projection_matrix[(3, 2)] = 1.0;
+    projection_matrix[(2, 2)] = -(far_plane + near_plane) / view_distance;
+    projection_matrix[(2, 3)] = -T::from_f32(2.0).unwrap() * far_plane * near_plane / view_distance;
+    projection_matrix[(3, 2)] = -T::one();
 
     projection_matrix
+}
+
+pub fn look_at<T: RealField + Copy>(
+    observation: Point3<T>,
+    camera: Point3<T>,
+    up: Vector3<T>,
+) -> Matrix4<T> {
+    let to_camera = (camera - observation).normalize();
+    let right = up.cross(&to_camera);
+
+    Matrix4::from_columns(&[
+        right.to_homogeneous(),
+        up.to_homogeneous(),
+        to_camera.to_homogeneous(),
+        camera.to_homogeneous(),
+    ])
+    .try_inverse()
+    .unwrap()
 }
