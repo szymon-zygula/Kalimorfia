@@ -1,5 +1,3 @@
-use crate::primitives::color::Color;
-
 use glow::HasContext;
 use glutin::event_loop::EventLoop;
 use imgui_glow_renderer;
@@ -14,7 +12,11 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(title: &str, width: u32, height: u32) -> (Window, EventLoop<()>, glow::Context) {
+    pub fn new(
+        title: &str,
+        width: u32,
+        height: u32,
+    ) -> (Window, EventLoop<()>, std::rc::Rc<glow::Context>) {
         let event_loop = glutin::event_loop::EventLoop::new();
         let window = glutin::window::WindowBuilder::new()
             .with_title(title)
@@ -51,7 +53,7 @@ impl Window {
                 imgui_texture_map,
             },
             event_loop,
-            gl,
+            std::rc::Rc::new(gl),
         )
     }
 

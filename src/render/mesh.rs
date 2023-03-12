@@ -8,11 +8,17 @@ pub struct LineMesh {
     indices: Vec<u32>,
     model_transform: Matrix4<f32>,
     vertex_buffer: u32,
+    element_buffer: u32,
     vertex_array: u32,
+    gl: std::rc::Rc<glow::Context>,
 }
 
 impl LineMesh {
-    pub fn new(gl: &glow::Context, points: Vec<Point3<f32>>, indices: Vec<u32>) -> LineMesh {
+    pub fn new(
+        gl: std::rc::Rc<glow::Context>,
+        points: Vec<Point3<f32>>,
+        indices: Vec<u32>,
+    ) -> LineMesh {
         let vertex_buffer = unsafe { gl.create_buffer() }.unwrap();
         let element_buffer = unsafe { gl.create_buffer() }.unwrap();
         let vertex_array = unsafe { gl.create_vertex_array() }.unwrap();
@@ -47,28 +53,34 @@ impl LineMesh {
             indices,
             model_transform: Matrix4::identity(),
             vertex_buffer,
+            element_buffer,
             vertex_array,
+            gl,
         }
     }
 }
 
 impl Drop for LineMesh {
     fn drop(&mut self) {
-        unsafe {}
+        unsafe {
+            self.gl.delete_vertex_array(self.vertex_array);
+            self.gl.delete_buffer(self.vertex_buffer);
+            self.gl.delete_buffer(self.element_buffer);
+        }
     }
 }
 
 impl Drawable for LineMesh {
-    fn draw(&self, gl: &glow::Context) {
+    fn draw(&self) {
         unsafe {
-            gl.bind_vertex_array(Some(self.vertex_array));
-            gl.draw_elements(
+            self.gl.bind_vertex_array(Some(self.vertex_array));
+            self.gl.draw_elements(
                 glow::LINES,
                 self.indices.len() as i32,
                 glow::UNSIGNED_INT,
                 0,
             );
-            gl.bind_vertex_array(None);
+            self.gl.bind_vertex_array(None);
         }
     }
 }

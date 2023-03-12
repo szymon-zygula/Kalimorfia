@@ -3,18 +3,19 @@ use glow::{self, HasContext};
 
 pub struct GlProgram {
     handle: u32,
+    gl: std::rc::Rc<glow::Context>,
 }
 
 impl GlProgram {
     pub fn with_shader_paths(
-        gl: &glow::Context,
+        gl: std::rc::Rc<glow::Context>,
         shader_paths: Vec<(&std::path::Path, u32)>,
     ) -> GlProgram {
         let handle = unsafe { gl.create_program() }.unwrap();
 
         let shaders: Vec<Shader> = shader_paths
             .into_iter()
-            .map(|(path, kind)| Shader::from_file(gl, path, kind))
+            .map(|(path, kind)| Shader::from_file(gl.as_ref(), path, kind))
             .collect();
 
         unsafe {
@@ -33,26 +34,27 @@ impl GlProgram {
 
             for shader in shaders {
                 gl.detach_shader(handle, shader.handle());
-                shader.delete();
             }
         }
 
-        GlProgram { handle }
+        GlProgram { handle, gl }
     }
 
     pub fn handle(&self) -> u32 {
         self.handle
     }
 
-    pub fn use_by(&self, gl: &glow::Context) {
+    pub fn enable(&self) {
         unsafe {
-            gl.use_program(Some(self.handle));
+            self.gl.use_program(Some(self.handle));
         }
     }
+}
 
-    pub fn delete(self, gl: &glow::Context) {
+impl Drop for GlProgram {
+    fn drop(&mut self) {
         unsafe {
-            gl.delete_program(self.handle);
+            self.gl.delete_program(self.handle);
         }
     }
 }

@@ -45,8 +45,8 @@ fn main() {
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
     };
 
-    let mut gl_program = Some(GlProgram::with_shader_paths(
-        &gl,
+    let gl_program = Some(GlProgram::with_shader_paths(
+        gl.clone(),
         vec![
             (
                 Path::new("shaders/perspective_vertex.glsl"),
@@ -65,7 +65,7 @@ fn main() {
 
     let torus = Torus::with_radii(0.4, 0.15);
     let (vertices, topology) = torus.grid(20, 10);
-    let mesh = LineMesh::new(&gl, vertices, topology);
+    let mesh = LineMesh::new(gl.clone(), vertices, topology);
 
     use glutin::event::{Event, WindowEvent};
 
@@ -80,11 +80,10 @@ fn main() {
         Event::RedrawRequested(_) => {
             unsafe {
                 gl.clear(glow::COLOR_BUFFER_BIT);
-                gl_program.as_ref().unwrap().use_by(&gl);
-
-                mesh.draw(&gl);
+                gl_program.as_ref().unwrap().enable();
             }
 
+            mesh.draw();
             window.render(&gl, |ui| build_ui(ui, &mut app_state));
         }
         Event::WindowEvent {
@@ -101,7 +100,6 @@ fn main() {
             event: WindowEvent::CloseRequested,
             ..
         } => *control_flow = glutin::event_loop::ControlFlow::Exit,
-        Event::LoopDestroyed => gl_program.take().unwrap().delete(&gl),
         event => {
             if let Event::WindowEvent { ref event, .. } = event {
                 app_state.mouse.handle_window_event(event);
