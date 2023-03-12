@@ -3,3 +3,4 @@ pub mod primitives;
 pub mod window;
 pub mod render;
 pub mod mouse;
+pub mod utils;

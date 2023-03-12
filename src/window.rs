@@ -73,11 +73,7 @@ impl Window {
     }
 
     pub fn set_clear_color(&self, color: Color) {
-        unsafe {
-            self.imgui_renderer
-                .gl_context()
-                .clear_color(color.r, color.g, color.b, color.a)
-        };
+        unsafe { self.gl().clear_color(color.r, color.g, color.b, color.a) };
     }
 
     pub fn update_delta_time(&mut self, duration: std::time::Duration) {

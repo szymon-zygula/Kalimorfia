@@ -1,12 +1,16 @@
 use kalimorfia::{
-    mouse::MouseState, primitives::color::Color, render::gl_program::GlProgram, window::Window,
+    math::geometry::{gridable::Gridable, torus::Torus},
+    mouse::MouseState,
+    primitives::color::Color,
+    render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
+    window::Window,
 };
 
 use std::{path::Path, time::Instant};
 
 use glow::HasContext;
 
-const WINDOW_TITLE: &str = "ProForma";
+const WINDOW_TITLE: &str = "Kalimorfia";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
 const CLEAR_COLOR: Color = Color {
@@ -23,7 +27,7 @@ struct State {
 }
 
 fn build_ui(ui: &mut imgui::Ui, _state: &mut State) {
-    ui.window("ProForma")
+    ui.window("Kalimorfia")
         .size([500.0, 300.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
@@ -43,12 +47,10 @@ fn main() {
 
     let gl = window.gl();
 
-    let vertex_array = unsafe { gl.create_vertex_array() }.unwrap();
-
     let mut gl_program = Some(GlProgram::with_shader_paths(
         gl,
         vec![
-            (Path::new("shaders/simple_vertex.glsl"), glow::VERTEX_SHADER),
+            (Path::new("shaders/perspective_vertex.glsl"), glow::VERTEX_SHADER),
             (
                 Path::new("shaders/simple_fragment.glsl"),
                 glow::FRAGMENT_SHADER,
@@ -57,6 +59,10 @@ fn main() {
     ));
 
     window.set_clear_color(CLEAR_COLOR);
+
+    let torus = Torus::with_radii(0.4, 0.15);
+    let (vertices, topology) = torus.grid(20, 10);
+    let mesh = LineMesh::new(gl, vertices, topology);
 
     use glutin::event::{Event, WindowEvent};
 
@@ -75,8 +81,7 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
                 gl_program.as_ref().unwrap().use_by(gl);
 
-                gl.bind_vertex_array(Some(vertex_array));
-                gl.draw_arrays(glow::TRIANGLES, 0, 3);
+                mesh.draw(gl);
             }
 
             window.render(|ui| build_ui(ui, &mut app_state));
@@ -95,10 +100,7 @@ fn main() {
             event: WindowEvent::CloseRequested,
             ..
         } => *control_flow = glutin::event_loop::ControlFlow::Exit,
-        Event::LoopDestroyed => unsafe {
-            gl_program.take().unwrap().delete(window.gl());
-            window.gl().delete_vertex_array(vertex_array);
-        },
+        Event::LoopDestroyed => gl_program.take().unwrap().delete(window.gl()),
         event => {
             if let Event::WindowEvent { ref event, .. } = event {
                 app_state.mouse.handle_window_event(event);
