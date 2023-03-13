@@ -34,6 +34,15 @@ struct State {
     pub camera_distance: f32,
     pub cursor_position: Vector3<f32>,
     pub torus_changed: bool,
+    pub scale: f32,
+}
+
+macro_rules! safe_slider {
+    ($ui:expr, $label:expr, $min:expr, $max:expr, $value:expr) => {
+        $ui.slider_config($label, $min, $max)
+            .flags(imgui::SliderFlags::NO_INPUT)
+            .build($value)
+    };
 }
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
@@ -42,10 +51,13 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.separator();
-            state.torus_changed = ui.slider("R", 0.1, 10.0, &mut state.torus.inner_radius)
-                || ui.slider("r", 0.1, 10.0, &mut state.torus.tube_radius)
-                || ui.slider("M", 3, 50, &mut state.round_points)
-                || ui.slider("m", 3, 50, &mut state.tube_points);
+            state.torus_changed |= safe_slider!(ui, "R", 0.1, 10.0, &mut state.torus.inner_radius);
+            state.torus_changed |= safe_slider!(ui, "r", 0.1, 10.0, &mut state.torus.tube_radius);
+            state.torus_changed |= safe_slider!(ui, "M", 3, 50, &mut state.round_points);
+            state.torus_changed |= safe_slider!(ui, "m", 3, 50, &mut state.tube_points);
+            ui.slider_config("Drawing scale", 0.01, 5.0)
+                .flags(imgui::SliderFlags::LOGARITHMIC | imgui::SliderFlags::NO_INPUT)
+                .build(&mut state.scale);
         });
 }
 
@@ -64,6 +76,7 @@ fn main() {
         camera_distance: 10.0,
         cursor_position: Vector3::new(0.0, 0.0, 0.0),
         torus_changed: false,
+        scale: 1.0,
     };
 
     let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
@@ -108,6 +121,13 @@ fn main() {
                 if state.mouse.is_middle_button_down() {
                     state.horizontal_view_angle += mouse_delta.x as f32 * 0.05;
                     state.vertical_view_angle += mouse_delta.y as f32 * 0.05;
+
+                    if let Some(position) = state.mouse.position() {
+                        window.set_mouse_position(glutin::dpi::PhysicalPosition::new(
+                            position.x.rem_euclid(window.size().width as f64),
+                            position.y.rem_euclid(window.size().height as f64),
+                        ));
+                    }
                 }
 
                 state.camera_distance -= state.mouse.scroll_delta();
@@ -127,7 +147,8 @@ fn main() {
                 * transforms::rotate_x(-state.vertical_view_angle)
                 * transforms::translate(Vector3::new(0.0, 0.0, state.camera_distance)))
             .try_inverse()
-            .unwrap();
+            .unwrap()
+                * transforms::scale(state.scale, state.scale, state.scale);
 
             let projection_transform = transforms::projection(
                 std::f32::consts::FRAC_PI_2,

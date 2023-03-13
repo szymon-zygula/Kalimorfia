@@ -108,6 +108,17 @@ impl Window {
         self.imgui_context.io().want_capture_mouse
     }
 
+    pub fn set_mouse_position(&self, position: glutin::dpi::PhysicalPosition<f64>) {
+        self.windowed_context
+            .window()
+            .set_cursor_position(position)
+            .unwrap();
+    }
+
+    pub fn size(&self) -> glutin::dpi::PhysicalSize<u32> {
+        self.windowed_context.window().inner_size()
+    }
+
     pub fn handle_event(&mut self, event: glutin::event::Event<()>, gl: &glow::Context) {
         use glutin::event::{Event, WindowEvent};
 

@@ -49,6 +49,10 @@ impl MouseState {
             })
     }
 
+    pub fn position(&self) -> Option<MousePosition> {
+        self.current_position
+    }
+
     pub fn scroll_delta(&mut self) -> f32 {
         let last_value = self.scroll_delta;
         self.scroll_delta = 0.0;
