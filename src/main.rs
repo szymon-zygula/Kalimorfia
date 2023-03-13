@@ -33,6 +33,7 @@ struct State {
     pub vertical_view_angle: f32,
     pub camera_distance: f32,
     pub cursor_position: Vector3<f32>,
+    pub torus_changed: bool,
 }
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
@@ -41,10 +42,10 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.separator();
-            ui.slider("R", 0.1, 10.0, &mut state.torus.inner_radius);
-            ui.slider("r", 0.1, 10.0, &mut state.torus.tube_radius);
-            ui.slider("M", 3, 50, &mut state.round_points);
-            ui.slider("m", 3, 50, &mut state.tube_points);
+            state.torus_changed = ui.slider("R", 0.1, 10.0, &mut state.torus.inner_radius)
+                || ui.slider("r", 0.1, 10.0, &mut state.torus.tube_radius)
+                || ui.slider("M", 3, 50, &mut state.round_points)
+                || ui.slider("m", 3, 50, &mut state.tube_points);
         });
 }
 
@@ -62,7 +63,11 @@ fn main() {
         vertical_view_angle: 0.0,
         camera_distance: 10.0,
         cursor_position: Vector3::new(0.0, 0.0, 0.0),
+        torus_changed: false,
     };
+
+    let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
+    let mut mesh = LineMesh::new(gl.clone(), vertices, topology);
 
     let gl_program = GlProgram::with_shader_paths(
         gl.clone(),
@@ -112,6 +117,11 @@ fn main() {
                 }
             }
 
+            if state.torus_changed {
+                let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
+                mesh = LineMesh::new(gl.clone(), vertices, topology);
+            }
+
             let view_transform = (transforms::translate(state.cursor_position)
                 * transforms::rotate_y(-state.horizontal_view_angle)
                 * transforms::rotate_x(-state.vertical_view_angle)
@@ -125,9 +135,6 @@ fn main() {
                 0.1,
                 100.0,
             );
-
-            let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
-            let mesh = LineMesh::new(gl.clone(), vertices, topology);
 
             gl_program
                 .uniform_matrix_4_f32_slice("model_transform", mesh.model_transform().as_slice());
