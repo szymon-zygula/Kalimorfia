@@ -41,20 +41,12 @@ impl MouseState {
     }
 
     pub fn position_delta(&mut self) -> MousePosition {
-        let delta = self.current_position.zip(self.previous_position).map_or(
-            MousePosition::new(0.0, 0.0),
-            |(current_position, previous_position)| {
-                MousePosition::new(
-                    current_position.x - previous_position.x,
-                    current_position.y - previous_position.y,
-                )
-            },
-        );
-
-        self.previous_position = self.current_position;
-        self.current_position = None;
-
-        delta
+        self.previous_position
+            .take()
+            .zip(self.current_position)
+            .map_or(MousePosition::new(0.0, 0.0), |(previous, current)| {
+                MousePosition::new(current.x - previous.x, current.y - previous.y)
+            })
     }
 
     pub fn scroll_delta(&mut self) -> f32 {

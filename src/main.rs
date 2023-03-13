@@ -31,7 +31,7 @@ struct State {
     pub round_points: u32,
     pub horizontal_view_angle: f32,
     pub vertical_view_angle: f32,
-    pub cursor_distance: f32,
+    pub camera_distance: f32,
     pub cursor_position: Vector3<f32>,
 }
 
@@ -60,7 +60,7 @@ fn main() {
         round_points: 10,
         horizontal_view_angle: 0.0,
         vertical_view_angle: 0.0,
-        cursor_distance: 10.0,
+        camera_distance: 10.0,
         cursor_position: Vector3::new(0.0, 0.0, 0.0),
     };
 
@@ -105,17 +105,17 @@ fn main() {
                     state.vertical_view_angle += mouse_delta.y as f32 * 0.05;
                 }
 
-                state.cursor_distance -= state.mouse.scroll_delta();
+                state.camera_distance -= state.mouse.scroll_delta();
 
-                if state.cursor_distance < 0.0 {
-                    state.cursor_distance = 0.0;
+                if state.camera_distance < 0.0 {
+                    state.camera_distance = 0.0;
                 }
             }
 
             let view_transform = (transforms::translate(state.cursor_position)
                 * transforms::rotate_y(-state.horizontal_view_angle)
                 * transforms::rotate_x(-state.vertical_view_angle)
-                * transforms::translate(Vector3::new(0.0, 0.0, state.cursor_distance)))
+                * transforms::translate(Vector3::new(0.0, 0.0, state.camera_distance)))
             .try_inverse()
             .unwrap();
 
