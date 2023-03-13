@@ -9,12 +9,14 @@ use kalimorfia::{
     render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
     window::Window,
 };
-use nalgebra::{Matrix4, Point3, RowVector4, Vector3};
+use nalgebra::{Vector3, Vector4};
 use std::{path::Path, time::Instant};
 
 const WINDOW_TITLE: &str = "Kalimorfia";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
+const ROTATION_SPEED: f32 = 0.05;
+const MOVEMENT_SPEED: f32 = 0.01;
 const CLEAR_COLOR: Color = Color {
     r: 0.4,
     g: 0.4,
@@ -118,9 +120,26 @@ fn main() {
             let mouse_delta = state.mouse.position_delta();
 
             if !window.imgui_using_mouse() {
-                if state.mouse.is_middle_button_down() {
-                    state.horizontal_view_angle += mouse_delta.x as f32 * 0.05;
-                    state.vertical_view_angle += mouse_delta.y as f32 * 0.05;
+                if state.mouse.is_middle_button_down() || state.mouse.is_right_button_down() {
+                    if state.mouse.is_middle_button_down() {
+                        state.horizontal_view_angle += mouse_delta.x as f32 * ROTATION_SPEED;
+                        state.vertical_view_angle += mouse_delta.y as f32 * ROTATION_SPEED;
+                    }
+
+                    if state.mouse.is_right_button_down() {
+                        state.cursor_position +=
+                            (transforms::rotate_y(-state.horizontal_view_angle)
+                                * transforms::rotate_x(-state.vertical_view_angle)
+                                * Vector4::new(
+                                    -mouse_delta.x as f32,
+                                    mouse_delta.y as f32,
+                                    0.0,
+                                    0.0,
+                                ))
+                            .xyz()
+                                * state.camera_distance
+                                * MOVEMENT_SPEED;
+                    }
 
                     if let Some(position) = state.mouse.position() {
                         window.set_mouse_position(glutin::dpi::PhysicalPosition::new(
