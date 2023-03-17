@@ -161,12 +161,12 @@ fn main() {
                 mesh = LineMesh::new(gl.clone(), vertices, topology);
             }
 
-            let view_transform = (transforms::translate(state.cursor_position)
-                * transforms::rotate_y(-state.horizontal_view_angle)
-                * transforms::rotate_x(-state.vertical_view_angle)
-                * transforms::translate(Vector3::new(0.0, 0.0, state.camera_distance)))
-            .try_inverse()
-            .unwrap()
+            let view_transform = (
+                 transforms::translate(Vector3::new(0.0, 0.0, -state.camera_distance))
+                * transforms::rotate_x(state.vertical_view_angle)
+                * transforms::rotate_y(state.horizontal_view_angle)
+                  * transforms::translate(-state.cursor_position)
+            )
                 * transforms::scale(state.scale, state.scale, state.scale);
 
             let projection_transform = transforms::projection(
