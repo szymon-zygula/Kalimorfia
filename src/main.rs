@@ -24,10 +24,7 @@ const CLEAR_COLOR: Color = Color {
 };
 
 struct State<'gl> {
-    pub mouse: MouseState,
-    pub resolution: glutin::dpi::PhysicalSize<u32>,
     pub torus: Torus<'gl>,
-    pub camera: Camera,
 }
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
@@ -42,13 +39,13 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
 fn main() {
     let (mut window, mut event_loop, gl) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut last_frame = Instant::now();
-
+    let mut resolution = glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut mouse = MouseState::new();
+    let mut camera = Camera::new();
     let mut state = State {
-        mouse: MouseState::new(),
-        resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
         torus: Torus::new(&gl),
-        camera: Camera::new(),
     };
+
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
@@ -69,13 +66,13 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
             }
 
-            state.camera.update_from_mouse(&mut state.mouse, &window);
+            camera.update_from_mouse(&mut mouse, &window);
 
-            let view_transform = state.camera.view_transform();
+            let view_transform = camera.view_transform();
 
             let projection_transform = transforms::projection(
                 std::f32::consts::FRAC_PI_2,
-                state.resolution.width as f32 / state.resolution.height as f32,
+                resolution.width as f32 / resolution.height as f32,
                 0.1,
                 100.0,
             );
@@ -89,10 +86,10 @@ fn main() {
         } => *control_flow = glutin::event_loop::ControlFlow::Exit,
         event => {
             if let Event::WindowEvent { ref event, .. } = event {
-                state.mouse.handle_window_event(event);
+                mouse.handle_window_event(event);
 
                 if let WindowEvent::Resized(size) = event {
-                    state.resolution = *size;
+                    resolution = *size;
                 }
             }
 
