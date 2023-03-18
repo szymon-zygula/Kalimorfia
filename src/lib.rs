@@ -5,3 +5,4 @@ pub mod primitives;
 pub mod render;
 pub mod utils;
 pub mod window;
+pub mod entities;

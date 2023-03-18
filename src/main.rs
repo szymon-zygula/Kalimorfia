@@ -2,16 +2,16 @@ use glow::HasContext;
 use glutin::platform::run_return::EventLoopExtRunReturn;
 use kalimorfia::{
     camera::Camera,
-    math::{
-        affine::transforms,
-        geometry::{gridable::Gridable, torus::Torus},
+    entities::{
+        entity::{Entity, SceneObject},
+        torus::Torus,
     },
+    math::affine::transforms,
     mouse::MouseState,
     primitives::color::Color,
-    render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
     window::Window,
 };
-use std::{path::Path, time::Instant};
+use std::time::Instant;
 
 const WINDOW_TITLE: &str = "Kalimorfia";
 const WINDOW_WIDTH: u32 = 1280;
@@ -23,23 +23,11 @@ const CLEAR_COLOR: Color = Color {
     a: 1.0,
 };
 
-#[derive(Debug)]
-struct State {
+struct State<'gl> {
     pub mouse: MouseState,
     pub resolution: glutin::dpi::PhysicalSize<u32>,
-    pub torus: Torus,
-    pub tube_points: u32,
-    pub round_points: u32,
+    pub torus: Torus<'gl>,
     pub camera: Camera,
-    pub torus_changed: bool,
-}
-
-macro_rules! safe_slider {
-    ($ui:expr, $label:expr, $min:expr, $max:expr, $value:expr) => {
-        $ui.slider_config($label, $min, $max)
-            .flags(imgui::SliderFlags::NO_INPUT)
-            .build($value)
-    };
 }
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
@@ -47,11 +35,7 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
         .size([500.0, 300.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
-            ui.separator();
-            state.torus_changed |= safe_slider!(ui, "R", 0.1, 10.0, &mut state.torus.inner_radius);
-            state.torus_changed |= safe_slider!(ui, "r", 0.1, 10.0, &mut state.torus.tube_radius);
-            state.torus_changed |= safe_slider!(ui, "M", 3, 50, &mut state.round_points);
-            state.torus_changed |= safe_slider!(ui, "m", 3, 50, &mut state.tube_points);
+            state.torus.control_ui(ui);
         });
 }
 
@@ -62,29 +46,9 @@ fn main() {
     let mut state = State {
         mouse: MouseState::new(),
         resolution: glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
-        torus: Torus::with_radii(7.0, 2.0),
-        tube_points: 10,
-        round_points: 10,
+        torus: Torus::new(&gl),
         camera: Camera::new(),
-        torus_changed: false,
     };
-
-    let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
-    let mut mesh = LineMesh::new(&gl, vertices, topology);
-
-    let gl_program = GlProgram::with_shader_paths(
-        &gl,
-        vec![
-            (
-                Path::new("shaders/perspective_vertex.glsl"),
-                glow::VERTEX_SHADER,
-            ),
-            (
-                Path::new("shaders/simple_fragment.glsl"),
-                glow::FRAGMENT_SHADER,
-            ),
-        ],
-    );
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
@@ -107,11 +71,6 @@ fn main() {
 
             state.camera.update_from_mouse(&mut state.mouse, &window);
 
-            if state.torus_changed {
-                let (vertices, indices) = state.torus.grid(state.round_points, state.tube_points);
-                mesh.update_vertices(vertices, indices);
-            }
-
             let view_transform = state.camera.view_transform();
 
             let projection_transform = transforms::projection(
@@ -121,15 +80,7 @@ fn main() {
                 100.0,
             );
 
-            gl_program
-                .uniform_matrix_4_f32_slice("model_transform", mesh.model_transform().as_slice());
-            gl_program.uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
-            gl_program.uniform_matrix_4_f32_slice(
-                "projection_transform",
-                projection_transform.as_slice(),
-            );
-            gl_program.enable();
-            mesh.draw();
+            state.torus.draw(&projection_transform, &view_transform);
             window.render(&gl, |ui| build_ui(ui, &mut state));
         }
         Event::WindowEvent {
