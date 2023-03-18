@@ -3,21 +3,21 @@ use crate::utils;
 use glow::HasContext;
 use nalgebra::{Matrix4, Point3};
 
-pub struct LineMesh {
+pub struct LineMesh<'gl> {
     index_count: u32,
     model_transform: Matrix4<f32>,
     vertex_buffer: u32,
     element_buffer: u32,
     vertex_array: u32,
-    gl: std::rc::Rc<glow::Context>,
+    gl: &'gl glow::Context,
 }
 
-impl LineMesh {
+impl<'gl> LineMesh<'gl> {
     pub fn new(
-        gl: std::rc::Rc<glow::Context>,
+        gl: &'gl glow::Context,
         points: Vec<Point3<f32>>,
         indices: Vec<u32>,
-    ) -> LineMesh {
+    ) -> LineMesh<'gl> {
         let vertex_buffer = unsafe { gl.create_buffer() }.unwrap();
         let element_buffer = unsafe { gl.create_buffer() }.unwrap();
         let vertex_array = unsafe { gl.create_vertex_array() }.unwrap();
@@ -82,7 +82,7 @@ impl LineMesh {
     }
 }
 
-impl Drop for LineMesh {
+impl<'gl> Drop for LineMesh<'gl> {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_vertex_array(self.vertex_array);
@@ -92,7 +92,7 @@ impl Drop for LineMesh {
     }
 }
 
-impl Drawable for LineMesh {
+impl<'gl> Drawable for LineMesh<'gl> {
     fn draw(&self) {
         unsafe {
             self.gl.bind_vertex_array(Some(self.vertex_array));

@@ -12,11 +12,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(
-        title: &str,
-        width: u32,
-        height: u32,
-    ) -> (Window, EventLoop<()>, std::rc::Rc<glow::Context>) {
+    pub fn new(title: &str, width: u32, height: u32) -> (Window, EventLoop<()>, glow::Context) {
         let event_loop = glutin::event_loop::EventLoop::new();
         let window = glutin::window::WindowBuilder::new()
             .with_title(title)
@@ -53,7 +49,7 @@ impl Window {
                 imgui_texture_map,
             },
             event_loop,
-            std::rc::Rc::new(gl),
+            gl,
         )
     }
 

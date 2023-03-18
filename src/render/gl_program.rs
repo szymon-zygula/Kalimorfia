@@ -1,9 +1,9 @@
 use super::shader::Shader;
 use glow::{self, HasContext};
 
-pub struct GlProgram {
+pub struct GlProgram<'gl> {
     handle: u32,
-    gl: std::rc::Rc<glow::Context>,
+    gl: &'gl glow::Context,
 }
 
 macro_rules! fn_set_uniform {
@@ -17,16 +17,16 @@ macro_rules! fn_set_uniform {
     };
 }
 
-impl GlProgram {
+impl<'gl> GlProgram<'gl> {
     pub fn with_shader_paths(
-        gl: std::rc::Rc<glow::Context>,
+        gl: &'gl glow::Context,
         shader_paths: Vec<(&std::path::Path, u32)>,
-    ) -> GlProgram {
+    ) -> GlProgram<'gl> {
         let handle = unsafe { gl.create_program() }.unwrap();
 
         let shaders: Vec<Shader> = shader_paths
             .into_iter()
-            .map(|(path, kind)| Shader::from_file(gl.as_ref(), path, kind))
+            .map(|(path, kind)| Shader::from_file(gl, path, kind))
             .collect();
 
         unsafe {
@@ -66,7 +66,7 @@ impl GlProgram {
     }
 }
 
-impl Drop for GlProgram {
+impl<'gl> Drop for GlProgram<'gl> {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_program(self.handle);

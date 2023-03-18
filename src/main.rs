@@ -1,4 +1,5 @@
 use glow::HasContext;
+use glutin::platform::run_return::EventLoopExtRunReturn;
 use kalimorfia::{
     camera::Camera,
     math::{
@@ -10,7 +11,6 @@ use kalimorfia::{
     render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
     window::Window,
 };
-use nalgebra::Vector3;
 use std::{path::Path, time::Instant};
 
 const WINDOW_TITLE: &str = "Kalimorfia";
@@ -56,7 +56,7 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
 }
 
 fn main() {
-    let (mut window, event_loop, gl) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
+    let (mut window, mut event_loop, gl) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut last_frame = Instant::now();
 
     let mut state = State {
@@ -70,10 +70,10 @@ fn main() {
     };
 
     let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
-    let mut mesh = LineMesh::new(gl.clone(), vertices, topology);
+    let mut mesh = LineMesh::new(&gl, vertices, topology);
 
     let gl_program = GlProgram::with_shader_paths(
-        gl.clone(),
+        &gl,
         vec![
             (
                 Path::new("shaders/perspective_vertex.glsl"),
@@ -92,7 +92,7 @@ fn main() {
 
     use glutin::event::{Event, WindowEvent};
 
-    event_loop.run(move |event, _, control_flow| match event {
+    event_loop.run_return(|event, _, control_flow| match event {
         Event::NewEvents(_) => {
             let now = Instant::now();
             let duration = now.duration_since(last_frame);
