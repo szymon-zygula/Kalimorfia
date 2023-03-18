@@ -35,17 +35,17 @@ impl Entity for Orientation {
         ui.text("Rotation axis");
         ui.next_column();
 
-        if ui.slider("x", 0.0, 1.0, &mut self.axis.x) {
+        if ui.slider("x", -1.0, 1.0, &mut self.axis.x) {
             (self.axis.y, self.axis.z) = normalize_for(self.axis.x, self.axis.y, self.axis.z);
         }
         ui.next_column();
 
-        if ui.slider("y", 0.0, 1.0, &mut self.axis.y) {
+        if ui.slider("y", -1.0, 1.0, &mut self.axis.y) {
             (self.axis.x, self.axis.z) = normalize_for(self.axis.y, self.axis.x, self.axis.z);
         }
         ui.next_column();
 
-        if ui.slider("z", 0.0, 1.0, &mut self.axis.z) {
+        if ui.slider("z", -1.0, 1.0, &mut self.axis.z) {
             (self.axis.x, self.axis.y) = normalize_for(self.axis.z, self.axis.x, self.axis.y);
         }
         ui.next_column();
