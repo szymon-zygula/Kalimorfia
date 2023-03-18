@@ -1,4 +1,7 @@
-use super::entity::{Entity, SceneObject};
+use super::{
+    basic::{Orientation, Scale, Translation},
+    entity::{Entity, SceneObject},
+};
 use crate::{
     math::geometry::{self, gridable::Gridable},
     render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
@@ -11,6 +14,9 @@ pub struct Torus<'gl> {
     mesh: LineMesh<'gl>,
     tube_points: u32,
     round_points: u32,
+    orientation: Orientation,
+    scale: Scale,
+    translation: Translation,
     gl_program: GlProgram<'gl>,
 }
 
@@ -44,6 +50,9 @@ impl<'gl> Torus<'gl> {
             tube_points,
             round_points,
             gl_program,
+            orientation: Orientation::new(),
+            translation: Translation::new(),
+            scale: Scale::new(),
         }
     }
 }
@@ -58,12 +67,18 @@ macro_rules! safe_slider {
 
 impl<'gl> Entity for Torus<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) {
+        ui.text("Torus control");
         ui.separator();
         let mut torus_changed = false;
         torus_changed |= safe_slider!(ui, "R", 0.1, 10.0, &mut self.torus.inner_radius);
         torus_changed |= safe_slider!(ui, "r", 0.1, 10.0, &mut self.torus.tube_radius);
         torus_changed |= safe_slider!(ui, "M", 3, 50, &mut self.round_points);
         torus_changed |= safe_slider!(ui, "m", 3, 50, &mut self.tube_points);
+
+        self.orientation.control_ui(ui);
+        self.translation.control_ui(ui);
+        self.scale.control_ui(ui);
+        ui.separator();
 
         if torus_changed {
             let (vertices, indices) = self.torus.grid(self.round_points, self.tube_points);
@@ -74,8 +89,11 @@ impl<'gl> Entity for Torus<'gl> {
 
 impl<'gl> SceneObject for Torus<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+        let model_transform =
+            self.translation.as_matrix() * self.orientation.as_matrix() * self.scale.as_matrix();
+
         self.gl_program
-            .uniform_matrix_4_f32_slice("model_transform", self.mesh.model_transform().as_slice());
+            .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
         self.gl_program
             .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
         self.gl_program

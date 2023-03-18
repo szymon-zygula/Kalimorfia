@@ -1,11 +1,10 @@
 use super::drawable::Drawable;
 use crate::utils;
 use glow::HasContext;
-use nalgebra::{Matrix4, Point3};
+use nalgebra::Point3;
 
 pub struct LineMesh<'gl> {
     index_count: u32,
-    model_transform: Matrix4<f32>,
     vertex_buffer: u32,
     element_buffer: u32,
     vertex_array: u32,
@@ -24,7 +23,6 @@ impl<'gl> LineMesh<'gl> {
 
         let mut mesh = LineMesh {
             index_count: indices.len() as u32,
-            model_transform: Matrix4::identity(),
             vertex_buffer,
             element_buffer,
             vertex_array,
@@ -71,14 +69,6 @@ impl<'gl> LineMesh<'gl> {
         }
 
         self.index_count = indices.len() as u32;
-    }
-
-    pub fn model_transform(&self) -> Matrix4<f32> {
-        self.model_transform
-    }
-
-    pub fn transform(&mut self, transform: Matrix4<f32>) {
-        self.model_transform = transform * self.model_transform;
     }
 }
 

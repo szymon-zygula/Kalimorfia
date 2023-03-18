@@ -29,7 +29,7 @@ struct State<'gl> {
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
     ui.window("Kalimorfia")
-        .size([500.0, 300.0], imgui::Condition::FirstUseEver)
+        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             state.torus.control_ui(ui);
@@ -45,7 +45,6 @@ fn main() {
     let mut state = State {
         torus: Torus::new(&gl),
     };
-
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
