@@ -157,8 +157,8 @@ fn main() {
             }
 
             if state.torus_changed {
-                let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
-                mesh = LineMesh::new(gl.clone(), vertices, topology);
+                let (vertices, indices) = state.torus.grid(state.round_points, state.tube_points);
+                mesh.update_vertices(vertices, indices);
             }
 
             let view_transform = (
