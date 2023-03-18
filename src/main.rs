@@ -4,6 +4,7 @@ use kalimorfia::{
     camera::Camera,
     entities::{
         entity::{Entity, SceneObject},
+        scene_grid::SceneGrid,
         torus::Torus,
     },
     math::affine::transforms,
@@ -28,9 +29,18 @@ struct State<'gl> {
 }
 
 fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
-    ui.window("Kalimorfia")
-        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+    ui.window("Create object")
+        .size([500.0, 200.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
+        .build(|| {
+            if ui.button("Torus") {}
+
+            if ui.button("Point") {}
+        });
+
+    ui.window("Selected object")
+        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+        .position([0.0, 200.0], imgui::Condition::FirstUseEver)
         .build(|| {
             state.torus.control_ui(ui);
         });
@@ -42,6 +52,7 @@ fn main() {
     let mut resolution = glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut mouse = MouseState::new();
     let mut camera = Camera::new();
+    let grid = SceneGrid::new(&gl, 80, 40.0);
     let mut state = State {
         torus: Torus::new(&gl),
     };
@@ -76,6 +87,7 @@ fn main() {
                 100.0,
             );
 
+            grid.draw(&projection_transform, &view_transform);
             state.torus.draw(&projection_transform, &view_transform);
             window.render(&gl, |ui| build_ui(ui, &mut state));
         }

@@ -92,13 +92,13 @@ impl<'gl> SceneObject for Torus<'gl> {
         let model_transform =
             self.translation.as_matrix() * self.orientation.as_matrix() * self.scale.as_matrix();
 
+        self.gl_program.enable();
         self.gl_program
             .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
         self.gl_program
             .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
         self.gl_program
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
-        self.gl_program.enable();
         self.mesh.draw();
     }
 }
