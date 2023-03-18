@@ -1,5 +1,6 @@
 use glow::HasContext;
 use kalimorfia::{
+    camera::Camera,
     math::{
         affine::transforms,
         geometry::{gridable::Gridable, torus::Torus},
@@ -9,14 +10,12 @@ use kalimorfia::{
     render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
     window::Window,
 };
-use nalgebra::{Vector3, Vector4};
+use nalgebra::Vector3;
 use std::{path::Path, time::Instant};
 
 const WINDOW_TITLE: &str = "Kalimorfia";
 const WINDOW_WIDTH: u32 = 1280;
 const WINDOW_HEIGHT: u32 = 720;
-const ROTATION_SPEED: f32 = 0.05;
-const MOVEMENT_SPEED: f32 = 0.01;
 const CLEAR_COLOR: Color = Color {
     r: 0.4,
     g: 0.4,
@@ -31,12 +30,8 @@ struct State {
     pub torus: Torus,
     pub tube_points: u32,
     pub round_points: u32,
-    pub horizontal_view_angle: f32,
-    pub vertical_view_angle: f32,
-    pub camera_distance: f32,
-    pub cursor_position: Vector3<f32>,
+    pub camera: Camera,
     pub torus_changed: bool,
-    pub scale: f32,
 }
 
 macro_rules! safe_slider {
@@ -57,9 +52,6 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
             state.torus_changed |= safe_slider!(ui, "r", 0.1, 10.0, &mut state.torus.tube_radius);
             state.torus_changed |= safe_slider!(ui, "M", 3, 50, &mut state.round_points);
             state.torus_changed |= safe_slider!(ui, "m", 3, 50, &mut state.tube_points);
-            ui.slider_config("Drawing scale", 0.01, 5.0)
-                .flags(imgui::SliderFlags::LOGARITHMIC | imgui::SliderFlags::NO_INPUT)
-                .build(&mut state.scale);
         });
 }
 
@@ -73,12 +65,8 @@ fn main() {
         torus: Torus::with_radii(7.0, 2.0),
         tube_points: 10,
         round_points: 10,
-        horizontal_view_angle: 0.0,
-        vertical_view_angle: 0.0,
-        camera_distance: 10.0,
-        cursor_position: Vector3::new(0.0, 0.0, 0.0),
+        camera: Camera::new(),
         torus_changed: false,
-        scale: 1.0,
     };
 
     let (vertices, topology) = state.torus.grid(state.round_points, state.tube_points);
@@ -117,57 +105,14 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
             }
 
-            let mouse_delta = state.mouse.position_delta();
-
-            if !window.imgui_using_mouse() {
-                if state.mouse.is_middle_button_down() || state.mouse.is_right_button_down() {
-                    if state.mouse.is_middle_button_down() {
-                        state.horizontal_view_angle += mouse_delta.x as f32 * ROTATION_SPEED;
-                        state.vertical_view_angle += mouse_delta.y as f32 * ROTATION_SPEED;
-                    }
-
-                    if state.mouse.is_right_button_down() {
-                        state.cursor_position +=
-                            (transforms::rotate_y(-state.horizontal_view_angle)
-                                * transforms::rotate_x(-state.vertical_view_angle)
-                                * Vector4::new(
-                                    -mouse_delta.x as f32,
-                                    mouse_delta.y as f32,
-                                    0.0,
-                                    0.0,
-                                ))
-                            .xyz()
-                                * state.camera_distance
-                                * MOVEMENT_SPEED;
-                    }
-
-                    if let Some(position) = state.mouse.position() {
-                        window.set_mouse_position(glutin::dpi::PhysicalPosition::new(
-                            position.x.rem_euclid(window.size().width as f64),
-                            position.y.rem_euclid(window.size().height as f64),
-                        ));
-                    }
-                }
-
-                state.camera_distance -= state.mouse.scroll_delta();
-
-                if state.camera_distance < 0.0 {
-                    state.camera_distance = 0.0;
-                }
-            }
+            state.camera.update_from_mouse(&mut state.mouse, &window);
 
             if state.torus_changed {
                 let (vertices, indices) = state.torus.grid(state.round_points, state.tube_points);
                 mesh.update_vertices(vertices, indices);
             }
 
-            let view_transform = (
-                 transforms::translate(Vector3::new(0.0, 0.0, -state.camera_distance))
-                * transforms::rotate_x(state.vertical_view_angle)
-                * transforms::rotate_y(state.horizontal_view_angle)
-                  * transforms::translate(-state.cursor_position)
-            )
-                * transforms::scale(state.scale, state.scale, state.scale);
+            let view_transform = state.camera.view_transform();
 
             let projection_transform = transforms::projection(
                 std::f32::consts::FRAC_PI_2,
