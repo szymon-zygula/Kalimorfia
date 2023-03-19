@@ -9,6 +9,7 @@ pub struct LineMesh<'gl> {
     element_buffer: u32,
     vertex_array: u32,
     gl: &'gl glow::Context,
+    thickness: f32,
 }
 
 impl<'gl> LineMesh<'gl> {
@@ -48,6 +49,7 @@ impl<'gl> LineMesh<'gl> {
             vertex_buffer,
             element_buffer,
             vertex_array,
+            thickness: 1.0,
             gl,
         }
     }
@@ -81,6 +83,10 @@ impl<'gl> LineMesh<'gl> {
 
         self.index_count = indices.len() as u32;
     }
+
+    pub fn thickness(&mut self, thickness: f32) {
+        self.thickness = thickness;
+    }
 }
 
 impl<'gl> Drop for LineMesh<'gl> {
@@ -96,10 +102,12 @@ impl<'gl> Drop for LineMesh<'gl> {
 impl<'gl> Drawable for LineMesh<'gl> {
     fn draw(&self) {
         unsafe {
+            self.gl.line_width(self.thickness);
             self.gl.bind_vertex_array(Some(self.vertex_array));
             self.gl
                 .draw_elements(glow::LINES, self.index_count as i32, glow::UNSIGNED_INT, 0);
             self.gl.bind_vertex_array(None);
+            self.gl.line_width(1.0);
         }
     }
 }
@@ -143,6 +151,14 @@ impl<'gl> ColoredLineMesh<'gl> {
         });
 
         ColoredLineMesh { line_mesh }
+    }
+
+    pub fn as_line_mesh_mut(&mut self) -> &mut LineMesh<'gl> {
+        &mut self.line_mesh
+    }
+
+    pub fn as_line_mesh(&self) -> &LineMesh<'gl> {
+        &self.line_mesh
     }
 }
 

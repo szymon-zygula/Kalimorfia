@@ -19,7 +19,7 @@ pub struct Cursor<'gl> {
 
 impl<'gl> Cursor<'gl> {
     pub fn new(gl: &glow::Context, scale: f32) -> Cursor {
-        let mesh = ColoredLineMesh::new(
+        let mut mesh = ColoredLineMesh::new(
             gl,
             vec![
                 ColoredVertex::new(0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
@@ -31,6 +31,8 @@ impl<'gl> Cursor<'gl> {
             ],
             vec![0, 1, 2, 3, 4, 5],
         );
+
+        mesh.as_line_mesh_mut().thickness(3.0);
 
         let gl_program = GlProgram::with_shader_paths(
             gl,
