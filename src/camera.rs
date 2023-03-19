@@ -16,9 +16,9 @@ impl Camera {
 
     pub fn new() -> Camera {
         Camera {
-            azimuth: 0.0,
-            altitude: 0.0,
-            distance: 1.0,
+            azimuth: -std::f32::consts::FRAC_PI_4,
+            altitude: std::f32::consts::FRAC_PI_4,
+            distance: 5.0,
             center: Point3::new(0.0, 0.0, 0.0),
         }
     }
@@ -60,7 +60,7 @@ impl Camera {
         transforms::translate(Vector3::new(0.0, 0.0, -self.distance))
             * transforms::rotate_x(self.altitude)
             * transforms::rotate_y(self.azimuth)
-            * transforms::translate(-Vector3::new(self.center.x, self.center.y, self.center.z))
+            * transforms::translate(-self.center.coords)
     }
 }
 

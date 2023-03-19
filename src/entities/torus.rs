@@ -6,7 +6,7 @@ use crate::{
     math::geometry::{self, gridable::Gridable},
     render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
 };
-use nalgebra::Matrix4;
+use nalgebra::{Matrix4, Point3};
 use std::path::Path;
 
 pub struct Torus<'gl> {
@@ -54,6 +54,12 @@ impl<'gl> Torus<'gl> {
             translation: Translation::new(),
             scale: Scale::new(),
         }
+    }
+
+    pub fn with_position(gl: &'gl glow::Context, position: Point3<f32>) -> Torus<'gl> {
+        let mut torus = Torus::new(gl);
+        torus.translation.translation = position.coords;
+        torus
     }
 }
 

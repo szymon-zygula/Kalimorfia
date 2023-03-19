@@ -3,20 +3,20 @@ use crate::math::{affine::transforms, basic::normalize_for};
 use nalgebra::{Matrix4, Vector3};
 
 pub struct Orientation {
-    angle_degrees: f32,
+    angle: f32,
     axis: Vector3<f32>,
 }
 
 impl Orientation {
     pub fn new() -> Orientation {
         Orientation {
-            angle_degrees: 0.0,
+            angle: 0.0,
             axis: Vector3::new(1.0, 0.0, 0.0),
         }
     }
 
     pub fn as_matrix(&self) -> Matrix4<f32> {
-        transforms::rotate_axis(self.axis, self.angle_degrees / 180.0 * std::f32::consts::PI)
+        transforms::rotate_axis(self.axis, self.angle)
     }
 }
 
@@ -27,7 +27,10 @@ impl Entity for Orientation {
         ui.columns(2, "ancolumns", false);
         ui.text("Rotation angle");
         ui.next_column();
-        ui.slider("##angle", 0.0, 360.0, &mut self.angle_degrees);
+        imgui::AngleSlider::new("##angle")
+            .range_degrees(0.0, 360.0)
+            .display_format("%.2f°")
+            .build(ui, &mut self.angle);
         ui.next_column();
         ui.columns(1, "ancolumns", false);
 
@@ -66,7 +69,7 @@ impl Default for Orientation {
 }
 
 pub struct Translation {
-    translation: Vector3<f32>,
+    pub translation: Vector3<f32>,
 }
 
 impl Translation {
@@ -78,10 +81,6 @@ impl Translation {
 
     pub fn as_matrix(&self) -> Matrix4<f32> {
         transforms::translate(self.translation)
-    }
-
-    pub fn value(&self) -> Vector3<f32> {
-        self.translation
     }
 }
 

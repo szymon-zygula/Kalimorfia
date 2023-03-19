@@ -55,7 +55,7 @@ impl<'gl> Cursor<'gl> {
     }
 
     pub fn position(&self) -> Point3<f32> {
-        self.position.value().into()
+        self.position.translation.into()
     }
 }
 

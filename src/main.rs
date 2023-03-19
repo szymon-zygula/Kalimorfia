@@ -4,7 +4,7 @@ use kalimorfia::{
     camera::Camera,
     entities::{
         cursor::Cursor,
-        entity::{Entity, SceneObject},
+        entity::{Entity, SceneEntity, SceneObject},
         scene_grid::SceneGrid,
         torus::Torus,
     },
@@ -25,23 +25,27 @@ const CLEAR_COLOR: ColorAlpha = ColorAlpha {
     a: 1.0,
 };
 
+fn next_name(scene_entity_count: usize) -> String {
+    format!("Entity {}", scene_entity_count)
+}
+
+struct SceneEntityEntry<'gl> {
+    pub entity: Box<dyn SceneEntity + 'gl>,
+    pub selected: bool,
+    pub name: String,
+}
+
 struct State<'gl> {
-    pub torus: Torus<'gl>,
     pub cursor: Cursor<'gl>,
+    pub entries: Vec<SceneEntityEntry<'gl>>,
     pub camera: Camera,
 }
 
-fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
+fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'gl>) {
     ui.window("Main control")
-        .size([500.0, 200.0], imgui::Condition::FirstUseEver)
+        .size([500.0, 300.0], imgui::Condition::FirstUseEver)
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
-            ui.separator();
-            ui.text("Object creation");
-            if ui.button("Torus") {}
-
-            if ui.button("Point") {}
-
             ui.separator();
             ui.text("Cursor control");
             state.cursor.control_ui(ui);
@@ -49,14 +53,43 @@ fn build_ui(ui: &mut imgui::Ui, state: &mut State) {
             if ui.button("Center on cursor") {
                 state.camera.center = state.cursor.position();
             }
+
+            ui.separator();
+            ui.text("Object creation");
+            if ui.button("Torus") {
+                state.entries.push(SceneEntityEntry {
+                    entity: Box::new(Torus::with_position(gl, state.cursor.position())),
+                    selected: false,
+                    name: next_name(state.entries.len()),
+                })
+            }
+
+            if ui.button("Point") {}
+
+            ui.separator();
+            ui.text("Object list");
+
+            for entity in &mut state.entries {
+                let clicked = ui
+                    .selectable_config(&entity.name)
+                    .selected(entity.selected)
+                    .build();
+
+                if clicked {
+                    entity.selected = !entity.selected;
+                }
+            }
         });
 
-    ui.window("Selected object")
-        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
-        .position([0.0, 200.0], imgui::Condition::FirstUseEver)
-        .build(|| {
-            state.torus.control_ui(ui);
-        });
+    let selected_entries = state.entries.iter().filter(|x| x.selected);
+
+    if selected_entries.clone().count() == 1 {
+        let selected_entries = state.entries.iter_mut().filter(|x| x.selected);
+        ui.window("Selected object")
+            .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+            .position([0.0, 300.0], imgui::Condition::FirstUseEver)
+            .build(|| selected_entries.last().unwrap().entity.control_ui(ui));
+    }
 }
 
 fn main() {
@@ -67,8 +100,8 @@ fn main() {
     let grid = SceneGrid::new(&gl, 80, 40.0);
     let mut state = State {
         camera: Camera::new(),
-        torus: Torus::new(&gl),
         cursor: Cursor::new(&gl, 1.0),
+        entries: Vec::new(),
     };
 
     unsafe {
@@ -102,9 +135,12 @@ fn main() {
             );
 
             grid.draw(&projection_transform, &view_transform);
-            state.torus.draw(&projection_transform, &view_transform);
+            for entry in &state.entries {
+                entry.entity.draw(&projection_transform, &view_transform);
+            }
+
             state.cursor.draw(&projection_transform, &view_transform);
-            window.render(&gl, |ui| build_ui(ui, &mut state));
+            window.render(&gl, |ui| build_ui(&gl, ui, &mut state));
         }
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,

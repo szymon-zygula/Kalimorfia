@@ -7,3 +7,7 @@ pub trait Entity {
 pub trait SceneObject {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>);
 }
+
+pub trait SceneEntity: Entity + SceneObject {}
+
+impl<T: Entity + SceneObject> SceneEntity for T {}
