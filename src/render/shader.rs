@@ -21,7 +21,11 @@ impl<'g> Shader<'g> {
             gl.compile_shader(handle);
 
             if !gl.get_shader_compile_status(handle) {
-                panic!("Error compiling shader: {}", gl.get_shader_info_log(handle));
+                panic!(
+                    "Error compiling shader ({}): {}",
+                    shader_path.to_str().unwrap(),
+                    gl.get_shader_info_log(handle)
+                );
             }
 
             handle

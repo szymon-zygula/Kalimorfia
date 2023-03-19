@@ -1,13 +1,13 @@
 use crate::{math::affine::transforms, mouse::MouseState, window::Window};
 use glutin::dpi::PhysicalPosition;
-use nalgebra::{Matrix4, Vector3, Vector4};
+use nalgebra::{Matrix4, Point3, Vector3, Vector4};
 
 #[derive(Debug)]
 pub struct Camera {
     pub azimuth: f32,
     pub altitude: f32,
     pub distance: f32,
-    pub center: Vector3<f32>,
+    pub center: Point3<f32>,
 }
 
 impl Camera {
@@ -19,7 +19,7 @@ impl Camera {
             azimuth: 0.0,
             altitude: 0.0,
             distance: 1.0,
-            center: Vector3::new(0.0, 0.0, 0.0),
+            center: Point3::new(0.0, 0.0, 0.0),
         }
     }
 
@@ -60,7 +60,7 @@ impl Camera {
         transforms::translate(Vector3::new(0.0, 0.0, -self.distance))
             * transforms::rotate_x(self.altitude)
             * transforms::rotate_y(self.azimuth)
-            * transforms::translate(-self.center)
+            * transforms::translate(-Vector3::new(self.center.x, self.center.y, self.center.z))
     }
 }
 

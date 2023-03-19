@@ -36,17 +36,20 @@ impl Entity for Orientation {
         ui.next_column();
 
         if ui.slider("x", -1.0, 1.0, &mut self.axis.x) {
-            (self.axis.y, self.axis.z) = normalize_for(self.axis.x, self.axis.y, self.axis.z);
+            (self.axis.x, self.axis.y, self.axis.z) =
+                normalize_for(self.axis.x, self.axis.y, self.axis.z);
         }
         ui.next_column();
 
         if ui.slider("y", -1.0, 1.0, &mut self.axis.y) {
-            (self.axis.x, self.axis.z) = normalize_for(self.axis.y, self.axis.x, self.axis.z);
+            (self.axis.y, self.axis.x, self.axis.z) =
+                normalize_for(self.axis.y, self.axis.x, self.axis.z);
         }
         ui.next_column();
 
         if ui.slider("z", -1.0, 1.0, &mut self.axis.z) {
-            (self.axis.x, self.axis.y) = normalize_for(self.axis.z, self.axis.x, self.axis.y);
+            (self.axis.z, self.axis.x, self.axis.y) =
+                normalize_for(self.axis.z, self.axis.x, self.axis.y);
         }
         ui.next_column();
 
@@ -75,6 +78,10 @@ impl Translation {
 
     pub fn as_matrix(&self) -> Matrix4<f32> {
         transforms::translate(self.translation)
+    }
+
+    pub fn value(&self) -> Vector3<f32> {
+        self.translation
     }
 }
 

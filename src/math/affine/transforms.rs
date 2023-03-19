@@ -72,6 +72,10 @@ pub fn scale<T: RealField + Copy>(sx: T, sy: T, sz: T) -> Matrix4<T> {
     scaling
 }
 
+pub fn uniform_scale<T: RealField + Copy>(sxyz: T) -> Matrix4<T> {
+    scale(sxyz, sxyz, sxyz)
+}
+
 pub fn projection<T: RealField + Copy>(
     fov: T,
     aspect_ration: T,
