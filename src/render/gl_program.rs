@@ -55,6 +55,20 @@ impl<'gl> GlProgram<'gl> {
     fn_set_uniform!(&[f32], uniform_matrix_3_f32_slice);
     fn_set_uniform!(&[f32], uniform_matrix_4_f32_slice);
 
+    pub fn uniform_f32(&self, name: &str, data: f32) {
+        unsafe {
+            let location = self.gl.get_uniform_location(self.handle, name).unwrap();
+            self.gl.uniform_1_f32(Some(&location), data);
+        }
+    }
+
+    pub fn uniform_3_f32(&self, name: &str, x: f32, y: f32, z: f32) {
+        unsafe {
+            let location = self.gl.get_uniform_location(self.handle, name).unwrap();
+            self.gl.uniform_3_f32(Some(&location), x, y, z);
+        }
+    }
+
     pub fn handle(&self) -> u32 {
         self.handle
     }

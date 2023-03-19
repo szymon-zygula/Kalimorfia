@@ -10,6 +10,10 @@ impl Color {
     pub fn new(r: f32, g: f32, b: f32) -> Color {
         Color { r, g, b }
     }
+
+    pub fn white() -> Color {
+        Self::new(1.0, 1.0, 1.0)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

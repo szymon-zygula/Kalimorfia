@@ -5,6 +5,7 @@ use kalimorfia::{
     entities::{
         cursor::Cursor,
         entity::{Entity, SceneEntity, SceneObject},
+        point::Point,
         scene_grid::SceneGrid,
         torus::Torus,
     },
@@ -33,12 +34,25 @@ struct SceneEntityEntry<'gl> {
     pub entity: Box<dyn SceneEntity + 'gl>,
     pub selected: bool,
     pub name: String,
+    pub new_name: String,
 }
 
 struct State<'gl> {
     pub cursor: Cursor<'gl>,
     pub entries: Vec<SceneEntityEntry<'gl>>,
     pub camera: Camera,
+}
+
+impl<'gl> State<'gl> {
+    pub fn add_entity(&mut self, entity: Box<dyn SceneEntity + 'gl>) {
+        let name = next_name(self.entries.len());
+        self.entries.push(SceneEntityEntry {
+            name: name.clone(),
+            new_name: name,
+            entity,
+            selected: false,
+        });
+    }
 }
 
 fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'gl>) {
@@ -57,38 +71,69 @@ fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'
             ui.separator();
             ui.text("Object creation");
             if ui.button("Torus") {
-                state.entries.push(SceneEntityEntry {
-                    entity: Box::new(Torus::with_position(gl, state.cursor.position())),
-                    selected: false,
-                    name: next_name(state.entries.len()),
-                })
+                state.add_entity(Box::new(Torus::with_position(gl, state.cursor.position())));
             }
 
-            if ui.button("Point") {}
+            if ui.button("Point") {
+                state.add_entity(Box::new(Point::with_position(gl, state.cursor.position())));
+            }
 
             ui.separator();
             ui.text("Object list");
 
-            for entity in &mut state.entries {
+            for entry in &mut state.entries {
                 let clicked = ui
-                    .selectable_config(&entity.name)
-                    .selected(entity.selected)
+                    .selectable_config(&entry.name)
+                    .selected(entry.selected)
                     .build();
 
                 if clicked {
-                    entity.selected = !entity.selected;
+                    entry.selected = !entry.selected;
                 }
             }
         });
 
-    let selected_entries = state.entries.iter().filter(|x| x.selected);
+    let mut selected = state.entries.iter().enumerate().filter(|(_, x)| x.selected);
+    let unique_idx = if let Some((idx, _)) = selected.next().xor(selected.next()) {
+        Some(idx)
+    } else {
+        None
+    };
 
-    if selected_entries.clone().count() == 1 {
-        let selected_entries = state.entries.iter_mut().filter(|x| x.selected);
+    if let Some(idx) = unique_idx {
         ui.window("Selected object")
             .size([500.0, 500.0], imgui::Condition::FirstUseEver)
             .position([0.0, 300.0], imgui::Condition::FirstUseEver)
-            .build(|| selected_entries.last().unwrap().entity.control_ui(ui));
+            .build(|| {
+                if ui.button("Remove entity") {
+                    state.entries.remove(idx);
+                } else {
+                    ui.input_text("Name", &mut state.entries[idx].new_name)
+                        .build();
+
+                    if ui.button("Rename") {
+                        let name_taken = state
+                            .entries
+                            .iter()
+                            .filter(|x| x.name == state.entries[idx].new_name)
+                            .count()
+                            != 0;
+                        if name_taken && state.entries[idx].new_name != state.entries[idx].name {
+                            println!("taken");
+                            ui.open_popup("name_taken_popup");
+                        } else {
+                            state.entries[idx].name = state.entries[idx].new_name.clone();
+                        }
+                    }
+
+                    ui.separator();
+                    state.entries[idx].entity.control_ui(ui);
+
+                    ui.popup("name_taken_popup", || {
+                        ui.text("Name already taken");
+                    });
+                }
+            });
     }
 }
 

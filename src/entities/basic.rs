@@ -65,9 +65,11 @@ pub struct Translation {
 
 impl Translation {
     pub fn new() -> Translation {
-        Translation {
-            translation: Vector3::zeros(),
-        }
+        Self::with(Vector3::zeros())
+    }
+
+    pub fn with(translation: Vector3<f32>) -> Translation {
+        Translation { translation }
     }
 
     pub fn as_matrix(&self) -> Matrix4<f32> {
