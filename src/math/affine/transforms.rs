@@ -1,4 +1,5 @@
 use nalgebra::{Matrix3, Matrix4, Point3, RealField, Vector3};
+use num_traits::identities::Zero;
 
 pub fn rotate_x<T: RealField + Copy>(angle: T) -> Matrix4<T> {
     let mut rot_x = Matrix4::zeros();
@@ -43,7 +44,11 @@ pub fn rotate_z<T: RealField + Copy>(angle: T) -> Matrix4<T> {
 }
 
 pub fn rotate_axis<T: RealField + Copy>(axis: Vector3<T>, angle: T) -> Matrix4<T> {
-    let cross_matrix = axis.cross_matrix();
+    if axis.is_zero() {
+        return Matrix4::identity();
+    }
+
+    let cross_matrix = axis.normalize().cross_matrix();
     let rotation_matrix = Matrix3::identity()
         + cross_matrix * angle.sin()
         + cross_matrix * cross_matrix * (T::one() - angle.cos());

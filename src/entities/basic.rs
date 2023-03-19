@@ -1,5 +1,5 @@
 use super::entity::Entity;
-use crate::math::{affine::transforms, basic::normalize_for};
+use crate::math::affine::transforms;
 use nalgebra::{Matrix4, Vector3};
 
 pub struct Orientation {
@@ -38,22 +38,13 @@ impl Entity for Orientation {
         ui.text("Rotation axis");
         ui.next_column();
 
-        if ui.slider("x", -1.0, 1.0, &mut self.axis.x) {
-            (self.axis.x, self.axis.y, self.axis.z) =
-                normalize_for(self.axis.x, self.axis.y, self.axis.z);
-        }
+        ui.slider("x", -1.0, 1.0, &mut self.axis.x);
         ui.next_column();
 
-        if ui.slider("y", -1.0, 1.0, &mut self.axis.y) {
-            (self.axis.y, self.axis.x, self.axis.z) =
-                normalize_for(self.axis.y, self.axis.x, self.axis.z);
-        }
+        ui.slider("y", -1.0, 1.0, &mut self.axis.y);
         ui.next_column();
 
-        if ui.slider("z", -1.0, 1.0, &mut self.axis.z) {
-            (self.axis.z, self.axis.x, self.axis.y) =
-                normalize_for(self.axis.z, self.axis.x, self.axis.y);
-        }
+        ui.slider("z", -1.0, 1.0, &mut self.axis.z);
         ui.next_column();
 
         ui.columns(1, "axcolumns", false);
