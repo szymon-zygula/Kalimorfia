@@ -64,6 +64,8 @@ pub struct Translation {
 }
 
 impl Translation {
+    const RANGE: f32 = 50.0;
+
     pub fn new() -> Translation {
         Self::with(Vector3::zeros())
     }
@@ -85,13 +87,13 @@ impl Entity for Translation {
         ui.text("Translation");
         ui.next_column();
 
-        ui.slider("x", -10.0, 10.0, &mut self.translation.x);
+        ui.slider("x", -Self::RANGE, Self::RANGE, &mut self.translation.x);
         ui.next_column();
 
-        ui.slider("y", -10.0, 10.0, &mut self.translation.y);
+        ui.slider("y", -Self::RANGE, Self::RANGE, &mut self.translation.y);
         ui.next_column();
 
-        ui.slider("z", -10.0, 10.0, &mut self.translation.z);
+        ui.slider("z", -Self::RANGE, Self::RANGE, &mut self.translation.z);
         ui.next_column();
 
         ui.columns(1, "columns", false);

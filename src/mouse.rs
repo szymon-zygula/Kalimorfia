@@ -8,6 +8,9 @@ pub struct MouseState {
     current_position: Option<MousePosition>,
     previous_position: Option<MousePosition>,
     scroll_delta: f32,
+    left_button_pressed: bool,
+    middle_button_pressed: bool,
+    right_button_pressed: bool,
 }
 
 impl Default for MouseState {
@@ -25,6 +28,9 @@ impl MouseState {
             current_position: None,
             previous_position: None,
             scroll_delta: 0.0,
+            left_button_pressed: false,
+            middle_button_pressed: false,
+            right_button_pressed: false,
         }
     }
 
@@ -38,6 +44,24 @@ impl MouseState {
 
     pub fn is_middle_button_down(&self) -> bool {
         self.middle_button_down
+    }
+
+    pub fn has_left_button_been_pressed(&mut self) -> bool {
+        let before = self.left_button_pressed;
+        self.left_button_pressed = false;
+        before
+    }
+
+    pub fn has_right_button_been_pressed(&mut self) -> bool {
+        let before = self.right_button_down;
+        self.right_button_down = false;
+        before
+    }
+
+    pub fn has_middle_button_been_pressed(&mut self) -> bool {
+        let before = self.middle_button_down;
+        self.middle_button_down = false;
+        before
     }
 
     pub fn position_delta(&mut self) -> MousePosition {
@@ -64,11 +88,20 @@ impl MouseState {
 
         match event {
             WindowEvent::MouseInput { state, button, .. } => match (state, button) {
-                (ElementState::Pressed, MouseButton::Left) => self.left_button_down = true,
+                (ElementState::Pressed, MouseButton::Left) => {
+                    self.left_button_down = true;
+                    self.left_button_pressed = true
+                }
                 (ElementState::Released, MouseButton::Left) => self.left_button_down = false,
-                (ElementState::Pressed, MouseButton::Right) => self.right_button_down = true,
+                (ElementState::Pressed, MouseButton::Right) => {
+                    self.right_button_down = true;
+                    self.right_button_pressed = true
+                }
                 (ElementState::Released, MouseButton::Right) => self.right_button_down = false,
-                (ElementState::Pressed, MouseButton::Middle) => self.middle_button_down = true,
+                (ElementState::Pressed, MouseButton::Middle) => {
+                    self.middle_button_down = true;
+                    self.middle_button_pressed = true
+                }
                 (ElementState::Released, MouseButton::Middle) => self.middle_button_down = false,
                 _ => {}
             },

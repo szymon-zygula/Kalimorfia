@@ -1,6 +1,6 @@
 use crate::{math::affine::transforms, mouse::MouseState, window::Window};
 use glutin::dpi::PhysicalPosition;
-use nalgebra::{Matrix4, Point3, Vector3, Vector4};
+use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 
 #[derive(Debug)]
 pub struct Camera {
@@ -8,6 +8,7 @@ pub struct Camera {
     pub altitude: f32,
     pub distance: f32,
     pub center: Point3<f32>,
+    pub aspect_ratio: f32,
 }
 
 impl Camera {
@@ -20,6 +21,7 @@ impl Camera {
             altitude: std::f32::consts::FRAC_PI_4,
             distance: 5.0,
             center: Point3::new(0.0, 0.0, 0.0),
+            aspect_ratio: 1.0,
         }
     }
 
@@ -39,7 +41,7 @@ impl Camera {
     }
 
     fn update_angles(&mut self, mouse: &MouseState, mouse_delta: &PhysicalPosition<f64>) {
-        if mouse.is_left_button_down() {
+        if mouse.is_middle_button_down() {
             self.azimuth += mouse_delta.x as f32 * Self::ROTATION_SPEED;
             self.altitude += mouse_delta.y as f32 * Self::ROTATION_SPEED;
         }
@@ -56,11 +58,50 @@ impl Camera {
         }
     }
 
+    pub fn position(&self) -> Point3<f32> {
+        let homogeneous_position = self.inverse_view_transform() * Point4::new(0.0, 0.0, 0.0, 1.0);
+        Point3::from_homogeneous(homogeneous_position.coords).unwrap()
+    }
+
     pub fn view_transform(&self) -> Matrix4<f32> {
         transforms::translate(Vector3::new(0.0, 0.0, -self.distance))
             * transforms::rotate_x(self.altitude)
             * transforms::rotate_y(self.azimuth)
             * transforms::translate(-self.center.coords)
+    }
+
+    pub fn inverse_view_transform(&self) -> Matrix4<f32> {
+        transforms::translate(self.center.coords)
+            * transforms::rotate_y(-self.azimuth)
+            * transforms::rotate_x(-self.altitude)
+            * transforms::translate(Vector3::new(0.0, 0.0, self.distance))
+    }
+
+    pub fn projection_transform(&self) -> Matrix4<f32> {
+        transforms::projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio, 0.1, 100.0)
+    }
+
+    pub fn project_ray(&self, pixel: Point2<f32>) -> Vector3<f32> {
+        let screen_point = Point4::new(pixel.x, pixel.y, -0.5, 1.0);
+
+        Point3::from_homogeneous(
+            self.inverse_view_transform()
+                * transforms::inverse_projection(
+                    std::f32::consts::FRAC_PI_2,
+                    self.aspect_ratio,
+                    0.1,
+                    100.0,
+                )
+                * Vector4::new(
+                    screen_point.coords.x,
+                    screen_point.coords.y,
+                    screen_point.coords.z,
+                    0.0,
+                ),
+        )
+        .unwrap()
+        .coords
+        .normalize()
     }
 }
 

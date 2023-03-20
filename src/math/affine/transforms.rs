@@ -83,7 +83,7 @@ pub fn uniform_scale<T: RealField + Copy>(sxyz: T) -> Matrix4<T> {
 
 pub fn projection<T: RealField + Copy>(
     fov: T,
-    aspect_ration: T,
+    aspect_ratio: T,
     near_plane: T,
     far_plane: T,
 ) -> Matrix4<T> {
@@ -92,11 +92,33 @@ pub fn projection<T: RealField + Copy>(
     let ctg_fov_over_2 = T::one() / (fov * T::from_f32(0.5).unwrap()).tan();
     let view_distance = far_plane - near_plane;
 
-    projection_matrix[(0, 0)] = ctg_fov_over_2 / aspect_ration;
+    projection_matrix[(0, 0)] = ctg_fov_over_2 / aspect_ratio;
     projection_matrix[(1, 1)] = ctg_fov_over_2;
     projection_matrix[(2, 2)] = -(far_plane + near_plane) / view_distance;
     projection_matrix[(2, 3)] = -T::from_f32(2.0).unwrap() * far_plane * near_plane / view_distance;
     projection_matrix[(3, 2)] = -T::one();
+
+    projection_matrix
+}
+
+pub fn inverse_projection<T: RealField + Copy>(
+    fov: T,
+    aspect_ratio: T,
+    near_plane: T,
+    far_plane: T,
+) -> Matrix4<T> {
+    let mut projection_matrix = Matrix4::zeros();
+
+    let tan_fov_over_2 = (fov * T::from_f32(0.5).unwrap()).tan();
+    let view_distance = far_plane - near_plane;
+
+    projection_matrix[(0, 0)] = tan_fov_over_2 * aspect_ratio;
+    projection_matrix[(1, 1)] = tan_fov_over_2;
+    projection_matrix[(2, 3)] = -T::one();
+    projection_matrix[(3, 2)] =
+        view_distance / (-T::from_f32(2.0).unwrap() * far_plane * near_plane);
+    projection_matrix[(3, 3)] =
+        -(far_plane + near_plane) / view_distance * projection_matrix[(3, 2)];
 
     projection_matrix
 }

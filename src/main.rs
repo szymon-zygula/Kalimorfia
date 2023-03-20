@@ -9,11 +9,11 @@ use kalimorfia::{
         scene_grid::SceneGrid,
         torus::Torus,
     },
-    math::affine::transforms,
     mouse::MouseState,
     primitives::color::ColorAlpha,
     window::Window,
 };
+use nalgebra::Point2;
 use std::time::Instant;
 
 const WINDOW_TITLE: &str = "Kalimorfia";
@@ -137,12 +137,44 @@ fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'
     }
 }
 
+fn select_clicked(
+    pixel: glutin::dpi::PhysicalPosition<f64>,
+    camera: &Camera,
+    entries: &mut [SceneEntityEntry],
+    resolution: &glutin::dpi::PhysicalSize<u32>,
+) {
+    let point = Point2::new(
+        2.0 * (pixel.x as f32 + 0.5) / resolution.width as f32 - 1.0,
+        -(2.0 * (pixel.y as f32 + 0.5) / resolution.height as f32 - 1.0),
+    );
+
+    let mut closest_idx = None;
+    let mut closest_dist = f32::INFINITY;
+
+    for (idx, entry) in entries.iter().enumerate() {
+        let (is_at_point, camera_distance) = entry.entity.is_at_point(
+            point,
+            &camera.projection_transform(),
+            &camera.view_transform(),
+            resolution,
+        );
+
+        if is_at_point && camera_distance < closest_dist {
+            closest_dist = camera_distance;
+            closest_idx = Some(idx);
+        }
+    }
+
+    if let Some(idx) = closest_idx {
+        entries[idx].selected = !entries[idx].selected;
+    }
+}
+
 fn main() {
     let (mut window, mut event_loop, gl) = Window::new(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut last_frame = Instant::now();
-    let mut resolution = glutin::dpi::PhysicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT);
     let mut mouse = MouseState::new();
-    let grid = SceneGrid::new(&gl, 80, 40.0);
+    let grid = SceneGrid::new(&gl, 100, 50.0);
     let mut state = State {
         camera: Camera::new(),
         cursor: Cursor::new(&gl, 1.0),
@@ -170,14 +202,14 @@ fn main() {
 
             state.camera.update_from_mouse(&mut mouse, &window);
 
-            let view_transform = state.camera.view_transform();
+            if mouse.has_left_button_been_pressed() && !window.imgui_using_mouse() {
+                if let Some(position) = mouse.position() {
+                    select_clicked(position, &state.camera, &mut state.entries, &window.size());
+                }
+            }
 
-            let projection_transform = transforms::projection(
-                std::f32::consts::FRAC_PI_2,
-                resolution.width as f32 / resolution.height as f32,
-                0.1,
-                100.0,
-            );
+            let view_transform = state.camera.view_transform();
+            let projection_transform = state.camera.projection_transform();
 
             grid.draw(&projection_transform, &view_transform);
             for entry in &state.entries {
@@ -195,8 +227,8 @@ fn main() {
             if let Event::WindowEvent { ref event, .. } = event {
                 mouse.handle_window_event(event);
 
-                if let WindowEvent::Resized(size) = event {
-                    resolution = *size;
+                if let WindowEvent::Resized(resolution) = event {
+                    state.camera.aspect_ratio = resolution.width as f32 / resolution.height as f32;
                 }
             }
 
