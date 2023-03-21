@@ -18,6 +18,11 @@ impl Orientation {
     pub fn as_matrix(&self) -> Matrix4<f32> {
         transforms::rotate_axis(self.axis, self.angle)
     }
+
+    pub fn reset(&mut self) {
+        self.angle = 0.0;
+        self.axis = Vector3::new(1.0, 0.0, 0.0);
+    }
 }
 
 impl Entity for Orientation {
@@ -120,6 +125,10 @@ impl Scale {
 
     pub fn as_matrix(&self) -> Matrix4<f32> {
         transforms::scale(self.scale.x, self.scale.y, self.scale.z)
+    }
+
+    pub fn reset(&mut self) {
+        self.scale = Vector3::new(1.0, 1.0, 1.0);
     }
 }
 

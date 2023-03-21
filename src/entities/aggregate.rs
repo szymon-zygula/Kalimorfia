@@ -1,7 +1,10 @@
-use crate::entities::{
-    basic::{Orientation, Scale, Translation},
-    cursor::Cursor,
-    entity::{Entity, SceneEntity, SceneObject},
+use crate::{
+    entities::{
+        basic::{Orientation, Scale, Translation},
+        cursor::Cursor,
+        entity::{Entity, SceneEntity, SceneObject},
+    },
+    math::affine::transforms,
 };
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::collections::HashMap;
@@ -28,10 +31,15 @@ impl<'gl> Aggregate<'gl> {
 
     pub fn add_object(&mut self, id: usize, object: Box<dyn SceneEntity + 'gl>) {
         self.entities.insert(id, object);
+        self.reset_transform();
+        self.cursor.set_position(self.location());
     }
 
     pub fn take_object(&mut self, id: usize) -> Box<dyn SceneEntity + 'gl> {
-        self.entities.remove(&id).unwrap()
+        let removed = self.entities.remove(&id).unwrap();
+        self.reset_transform();
+        self.cursor.set_position(self.location());
+        removed
     }
 
     pub fn get_entity(&self, id: usize) -> &dyn SceneEntity {
@@ -50,6 +58,12 @@ impl<'gl> Aggregate<'gl> {
         let (&id, boxed) = self.entities.iter().next().unwrap();
         (id, boxed.as_ref())
     }
+
+    fn reset_transform(&mut self) {
+        self.translation.translation = Vector3::zeros();
+        self.rotation.reset();
+        self.scale.reset();
+    }
 }
 
 impl<'gl> SceneObject for Aggregate<'gl> {
@@ -59,7 +73,9 @@ impl<'gl> SceneObject for Aggregate<'gl> {
             1 => {
                 self.cursor.draw(
                     projection_transform,
-                    &(view_transform * self.entities.values().next().unwrap().model_transform()),
+                    &(view_transform
+                        * self.entities.values().next().unwrap().model_transform()
+                        * transforms::translate(-self.cursor.location().coords)),
                 );
             }
             _ => {
@@ -71,7 +87,10 @@ impl<'gl> SceneObject for Aggregate<'gl> {
         }
 
         for entity in self.entities.values() {
-            entity.draw(projection_transform, view_transform);
+            entity.draw(
+                projection_transform,
+                &(view_transform * self.model_transform()),
+            );
         }
     }
 
@@ -83,6 +102,14 @@ impl<'gl> SceneObject for Aggregate<'gl> {
         (Iterator::sum::<Vector3<f32>>(self.entities.values().map(|x| x.location().coords))
             / self.entities.len() as f32)
             .into()
+    }
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        transforms::translate(self.location().coords)
+            * self.translation.as_matrix()
+            * self.rotation.as_matrix()
+            * self.scale.as_matrix()
+            * transforms::translate(-self.location().coords)
     }
 }
 
@@ -98,5 +125,7 @@ impl<'gl> Entity for Aggregate<'gl> {
                 self.scale.control_ui(ui);
             }
         }
+
+        self.cursor.set_position(self.location());
     }
 }
