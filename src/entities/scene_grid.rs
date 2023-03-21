@@ -79,4 +79,8 @@ impl<'gl> SceneObject for SceneGrid<'gl> {
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
         self.mesh.draw();
     }
+
+    fn location(&self) -> Point3<f32> {
+        Point3::new(0.0, 0.0, 0.0)
+    }
 }

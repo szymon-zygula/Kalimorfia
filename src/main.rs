@@ -3,6 +3,7 @@ use glutin::platform::run_return::EventLoopExtRunReturn;
 use kalimorfia::{
     camera::Camera,
     entities::{
+        aggregate::Aggregate,
         cursor::Cursor,
         entity::{Entity, SceneEntity, SceneObject},
         point::Point,
@@ -11,9 +12,11 @@ use kalimorfia::{
     },
     mouse::MouseState,
     primitives::color::ColorAlpha,
+    scene::SceneEntityEntry,
     window::Window,
 };
 use nalgebra::Point2;
+use std::collections::BTreeMap;
 use std::time::Instant;
 
 const WINDOW_TITLE: &str = "Kalimorfia";
@@ -26,32 +29,54 @@ const CLEAR_COLOR: ColorAlpha = ColorAlpha {
     a: 1.0,
 };
 
-fn next_name(scene_entity_count: usize) -> String {
-    format!("Entity {}", scene_entity_count)
-}
-
-struct SceneEntityEntry<'gl> {
-    pub entity: Box<dyn SceneEntity + 'gl>,
-    pub selected: bool,
-    pub name: String,
-    pub new_name: String,
-}
-
 struct State<'gl> {
     pub cursor: Cursor<'gl>,
-    pub entries: Vec<SceneEntityEntry<'gl>>,
+    pub entries: BTreeMap<usize, SceneEntityEntry<'gl>>,
+    pub selected_aggregate: Aggregate<'gl>,
     pub camera: Camera,
+    next_id: usize,
 }
 
 impl<'gl> State<'gl> {
     pub fn add_entity(&mut self, entity: Box<dyn SceneEntity + 'gl>) {
-        let name = next_name(self.entries.len());
-        self.entries.push(SceneEntityEntry {
-            name: name.clone(),
-            new_name: name,
-            entity,
-            selected: false,
-        });
+        let (name, id) = self.get_next_entity_name_and_id();
+        self.entries.insert(
+            id,
+            SceneEntityEntry {
+                name: name.clone(),
+                new_name: name,
+                entity: Some(entity),
+                id,
+            },
+        );
+    }
+
+    pub fn toggle_entry(&mut self, id: usize) {
+        let entry = self.entries.get_mut(&id).unwrap();
+        match entry.entity.take() {
+            Some(taken_object) => self.selected_aggregate.add_object(id, taken_object),
+            None => entry.entity = Some(self.selected_aggregate.take_object(id)),
+        }
+    }
+
+    pub fn remove_entry(&mut self, id: usize) {
+        if self.entries.remove(&id).unwrap().entity.is_none() {
+            self.selected_aggregate.take_object(id);
+        }
+    }
+
+    pub fn entity(&self, id: usize) -> &dyn SceneEntity {
+        match self.entries[&id].entity {
+            Some(ref entity) => entity.as_ref(),
+            None => self.selected_aggregate.get_entity(id),
+        }
+    }
+
+    fn get_next_entity_name_and_id(&mut self) -> (String, usize) {
+        let name = format!("Entity {}", self.next_id);
+        let id = self.next_id;
+        self.next_id += 1;
+        (name, id)
     }
 }
 
@@ -81,66 +106,65 @@ fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'
             ui.separator();
             ui.text("Object list");
 
-            for entry in &mut state.entries {
+            for i in Iterator::collect::<Vec<usize>>(state.entries.keys().copied()) {
+                let _id = ui.push_id(format!("entry_{}", state.entries[&i].name));
+
+                ui.columns(2, "columns", false);
                 let clicked = ui
-                    .selectable_config(&entry.name)
-                    .selected(entry.selected)
+                    .selectable_config(&state.entries[&i].name)
+                    .selected(state.entries[&i].entity.is_none())
                     .build();
 
                 if clicked {
-                    entry.selected = !entry.selected;
+                    state.toggle_entry(i);
                 }
+
+                ui.next_column();
+                if ui.button_with_size("X", [18.0, 18.0]) {
+                    state.remove_entry(i);
+                }
+                ui.next_column();
             }
         });
 
-    let mut selected = state.entries.iter().enumerate().filter(|(_, x)| x.selected);
-    let unique_idx = if let Some((idx, _)) = selected.next().xor(selected.next()) {
-        Some(idx)
-    } else {
-        None
-    };
+    ui.window("Selection")
+        .size([500.0, 500.0], imgui::Condition::FirstUseEver)
+        .position([0.0, 300.0], imgui::Condition::FirstUseEver)
+        .build(|| {
+            if state.selected_aggregate.len() == 1 {
+                let (id, _) = state.selected_aggregate.only_one();
+                ui.input_text("Name", &mut state.entries.get_mut(&id).unwrap().new_name)
+                    .build();
 
-    if let Some(idx) = unique_idx {
-        ui.window("Selected object")
-            .size([500.0, 500.0], imgui::Condition::FirstUseEver)
-            .position([0.0, 300.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                if ui.button("Remove entity") {
-                    state.entries.remove(idx);
-                } else {
-                    ui.input_text("Name", &mut state.entries[idx].new_name)
-                        .build();
-
-                    if ui.button("Rename") {
-                        let name_taken = state
-                            .entries
-                            .iter()
-                            .filter(|x| x.name == state.entries[idx].new_name)
-                            .count()
-                            != 0;
-                        if name_taken && state.entries[idx].new_name != state.entries[idx].name {
-                            println!("taken");
-                            ui.open_popup("name_taken_popup");
-                        } else {
-                            state.entries[idx].name = state.entries[idx].new_name.clone();
-                        }
+                if ui.button("Rename") {
+                    let name_taken = state
+                        .entries
+                        .values()
+                        .filter(|x| x.name == state.entries[&id].new_name)
+                        .count()
+                        != 0;
+                    if name_taken && state.entries[&id].new_name != state.entries[&id].name {
+                        println!("taken");
+                        ui.open_popup("name_taken_popup");
+                    } else {
+                        state.entries.get_mut(&id).unwrap().name =
+                            state.entries[&id].new_name.clone();
                     }
-
-                    ui.separator();
-                    state.entries[idx].entity.control_ui(ui);
-
-                    ui.popup("name_taken_popup", || {
-                        ui.text("Name already taken");
-                    });
                 }
-            });
-    }
+
+                ui.popup("name_taken_popup", || {
+                    ui.text("Name already taken");
+                });
+            }
+
+            ui.separator();
+            state.selected_aggregate.control_ui(ui);
+        });
 }
 
 fn select_clicked(
     pixel: glutin::dpi::PhysicalPosition<f64>,
-    camera: &Camera,
-    entries: &mut [SceneEntityEntry],
+    state: &mut State,
     resolution: &glutin::dpi::PhysicalSize<u32>,
 ) {
     let point = Point2::new(
@@ -151,22 +175,22 @@ fn select_clicked(
     let mut closest_idx = None;
     let mut closest_dist = f32::INFINITY;
 
-    for (idx, entry) in entries.iter().enumerate() {
-        let (is_at_point, camera_distance) = entry.entity.is_at_point(
+    for &id in state.entries.keys() {
+        let (is_at_point, camera_distance) = state.entity(id).is_at_point(
             point,
-            &camera.projection_transform(),
-            &camera.view_transform(),
+            &state.camera.projection_transform(),
+            &state.camera.view_transform(),
             resolution,
         );
 
         if is_at_point && camera_distance < closest_dist {
             closest_dist = camera_distance;
-            closest_idx = Some(idx);
+            closest_idx = Some(id);
         }
     }
 
     if let Some(idx) = closest_idx {
-        entries[idx].selected = !entries[idx].selected;
+        state.toggle_entry(idx);
     }
 }
 
@@ -178,7 +202,9 @@ fn main() {
     let mut state = State {
         camera: Camera::new(),
         cursor: Cursor::new(&gl, 1.0),
-        entries: Vec::new(),
+        entries: BTreeMap::new(),
+        selected_aggregate: Aggregate::new(&gl),
+        next_id: 0,
     };
 
     unsafe {
@@ -204,7 +230,7 @@ fn main() {
 
             if mouse.has_left_button_been_pressed() && !window.imgui_using_mouse() {
                 if let Some(position) = mouse.position() {
-                    select_clicked(position, &state.camera, &mut state.entries, &window.size());
+                    select_clicked(position, &mut state, &window.size());
                 }
             }
 
@@ -212,10 +238,15 @@ fn main() {
             let projection_transform = state.camera.projection_transform();
 
             grid.draw(&projection_transform, &view_transform);
-            for entry in &state.entries {
-                entry.entity.draw(&projection_transform, &view_transform);
+            for entry in state.entries.values() {
+                if let Some(ref entity) = entry.entity {
+                    entity.draw(&projection_transform, &view_transform);
+                }
             }
 
+            state
+                .selected_aggregate
+                .draw(&projection_transform, &view_transform);
             state.cursor.draw(&projection_transform, &view_transform);
             window.render(&gl, |ui| build_ui(&gl, ui, &mut state));
         }

@@ -20,7 +20,7 @@ pub struct Point<'gl> {
 }
 
 impl<'gl> Point<'gl> {
-    const DEFAULT_SIZE: f32 = 6.0;
+    const DEFAULT_SIZE: f32 = 9.0;
 
     pub fn with_position(gl: &'gl glow::Context, position: Point3<f32>) -> Point {
         let gl_program = GlProgram::with_shader_paths(
@@ -103,5 +103,13 @@ impl<'gl> SceneObject for Point<'gl> {
         let camera_distance = (self.position.translation - view_transform.column(3).xyz()).norm();
 
         (is_at_point, camera_distance)
+    }
+
+    fn location(&self) -> Point3<f32> {
+        self.position.translation.into()
+    }
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        self.position.as_matrix()
     }
 }

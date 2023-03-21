@@ -59,6 +59,10 @@ impl<'gl> Cursor<'gl> {
     pub fn position(&self) -> Point3<f32> {
         self.position.translation.into()
     }
+
+    pub fn set_position(&mut self, position: Point3<f32>) {
+        self.position.translation = position.coords;
+    }
 }
 
 impl<'gl> Entity for Cursor<'gl> {
@@ -69,7 +73,7 @@ impl<'gl> Entity for Cursor<'gl> {
 
 impl<'gl> SceneObject for Cursor<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
-        let model_transform = transforms::uniform_scale(self.scale) * self.position.as_matrix();
+        let model_transform = self.position.as_matrix() * transforms::uniform_scale(self.scale);
 
         self.gl_program.enable();
         self.gl_program
@@ -79,5 +83,9 @@ impl<'gl> SceneObject for Cursor<'gl> {
         self.gl_program
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
         self.mesh.draw();
+    }
+
+    fn location(&self) -> Point3<f32> {
+        self.position.translation.into()
     }
 }

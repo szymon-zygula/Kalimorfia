@@ -20,6 +20,12 @@ pub trait SceneObject {
     ) -> (bool, f32) {
         (false, 0.0)
     }
+
+    fn location(&self) -> Point3<f32>;
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        Matrix4::identity()
+    }
 }
 
 pub trait SceneEntity: Entity + SceneObject {}

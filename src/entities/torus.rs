@@ -16,7 +16,7 @@ pub struct Torus<'gl> {
     round_points: u32,
     orientation: Orientation,
     scale: Scale,
-    translation: Translation,
+    position: Translation,
     gl_program: GlProgram<'gl>,
 }
 
@@ -51,14 +51,14 @@ impl<'gl> Torus<'gl> {
             round_points,
             gl_program,
             orientation: Orientation::new(),
-            translation: Translation::new(),
+            position: Translation::new(),
             scale: Scale::new(),
         }
     }
 
     pub fn with_position(gl: &'gl glow::Context, position: Point3<f32>) -> Torus<'gl> {
         let mut torus = Torus::new(gl);
-        torus.translation.translation = position.coords;
+        torus.position.translation = position.coords;
         torus
     }
 }
@@ -81,7 +81,7 @@ impl<'gl> Entity for Torus<'gl> {
         torus_changed |= safe_slider!(ui, "m", 3, 50, &mut self.tube_points);
 
         self.orientation.control_ui(ui);
-        self.translation.control_ui(ui);
+        self.position.control_ui(ui);
         self.scale.control_ui(ui);
         ui.separator();
 
@@ -94,8 +94,7 @@ impl<'gl> Entity for Torus<'gl> {
 
 impl<'gl> SceneObject for Torus<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
-        let model_transform =
-            self.translation.as_matrix() * self.orientation.as_matrix() * self.scale.as_matrix();
+        let model_transform = self.model_transform();
 
         self.gl_program.enable();
         self.gl_program
@@ -105,5 +104,13 @@ impl<'gl> SceneObject for Torus<'gl> {
         self.gl_program
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
         self.mesh.draw();
+    }
+
+    fn location(&self) -> Point3<f32> {
+        self.position.translation.into()
+    }
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        self.position.as_matrix() * self.orientation.as_matrix() * self.scale.as_matrix()
     }
 }
