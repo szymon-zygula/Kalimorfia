@@ -77,6 +77,15 @@ pub fn scale<T: RealField + Copy>(sx: T, sy: T, sz: T) -> Matrix4<T> {
     scaling
 }
 
+pub fn shear_xy_xz_yz<T: RealField + Copy>(xy: T, xz: T, yz: T) -> Matrix4<T> {
+    let mut shear = Matrix4::identity();
+    shear[(0, 1)] = xy;
+    shear[(0, 2)] = xz;
+    shear[(1, 2)] = yz;
+
+    shear
+}
+
 pub fn uniform_scale<T: RealField + Copy>(sxyz: T) -> Matrix4<T> {
     scale(sxyz, sxyz, sxyz)
 }
