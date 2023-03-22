@@ -1,3 +1,4 @@
+use super::basic::LinearTransformEntity;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 
 pub trait Entity {
@@ -25,6 +26,10 @@ pub trait SceneObject {
 
     fn model_transform(&self) -> Matrix4<f32> {
         Matrix4::identity()
+    }
+
+    fn set_model_transform(&mut self, _linear_transform: LinearTransformEntity) {
+        panic!("Entity not is not transformable with LinearTransformEntity");
     }
 }
 

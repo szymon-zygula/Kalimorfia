@@ -3,8 +3,8 @@ use crate::math::affine::transforms;
 use nalgebra::{Matrix4, Vector3};
 
 pub struct Orientation {
-    angle: f32,
-    axis: Vector3<f32>,
+    pub angle: f32,
+    pub axis: Vector3<f32>,
 }
 
 impl Orientation {
@@ -82,6 +82,10 @@ impl Translation {
     pub fn as_matrix(&self) -> Matrix4<f32> {
         transforms::translate(self.translation)
     }
+
+    pub fn reset(&mut self) {
+        self.translation = Vector3::zeros();
+    }
 }
 
 impl Entity for Translation {
@@ -113,7 +117,7 @@ impl Default for Translation {
 }
 
 pub struct Scale {
-    scale: Vector3<f32>,
+    pub scale: Vector3<f32>,
 }
 
 impl Scale {
@@ -155,6 +159,108 @@ impl Entity for Scale {
 }
 
 impl Default for Scale {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct Shear {
+    pub xy: f32,
+    pub xz: f32,
+    pub yz: f32,
+}
+
+impl Shear {
+    pub fn new() -> Shear {
+        Shear {
+            xy: 0.0,
+            xz: 0.0,
+            yz: 0.0,
+        }
+    }
+
+    pub fn as_matrix(&self) -> Matrix4<f32> {
+        transforms::shear_xy_xz_yz(self.xy, self.xz, self.yz)
+    }
+
+    pub fn reset(&mut self) {
+        self.xy = 0.0;
+        self.xz = 0.0;
+        self.yz = 0.0;
+    }
+}
+
+impl Entity for Shear {
+    fn control_ui(&mut self, ui: &imgui::Ui) {
+        let token = ui.push_id("scale");
+        ui.columns(4, "columns", false);
+
+        ui.text("Shear");
+        ui.next_column();
+
+        ui.slider("xy", -10.0, 10.0, &mut self.xy);
+        ui.next_column();
+
+        ui.slider("xz", -10.0, 10.0, &mut self.xz);
+        ui.next_column();
+
+        ui.slider("yz", -10.0, 10.0, &mut self.yz);
+        ui.next_column();
+
+        ui.columns(1, "columns", false);
+        token.end();
+    }
+}
+
+impl Default for Shear {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct LinearTransformEntity {
+    pub translation: Translation,
+    pub orientation: Orientation,
+    pub scale: Scale,
+    pub shear: Shear,
+}
+
+impl LinearTransformEntity {
+    pub fn new() -> Self {
+        Self {
+            translation: Translation::new(),
+            orientation: Orientation::new(),
+            scale: Scale::new(),
+            shear: Shear::new(),
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.translation.reset();
+        self.orientation.reset();
+        self.scale.reset();
+        self.shear.reset();
+    }
+
+    pub fn as_matrix(&self) -> Matrix4<f32> {
+        self.translation.as_matrix()
+            * self.orientation.as_matrix()
+            * self.shear.as_matrix()
+            * self.scale.as_matrix()
+    }
+}
+
+impl Entity for LinearTransformEntity {
+    fn control_ui(&mut self, ui: &imgui::Ui) {
+        ui.text("Transformations");
+        self.translation.control_ui(ui);
+        self.orientation.control_ui(ui);
+        self.scale.control_ui(ui);
+        self.shear.control_ui(ui);
+    }
+}
+
+impl Default for LinearTransformEntity {
     fn default() -> Self {
         Self::new()
     }

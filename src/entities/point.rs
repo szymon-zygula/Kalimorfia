@@ -1,5 +1,5 @@
 use super::{
-    basic::Translation,
+    basic::{LinearTransformEntity, Translation},
     entity::{Entity, SceneObject},
 };
 use crate::{
@@ -111,5 +111,9 @@ impl<'gl> SceneObject for Point<'gl> {
 
     fn model_transform(&self) -> Matrix4<f32> {
         self.position.as_matrix()
+    }
+
+    fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {
+        self.position = linear_transform.translation;
     }
 }

@@ -1,5 +1,5 @@
 use super::{
-    basic::{Orientation, Scale, Translation},
+    basic::LinearTransformEntity,
     entity::{Entity, SceneObject},
 };
 use crate::{
@@ -14,9 +14,7 @@ pub struct Torus<'gl> {
     mesh: LineMesh<'gl>,
     tube_points: u32,
     round_points: u32,
-    orientation: Orientation,
-    scale: Scale,
-    position: Translation,
+    linear_transform: LinearTransformEntity,
     gl_program: GlProgram<'gl>,
 }
 
@@ -50,15 +48,13 @@ impl<'gl> Torus<'gl> {
             tube_points,
             round_points,
             gl_program,
-            orientation: Orientation::new(),
-            position: Translation::new(),
-            scale: Scale::new(),
+            linear_transform: LinearTransformEntity::new(),
         }
     }
 
     pub fn with_position(gl: &'gl glow::Context, position: Point3<f32>) -> Torus<'gl> {
         let mut torus = Torus::new(gl);
-        torus.position.translation = position.coords;
+        torus.linear_transform.translation.translation = position.coords;
         torus
     }
 }
@@ -80,9 +76,7 @@ impl<'gl> Entity for Torus<'gl> {
         torus_changed |= safe_slider!(ui, "M", 3, 50, &mut self.round_points);
         torus_changed |= safe_slider!(ui, "m", 3, 50, &mut self.tube_points);
 
-        self.orientation.control_ui(ui);
-        self.position.control_ui(ui);
-        self.scale.control_ui(ui);
+        self.linear_transform.control_ui(ui);
         ui.separator();
 
         if torus_changed {
@@ -107,10 +101,14 @@ impl<'gl> SceneObject for Torus<'gl> {
     }
 
     fn location(&self) -> Point3<f32> {
-        self.position.translation.into()
+        self.linear_transform.translation.translation.into()
     }
 
     fn model_transform(&self) -> Matrix4<f32> {
-        self.position.as_matrix() * self.orientation.as_matrix() * self.scale.as_matrix()
+        self.linear_transform.as_matrix()
+    }
+
+    fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {
+        self.linear_transform = linear_transform;
     }
 }

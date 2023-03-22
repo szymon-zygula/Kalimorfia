@@ -1,19 +1,20 @@
 use crate::{
     entities::{
-        basic::{Orientation, Scale, Translation},
+        basic::LinearTransformEntity,
         cursor::Cursor,
         entity::{Entity, SceneEntity, SceneObject},
     },
-    math::affine::transforms,
+    math::{
+        affine::transforms,
+        decompositions::{axis_angle::AxisAngleDecomposition, trss::TRSSDecomposition},
+    },
 };
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::collections::HashMap;
 
 pub struct Aggregate<'gl> {
     cursor: Cursor<'gl>,
-    rotation: Orientation,
-    translation: Translation,
-    scale: Scale,
+    linear_transform: LinearTransformEntity,
     entities: HashMap<usize, Box<dyn SceneEntity + 'gl>>,
 }
 
@@ -22,9 +23,7 @@ impl<'gl> Aggregate<'gl> {
     pub fn new(gl: &'gl glow::Context) -> Aggregate<'gl> {
         Aggregate {
             cursor: Cursor::new(gl, Self::CURSOR_SCALE),
-            rotation: Orientation::new(),
-            translation: Translation::new(),
-            scale: Scale::new(),
+            linear_transform: LinearTransformEntity::new(),
             entities: HashMap::new(),
         }
     }
@@ -60,9 +59,31 @@ impl<'gl> Aggregate<'gl> {
     }
 
     fn reset_transform(&mut self) {
-        self.translation.translation = Vector3::zeros();
-        self.rotation.reset();
-        self.scale.reset();
+        self.linear_transform.reset()
+    }
+
+    fn basic_transform(&self, id: usize) -> LinearTransformEntity {
+        let composed_transform = transforms::translate(self.cursor.position().coords)
+            * self.linear_transform.as_matrix()
+            * transforms::translate(-self.cursor.position().coords)
+            * self.entities[&id].model_transform();
+
+        let decomposed_transform = TRSSDecomposition::decompose(composed_transform);
+        let axis_angle = AxisAngleDecomposition::decompose(&decomposed_transform.rotation);
+        let mut linear_transform = LinearTransformEntity::new();
+
+        linear_transform.translation.translation = decomposed_transform.translation;
+
+        linear_transform.orientation.angle = axis_angle.angle;
+        linear_transform.orientation.axis = axis_angle.axis;
+
+        linear_transform.shear.xy = decomposed_transform.shear.x;
+        linear_transform.shear.xz = decomposed_transform.shear.y;
+        linear_transform.shear.yz = decomposed_transform.shear.z;
+
+        linear_transform.scale.scale = decomposed_transform.scale;
+
+        linear_transform
     }
 }
 
@@ -106,9 +127,7 @@ impl<'gl> SceneObject for Aggregate<'gl> {
 
     fn model_transform(&self) -> Matrix4<f32> {
         transforms::translate(self.location().coords)
-            * self.translation.as_matrix()
-            * self.rotation.as_matrix()
-            * self.scale.as_matrix()
+            * self.linear_transform.as_matrix()
             * transforms::translate(-self.location().coords)
     }
 }
@@ -120,9 +139,16 @@ impl<'gl> Entity for Aggregate<'gl> {
             1 => self.entities.values_mut().next().unwrap().control_ui(ui),
             n => {
                 ui.text(format!("Control of {} entities", n));
-                self.rotation.control_ui(ui);
-                self.translation.control_ui(ui);
-                self.scale.control_ui(ui);
+                self.linear_transform.control_ui(ui);
+
+                if ui.button("Apply") {
+                    for id in Iterator::collect::<Vec<usize>>(self.entities.keys().copied()) {
+                        let tra = self.basic_transform(id);
+                        self.entities.get_mut(&id).unwrap().set_model_transform(tra);
+                    }
+
+                    self.reset_transform();
+                }
             }
         }
 
