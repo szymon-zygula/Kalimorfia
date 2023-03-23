@@ -25,10 +25,10 @@ impl Camera {
         }
     }
 
-    pub fn update_from_mouse(&mut self, mouse: &mut MouseState, window: &Window) {
+    pub fn update_from_mouse(&mut self, mouse: &mut MouseState, window: &Window) -> bool {
         let mouse_delta = mouse.position_delta();
 
-        if !window.imgui_using_mouse() {
+        if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0) && !window.imgui_using_mouse() {
             self.update_angles(mouse, &mouse_delta);
             self.update_center(mouse, &mouse_delta);
 
@@ -37,6 +37,10 @@ impl Camera {
             if self.distance < 0.0 {
                 self.distance = 0.0;
             }
+
+            true
+        } else {
+            false
         }
     }
 
@@ -79,6 +83,10 @@ impl Camera {
 
     pub fn projection_transform(&self) -> Matrix4<f32> {
         transforms::projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio, 0.1, 100.0)
+    }
+
+    pub fn inverse_projection_transform(&self) -> Matrix4<f32> {
+        transforms::inverse_projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio, 0.1, 100.0)
     }
 
     pub fn project_ray(&self, pixel: Point2<f32>) -> Vector3<f32> {

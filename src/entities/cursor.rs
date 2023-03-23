@@ -109,19 +109,32 @@ impl<'gl> ScreenCursor<'gl> {
         }
     }
 
-    fn update_coords_from_world(&mut self) {
-        let screen_coords = Point3::from_homogeneous(
+    fn screen_coords_from_world(&self) -> Point3<f32> {
+        Point3::from_homogeneous(
             self.camera.projection_transform()
                 * self.camera.view_transform()
                 * Point3::from(self.cursor.position.translation).to_homogeneous(),
         )
-        .unwrap();
-
-        self.screen_coordinates
-            .set_ndc_coords(screen_coords.xy());
+        .unwrap()
     }
 
-    fn update_world_from_coords(&mut self) {}
+    fn update_coords_from_world(&mut self) {
+        let screen_coords = self.screen_coords_from_world();
+
+        self.screen_coordinates.set_ndc_coords(screen_coords.xy());
+    }
+
+    fn update_world_from_coords(&mut self) {
+        let screen_projection = self.screen_coords_from_world();
+        let screen_ndc = self.screen_coordinates.get_ndc_coords();
+        self.cursor.position.translation = Point3::from_homogeneous(
+            self.camera.inverse_view_transform()
+                * self.camera.inverse_projection_transform()
+                * Point3::new(screen_ndc.x, screen_ndc.y, screen_projection.z).to_homogeneous(),
+        )
+        .unwrap()
+        .coords;
+    }
 
     pub fn set_camera(&mut self, camera: &Camera) {
         self.camera = camera.clone();

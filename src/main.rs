@@ -225,8 +225,9 @@ fn main() {
                 gl.clear(glow::COLOR_BUFFER_BIT);
             }
 
-            state.camera.update_from_mouse(&mut mouse, &window);
-            state.cursor.set_camera(&state.camera);
+            if state.camera.update_from_mouse(&mut mouse, &window) {
+                state.cursor.set_camera(&state.camera);
+            }
 
             if mouse.has_left_button_been_pressed() && !window.imgui_using_mouse() {
                 if let Some(position) = mouse.position() {

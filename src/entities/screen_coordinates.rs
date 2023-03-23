@@ -29,6 +29,13 @@ impl ScreenCoordinates {
         );
     }
 
+    pub fn get_ndc_coords(&self) -> Point2<f32> {
+        2.0 * Point2::new(
+            self.coordinates.x as f32 / self.resolution.width as f32 - 0.5,
+            0.5 - self.coordinates.y as f32 / self.resolution.height as f32,
+        )
+    }
+
     pub fn set_coords(&mut self, coordinates: glutin::dpi::PhysicalPosition<u32>) {
         self.coordinates = coordinates;
 
