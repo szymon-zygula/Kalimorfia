@@ -21,9 +21,11 @@ impl<T: RealField + Copy> TRSSDecomposition<T> {
         let mut scale = Vector3::zeros();
 
         scale.x = major.column(0).norm();
-        major[(0, 0)] /= scale.x;
-        major[(1, 0)] /= scale.x;
-        major[(2, 0)] /= scale.x;
+        if scale.x != T::zero() {
+            major[(0, 0)] /= scale.x;
+            major[(1, 0)] /= scale.x;
+            major[(2, 0)] /= scale.x;
+        }
 
         let mut sxy = major.column(0).dot(&major.column(1));
         major[(0, 1)] = major[(0, 1)] - major[(0, 0)] * sxy;
@@ -31,10 +33,12 @@ impl<T: RealField + Copy> TRSSDecomposition<T> {
         major[(2, 1)] = major[(2, 1)] - major[(2, 0)] * sxy;
 
         scale.y = major.column(1).norm();
-        major[(0, 1)] /= scale.y;
-        major[(1, 1)] /= scale.y;
-        major[(2, 1)] /= scale.y;
-        sxy /= scale.y;
+        if scale.y != T::zero() {
+            major[(0, 1)] /= scale.y;
+            major[(1, 1)] /= scale.y;
+            major[(2, 1)] /= scale.y;
+            sxy /= scale.y;
+        }
 
         let mut sxz = major.column(0).dot(&major.column(2));
         major[(0, 2)] = major[(0, 2)] - major[(0, 0)] * sxz;
@@ -47,11 +51,13 @@ impl<T: RealField + Copy> TRSSDecomposition<T> {
         major[(2, 2)] = major[(2, 2)] - major[(2, 1)] * syz;
 
         scale.z = major.column(2).norm();
-        major[(0, 2)] /= scale.z;
-        major[(1, 2)] /= scale.z;
-        major[(2, 2)] /= scale.z;
-        sxz /= scale.z;
-        syz /= scale.z;
+        if scale.z != T::zero() {
+            major[(0, 2)] /= scale.z;
+            major[(1, 2)] /= scale.z;
+            major[(2, 2)] /= scale.z;
+            sxz /= scale.z;
+            syz /= scale.z;
+        }
 
         if major.determinant() < T::zero() {
             major *= -T::one();
