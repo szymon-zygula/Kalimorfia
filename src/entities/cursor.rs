@@ -1,8 +1,10 @@
 use super::{
     basic::Translation,
     entity::{Entity, SceneObject},
+    screen_coordinates::ScreenCoordinates,
 };
 use crate::{
+    camera::Camera,
     math::affine::transforms,
     primitives::vertex::ColoredVertex,
     render::{drawable::Drawable, gl_program::GlProgram, mesh::ColoredLineMesh},
@@ -56,18 +58,16 @@ impl<'gl> Cursor<'gl> {
         }
     }
 
-    pub fn position(&self) -> Point3<f32> {
-        self.position.translation.into()
-    }
-
     pub fn set_position(&mut self, position: Point3<f32>) {
         self.position.translation = position.coords;
     }
 }
 
 impl<'gl> Entity for Cursor<'gl> {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
-        self.position.control_ui(ui);
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id("cursor");
+        ui.text("Cursor control");
+        self.position.control_ui(ui)
     }
 }
 
@@ -87,5 +87,85 @@ impl<'gl> SceneObject for Cursor<'gl> {
 
     fn location(&self) -> Point3<f32> {
         self.position.translation.into()
+    }
+}
+
+pub struct ScreenCursor<'gl> {
+    cursor: Cursor<'gl>,
+    screen_coordinates: ScreenCoordinates,
+    camera: Camera,
+}
+
+impl<'gl> ScreenCursor<'gl> {
+    pub fn new(
+        gl: &'gl glow::Context,
+        camera: Camera,
+        resolution: glutin::dpi::PhysicalSize<u32>,
+    ) -> ScreenCursor<'gl> {
+        ScreenCursor {
+            cursor: Cursor::new(gl, 1.0),
+            screen_coordinates: ScreenCoordinates::new(resolution),
+            camera,
+        }
+    }
+
+    fn update_coords_from_world(&mut self) {
+        let screen_coords = Point3::from_homogeneous(
+            self.camera.projection_transform()
+                * self.camera.view_transform()
+                * Point3::from(self.cursor.position.translation).to_homogeneous(),
+        )
+        .unwrap();
+
+        self.screen_coordinates
+            .set_ndc_coords(screen_coords.xy());
+    }
+
+    fn update_world_from_coords(&mut self) {}
+
+    pub fn set_camera(&mut self, camera: &Camera) {
+        self.camera = camera.clone();
+        self.update_coords_from_world();
+    }
+
+    pub fn set_camera_and_resolution(
+        &mut self,
+        camera: &Camera,
+        resolution: &glutin::dpi::PhysicalSize<u32>,
+    ) {
+        self.camera = camera.clone();
+        self.screen_coordinates.set_resolution(*resolution);
+        self.update_coords_from_world();
+    }
+}
+
+impl<'gl> Entity for ScreenCursor<'gl> {
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id("screen_cursor");
+        let mut changed = if self.cursor.control_ui(ui) {
+            self.update_coords_from_world();
+            true
+        } else {
+            false
+        };
+
+        changed |= if self.screen_coordinates.control_ui(ui) {
+            self.update_world_from_coords();
+            true
+        } else {
+            false
+        };
+
+        changed
+    }
+}
+
+impl<'gl> SceneObject for ScreenCursor<'gl> {
+    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+        self.cursor.draw(projection_transform, view_transform)
+    }
+
+    fn location(&self) -> Point3<f32> {
+        self.cursor.location()
     }
 }

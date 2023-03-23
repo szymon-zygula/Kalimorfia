@@ -49,9 +49,9 @@ impl<'gl> Point<'gl> {
 }
 
 impl<'gl> Entity for Point<'gl> {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         ui.text("Point control");
-        self.position.control_ui(ui);
+        self.position.control_ui(ui)
     }
 }
 

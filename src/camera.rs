@@ -2,7 +2,7 @@ use crate::{math::affine::transforms, mouse::MouseState, window::Window};
 use glutin::dpi::PhysicalPosition;
 use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Camera {
     pub azimuth: f32,
     pub altitude: f32,

@@ -68,7 +68,7 @@ macro_rules! safe_slider {
 }
 
 impl<'gl> Entity for Torus<'gl> {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         ui.text("Torus control");
         let mut torus_changed = false;
         torus_changed |= safe_slider!(ui, "R", 0.1, 10.0, &mut self.torus.inner_radius);
@@ -83,6 +83,8 @@ impl<'gl> Entity for Torus<'gl> {
             let (vertices, indices) = self.torus.grid(self.round_points, self.tube_points);
             self.mesh.update_vertices(vertices, indices);
         }
+
+        torus_changed
     }
 }
 

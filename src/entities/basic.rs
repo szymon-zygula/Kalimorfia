@@ -26,13 +26,14 @@ impl Orientation {
 }
 
 impl Entity for Orientation {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
-        let token = ui.push_id("orientation");
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id("orientation");
+        let mut changed = false;
 
         ui.columns(2, "ancolumns", false);
         ui.text("Rotation angle");
         ui.next_column();
-        imgui::AngleSlider::new("##angle")
+        changed |= imgui::AngleSlider::new("##angle")
             .range_degrees(0.0, 360.0)
             .display_format("%.2f°")
             .build(ui, &mut self.angle);
@@ -43,18 +44,18 @@ impl Entity for Orientation {
         ui.text("Rotation axis");
         ui.next_column();
 
-        ui.slider("x", -1.0, 1.0, &mut self.axis.x);
+        changed |= ui.slider("x", -1.0, 1.0, &mut self.axis.x);
         ui.next_column();
 
-        ui.slider("y", -1.0, 1.0, &mut self.axis.y);
+        changed |= ui.slider("y", -1.0, 1.0, &mut self.axis.y);
         ui.next_column();
 
-        ui.slider("z", -1.0, 1.0, &mut self.axis.z);
+        changed |= ui.slider("z", -1.0, 1.0, &mut self.axis.z);
         ui.next_column();
 
         ui.columns(1, "axcolumns", false);
 
-        token.end();
+        changed
     }
 }
 
@@ -89,24 +90,26 @@ impl Translation {
 }
 
 impl Entity for Translation {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
-        let token = ui.push_id("translation");
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id("translation");
+        let mut changed = false;
         ui.columns(4, "columns", false);
 
         ui.text("Translation");
         ui.next_column();
 
-        ui.slider("x", -Self::RANGE, Self::RANGE, &mut self.translation.x);
+        changed |= ui.slider("x", -Self::RANGE, Self::RANGE, &mut self.translation.x);
         ui.next_column();
 
-        ui.slider("y", -Self::RANGE, Self::RANGE, &mut self.translation.y);
+        changed |= ui.slider("y", -Self::RANGE, Self::RANGE, &mut self.translation.y);
         ui.next_column();
 
-        ui.slider("z", -Self::RANGE, Self::RANGE, &mut self.translation.z);
+        changed |= ui.slider("z", -Self::RANGE, Self::RANGE, &mut self.translation.z);
         ui.next_column();
 
         ui.columns(1, "columns", false);
-        token.end();
+
+        changed
     }
 }
 
@@ -137,24 +140,26 @@ impl Scale {
 }
 
 impl Entity for Scale {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
-        let token = ui.push_id("scale");
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id("scale");
+        let mut changed = false;
         ui.columns(4, "columns", false);
 
         ui.text("Scale");
         ui.next_column();
 
-        ui.slider("x", 0.0, 10.0, &mut self.scale.x);
+        changed |= ui.slider("x", 0.0, 10.0, &mut self.scale.x);
         ui.next_column();
 
-        ui.slider("y", 0.0, 10.0, &mut self.scale.y);
+        changed |= ui.slider("y", 0.0, 10.0, &mut self.scale.y);
         ui.next_column();
 
-        ui.slider("z", 0.0, 10.0, &mut self.scale.z);
+        changed |= ui.slider("z", 0.0, 10.0, &mut self.scale.z);
         ui.next_column();
 
         ui.columns(1, "columns", false);
-        token.end();
+
+        changed
     }
 }
 
@@ -191,24 +196,26 @@ impl Shear {
 }
 
 impl Entity for Shear {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
-        let token = ui.push_id("scale");
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id("scale");
+        let mut changed = false;
         ui.columns(4, "columns", false);
 
         ui.text("Shear");
         ui.next_column();
 
-        ui.slider("xy", -10.0, 10.0, &mut self.xy);
+        changed |= ui.slider("xy", -10.0, 10.0, &mut self.xy);
         ui.next_column();
 
-        ui.slider("xz", -10.0, 10.0, &mut self.xz);
+        changed |= ui.slider("xz", -10.0, 10.0, &mut self.xz);
         ui.next_column();
 
-        ui.slider("yz", -10.0, 10.0, &mut self.yz);
+        changed |= ui.slider("yz", -10.0, 10.0, &mut self.yz);
         ui.next_column();
 
         ui.columns(1, "columns", false);
-        token.end();
+
+        changed
     }
 }
 
@@ -251,12 +258,16 @@ impl LinearTransformEntity {
 }
 
 impl Entity for LinearTransformEntity {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let mut changed = false;
+
         ui.text("Transformations");
-        self.translation.control_ui(ui);
-        self.orientation.control_ui(ui);
-        self.scale.control_ui(ui);
-        self.shear.control_ui(ui);
+        changed |= self.translation.control_ui(ui);
+        changed |= self.orientation.control_ui(ui);
+        changed |= self.scale.control_ui(ui);
+        changed |= self.shear.control_ui(ui);
+
+        changed
     }
 }
 

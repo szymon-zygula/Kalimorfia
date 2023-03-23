@@ -4,7 +4,7 @@ use kalimorfia::{
     camera::Camera,
     entities::{
         aggregate::Aggregate,
-        cursor::Cursor,
+        cursor::ScreenCursor,
         entity::{Entity, SceneEntity, SceneObject},
         point::Point,
         scene_grid::SceneGrid,
@@ -30,7 +30,7 @@ const CLEAR_COLOR: ColorAlpha = ColorAlpha {
 };
 
 struct State<'gl> {
-    pub cursor: Cursor<'gl>,
+    pub cursor: ScreenCursor<'gl>,
     pub entries: BTreeMap<usize, SceneEntityEntry<'gl>>,
     pub selected_aggregate: Aggregate<'gl>,
     pub camera: Camera,
@@ -86,21 +86,20 @@ fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'
         .position([0.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.separator();
-            ui.text("Cursor control");
             state.cursor.control_ui(ui);
 
             if ui.button("Center on cursor") {
-                state.camera.center = state.cursor.position();
+                state.camera.center = state.cursor.location();
             }
 
             ui.separator();
             ui.text("Object creation");
             if ui.button("Torus") {
-                state.add_entity(Box::new(Torus::with_position(gl, state.cursor.position())));
+                state.add_entity(Box::new(Torus::with_position(gl, state.cursor.location())));
             }
 
             if ui.button("Point") {
-                state.add_entity(Box::new(Point::with_position(gl, state.cursor.position())));
+                state.add_entity(Box::new(Point::with_position(gl, state.cursor.location())));
             }
 
             ui.separator();
@@ -201,7 +200,7 @@ fn main() {
     let grid = SceneGrid::new(&gl, 100, 50.0);
     let mut state = State {
         camera: Camera::new(),
-        cursor: Cursor::new(&gl, 1.0),
+        cursor: ScreenCursor::new(&gl, Camera::new(), window.size()),
         entries: BTreeMap::new(),
         selected_aggregate: Aggregate::new(&gl),
         next_id: 0,
@@ -227,6 +226,7 @@ fn main() {
             }
 
             state.camera.update_from_mouse(&mut mouse, &window);
+            state.cursor.set_camera(&state.camera);
 
             if mouse.has_left_button_been_pressed() && !window.imgui_using_mouse() {
                 if let Some(position) = mouse.position() {
@@ -260,6 +260,9 @@ fn main() {
 
                 if let WindowEvent::Resized(resolution) = event {
                     state.camera.aspect_ratio = resolution.width as f32 / resolution.height as f32;
+                    state
+                        .cursor
+                        .set_camera_and_resolution(&state.camera, resolution);
                 }
             }
 

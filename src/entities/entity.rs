@@ -2,7 +2,7 @@ use super::basic::LinearTransformEntity;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 
 pub trait Entity {
-    fn control_ui(&mut self, ui: &imgui::Ui);
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool;
 }
 
 pub trait SceneObject {

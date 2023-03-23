@@ -63,9 +63,9 @@ impl<'gl> Aggregate<'gl> {
     }
 
     fn basic_transform(&self, id: usize) -> LinearTransformEntity {
-        let composed_transform = transforms::translate(self.cursor.position().coords)
+        let composed_transform = transforms::translate(self.cursor.location().coords)
             * self.linear_transform.as_matrix()
-            * transforms::translate(-self.cursor.position().coords)
+            * transforms::translate(-self.cursor.location().coords)
             * self.entities[&id].model_transform();
 
         let decomposed_transform = TRSSDecomposition::decompose(composed_transform);
@@ -133,13 +133,14 @@ impl<'gl> SceneObject for Aggregate<'gl> {
 }
 
 impl<'gl> Entity for Aggregate<'gl> {
-    fn control_ui(&mut self, ui: &imgui::Ui) {
-        match self.entities.len() {
-            0 => {}
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let changed = match self.entities.len() {
+            0 => false,
             1 => self.entities.values_mut().next().unwrap().control_ui(ui),
             n => {
                 ui.text(format!("Control of {} entities", n));
-                self.linear_transform.control_ui(ui);
+
+                let changed = self.linear_transform.control_ui(ui);
 
                 if ui.button("Apply") {
                     for id in Iterator::collect::<Vec<usize>>(self.entities.keys().copied()) {
@@ -148,10 +149,15 @@ impl<'gl> Entity for Aggregate<'gl> {
                     }
 
                     self.reset_transform();
+                    true
+                } else {
+                    changed
                 }
             }
-        }
+        };
 
         self.cursor.set_position(self.location());
+
+        changed
     }
 }
