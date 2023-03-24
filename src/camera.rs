@@ -27,12 +27,13 @@ impl Camera {
 
     pub fn update_from_mouse(&mut self, mouse: &mut MouseState, window: &Window) -> bool {
         let mouse_delta = mouse.position_delta();
+        let scroll_delta = mouse.scroll_delta();
 
-        if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0) && !window.imgui_using_mouse() {
+        if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0 || scroll_delta != 0.0) && !window.imgui_using_mouse() {
             self.update_angles(mouse, &mouse_delta);
             self.update_center(mouse, &mouse_delta);
 
-            self.distance -= mouse.scroll_delta();
+            self.distance -= scroll_delta;
 
             if self.distance < 0.0 {
                 self.distance = 0.0;

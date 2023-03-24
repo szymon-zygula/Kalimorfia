@@ -7,6 +7,13 @@ pub struct AxisAngleDecomposition<T: RealField + Copy> {
 
 impl<T: RealField + Copy> AxisAngleDecomposition<T> {
     pub fn decompose(matrix: &Matrix4<T>) -> Self {
+        if matrix.norm() == T::zero() {
+            return AxisAngleDecomposition {
+                angle: T::zero(),
+                axis: Vector3::new(T::one(), T::zero(), T::zero()),
+            };
+        }
+
         let angle_cosine =
             (matrix.fixed_view::<3, 3>(0, 0).trace() - T::one()) * T::from_f32(0.5).unwrap();
 
@@ -28,7 +35,7 @@ impl<T: RealField + Copy> AxisAngleDecomposition<T> {
                 .lu()
                 .u()
                 .solve_upper_triangular(&Vector3::zeros())
-                .unwrap()
+                .unwrap_or(Vector3::new(T::one(), T::zero(), T::zero()))
                 .normalize()
         } else {
             Vector3::new(
@@ -37,6 +44,12 @@ impl<T: RealField + Copy> AxisAngleDecomposition<T> {
                 matrix[(1, 0)] - matrix[(0, 1)],
             ) / angle_sine
                 * T::from_f32(0.5).unwrap()
+        };
+
+        let axis = if axis.norm().is_finite() {
+            axis
+        } else {
+            Vector3::zeros()
         };
 
         Self {

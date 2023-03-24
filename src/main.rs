@@ -143,7 +143,6 @@ fn build_ui<'gl>(gl: &'gl glow::Context, ui: &mut imgui::Ui, state: &mut State<'
                         .count()
                         != 0;
                     if name_taken && state.entries[&id].new_name != state.entries[&id].name {
-                        println!("taken");
                         ui.open_popup("name_taken_popup");
                     } else {
                         state.entries.get_mut(&id).unwrap().name =
