@@ -1,13 +1,15 @@
 use super::{
     basic::LinearTransformEntity,
-    entity::{Entity, SceneObject},
+    changeable_name::ChangeableName,
+    entity::{Drawable, Entity, NamedEntity, SceneObject},
 };
 use crate::{
     math::geometry::{self, gridable::Gridable},
-    render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
+    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LineMesh},
+    repositories::NameRepository,
 };
 use nalgebra::{Matrix4, Point3};
-use std::path::Path;
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 pub struct Torus<'gl> {
     torus: geometry::torus::Torus,
@@ -16,10 +18,11 @@ pub struct Torus<'gl> {
     round_points: u32,
     linear_transform: LinearTransformEntity,
     gl_program: GlProgram<'gl>,
+    name: ChangeableName,
 }
 
 impl<'gl> Torus<'gl> {
-    pub fn new(gl: &'gl glow::Context) -> Torus<'gl> {
+    pub fn new(gl: &'gl glow::Context, name_repo: Rc<RefCell<dyn NameRepository>>) -> Torus<'gl> {
         let tube_points = 10;
         let round_points = 10;
 
@@ -49,11 +52,16 @@ impl<'gl> Torus<'gl> {
             round_points,
             gl_program,
             linear_transform: LinearTransformEntity::new(),
+            name: ChangeableName::new("Torus", name_repo),
         }
     }
 
-    pub fn with_position(gl: &'gl glow::Context, position: Point3<f32>) -> Torus<'gl> {
-        let mut torus = Torus::new(gl);
+    pub fn with_position(
+        gl: &'gl glow::Context,
+        position: Point3<f32>,
+        name_repo: Rc<RefCell<dyn NameRepository>>,
+    ) -> Torus<'gl> {
+        let mut torus = Torus::new(gl, name_repo);
         torus.linear_transform.translation.translation = position.coords;
         torus
     }
@@ -69,7 +77,7 @@ macro_rules! safe_slider {
 
 impl<'gl> Entity for Torus<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
-        ui.text("Torus control");
+        self.name_control_ui(ui);
         let mut torus_changed = false;
         torus_changed |= safe_slider!(ui, "R", 0.1, 10.0, &mut self.torus.inner_radius);
         torus_changed |= safe_slider!(ui, "r", 0.1, 10.0, &mut self.torus.tube_radius);
@@ -88,7 +96,7 @@ impl<'gl> Entity for Torus<'gl> {
     }
 }
 
-impl<'gl> SceneObject for Torus<'gl> {
+impl<'gl> Drawable for Torus<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
         let model_transform = self.model_transform();
 
@@ -101,7 +109,9 @@ impl<'gl> SceneObject for Torus<'gl> {
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
         self.mesh.draw();
     }
+}
 
+impl<'gl> SceneObject for Torus<'gl> {
     fn location(&self) -> Point3<f32> {
         self.linear_transform.translation.translation.into()
     }
@@ -112,5 +122,15 @@ impl<'gl> SceneObject for Torus<'gl> {
 
     fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {
         self.linear_transform = linear_transform;
+    }
+}
+
+impl<'gl> NamedEntity for Torus<'gl> {
+    fn name(&self) -> String {
+        self.name.name()
+    }
+
+    fn name_control_ui(&mut self, ui: &imgui::Ui) {
+        self.name.name_control_ui(ui);
     }
 }

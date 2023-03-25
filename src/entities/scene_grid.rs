@@ -1,7 +1,7 @@
-use super::entity::SceneObject;
+use super::entity::Drawable;
 use crate::{
     math::affine::transforms,
-    render::{drawable::Drawable, gl_program::GlProgram, mesh::LineMesh},
+    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LineMesh},
 };
 use nalgebra::{Matrix4, Point3};
 use std::path::Path;
@@ -66,7 +66,7 @@ impl<'gl> SceneGrid<'gl> {
     }
 }
 
-impl<'gl> SceneObject for SceneGrid<'gl> {
+impl<'gl> Drawable for SceneGrid<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
         let model_transform = transforms::scale(self.scale, 1.0, self.scale);
 
@@ -78,9 +78,5 @@ impl<'gl> SceneObject for SceneGrid<'gl> {
         self.gl_program
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
         self.mesh.draw();
-    }
-
-    fn location(&self) -> Point3<f32> {
-        Point3::new(0.0, 0.0, 0.0)
     }
 }

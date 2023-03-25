@@ -1,14 +1,16 @@
 use super::{
     basic::{LinearTransformEntity, Translation},
-    entity::{Entity, SceneObject},
+    changeable_name::ChangeableName,
+    entity::{Drawable, Entity, NamedEntity, SceneObject},
 };
 use crate::{
     primitives::color::Color,
-    render::{drawable::Drawable, gl_program::GlProgram, point_cloud::PointCloud},
+    render::{gl_drawable::GlDrawable, gl_program::GlProgram, point_cloud::PointCloud},
+    repositories::NameRepository,
 };
 use glow::HasContext;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
-use std::path::Path;
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 pub struct Point<'gl> {
     position: Translation,
@@ -17,12 +19,17 @@ pub struct Point<'gl> {
     gl: &'gl glow::Context,
     size: f32,
     color: Color,
+    name: ChangeableName,
 }
 
 impl<'gl> Point<'gl> {
     const DEFAULT_SIZE: f32 = 9.0;
 
-    pub fn with_position(gl: &'gl glow::Context, position: Point3<f32>) -> Point {
+    pub fn with_position(
+        gl: &'gl glow::Context,
+        position: Point3<f32>,
+        name_repo: Rc<RefCell<dyn NameRepository>>,
+    ) -> Self {
         let gl_program = GlProgram::with_shader_paths(
             gl,
             vec![
@@ -44,18 +51,19 @@ impl<'gl> Point<'gl> {
             position: Translation::with(position.coords),
             gl_program,
             point_cloud: PointCloud::new(gl, vec![Point3::new(0.0, 0.0, 0.0)]),
+            name: ChangeableName::new("Point", name_repo),
         }
     }
 }
 
 impl<'gl> Entity for Point<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
-        ui.text("Point control");
+        self.name_control_ui(ui);
         self.position.control_ui(ui)
     }
 }
 
-impl<'gl> SceneObject for Point<'gl> {
+impl<'gl> Drawable for Point<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
         let model_transform = self.position.as_matrix();
 
@@ -74,7 +82,9 @@ impl<'gl> SceneObject for Point<'gl> {
 
         self.point_cloud.draw();
     }
+}
 
+impl<'gl> SceneObject for Point<'gl> {
     fn ray_intersects(&self, from: Point3<f32>, ray: Vector3<f32>) -> bool {
         if from.coords == self.position.translation {
             return false;
@@ -115,5 +125,15 @@ impl<'gl> SceneObject for Point<'gl> {
 
     fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {
         self.position = linear_transform.translation;
+    }
+}
+
+impl<'gl> NamedEntity for Point<'gl> {
+    fn name(&self) -> String {
+        self.name.name()
+    }
+
+    fn name_control_ui(&mut self, ui: &imgui::Ui) {
+        self.name.name_control_ui(ui)
     }
 }

@@ -1,4 +1,4 @@
-use super::drawable::Drawable;
+use super::gl_drawable::GlDrawable;
 use crate::{render::opengl, utils};
 use glow::HasContext;
 use nalgebra::Point3;
@@ -65,7 +65,7 @@ impl<'gl> Drop for PointCloud<'gl> {
     }
 }
 
-impl<'gl> Drawable for PointCloud<'gl> {
+impl<'gl> GlDrawable for PointCloud<'gl> {
     fn draw(&self) {
         opengl::with_vao(self.gl, self.vertex_array, || unsafe {
             self.gl

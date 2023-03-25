@@ -2,47 +2,39 @@ use crate::{
     entities::{
         basic::LinearTransformEntity,
         cursor::Cursor,
-        entity::{Entity, SceneEntity, SceneObject},
+        entity::{
+            Drawable, Entity, NamedEntity, ReferentialDrawable, ReferentialEntity,
+            ReferentialSceneEntity, SceneObject,
+        },
     },
     math::{
         affine::transforms,
         decompositions::{axis_angle::AxisAngleDecomposition, trss::TRSSDecomposition},
     },
+    repositories::NameRepository,
 };
 use nalgebra::{Matrix4, Point3, Vector3};
-use std::collections::HashMap;
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, HashSet},
+};
 
 pub struct Aggregate<'gl> {
     cursor: Cursor<'gl>,
     linear_transform: LinearTransformEntity,
-    entities: HashMap<usize, Box<dyn SceneEntity + 'gl>>,
+    entities: HashSet<usize>,
+    name: String,
 }
 
 impl<'gl> Aggregate<'gl> {
     const CURSOR_SCALE: f32 = 1.0;
-    pub fn new(gl: &'gl glow::Context) -> Aggregate<'gl> {
+    pub fn new(gl: &'gl glow::Context, name_repo: &mut dyn NameRepository) -> Aggregate<'gl> {
         Aggregate {
             cursor: Cursor::new(gl, Self::CURSOR_SCALE),
             linear_transform: LinearTransformEntity::new(),
-            entities: HashMap::new(),
+            entities: HashSet::new(),
+            name: name_repo.generate_name("Entity selection"),
         }
-    }
-
-    pub fn add_object(&mut self, id: usize, object: Box<dyn SceneEntity + 'gl>) {
-        self.entities.insert(id, object);
-        self.reset_transform();
-        self.cursor.set_position(self.location());
-    }
-
-    pub fn take_object(&mut self, id: usize) -> Box<dyn SceneEntity + 'gl> {
-        let removed = self.entities.remove(&id).unwrap();
-        self.reset_transform();
-        self.cursor.set_position(self.location());
-        removed
-    }
-
-    pub fn get_entity(&self, id: usize) -> &dyn SceneEntity {
-        self.entities[&id].as_ref()
     }
 
     pub fn len(&self) -> usize {
@@ -53,20 +45,40 @@ impl<'gl> Aggregate<'gl> {
         self.len() == 0
     }
 
-    pub fn only_one(&self) -> (usize, &dyn SceneEntity) {
-        let (&id, boxed) = self.entities.iter().next().unwrap();
-        (id, boxed.as_ref())
+    pub fn only_one(&self) -> usize {
+        let id = self.entities.iter().next().unwrap();
+        *id
     }
 
     fn reset_transform(&mut self) {
         self.linear_transform.reset()
     }
 
-    fn basic_transform(&self, id: usize) -> LinearTransformEntity {
+    fn update_cursor(
+        &mut self,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        if self.entities.is_empty() {
+            self.cursor.set_position(Point3::origin());
+            return;
+        }
+
+        let mut sum = Vector3::zeros();
+
+        for id in &self.entities {
+            sum += entities[id].borrow().location().coords;
+        }
+
+        sum /= self.entities.len() as f32;
+
+        self.cursor.set_position(sum.into());
+    }
+
+    fn composed_transform(&self, transform: &Matrix4<f32>) -> LinearTransformEntity {
         let composed_transform = transforms::translate(self.cursor.location().coords)
             * self.linear_transform.as_matrix()
             * transforms::translate(-self.cursor.location().coords)
-            * self.entities[&id].model_transform();
+            * transform;
 
         let decomposed_transform = TRSSDecomposition::decompose(composed_transform);
         let axis_angle = AxisAngleDecomposition::decompose(&decomposed_transform.rotation);
@@ -88,14 +100,32 @@ impl<'gl> Aggregate<'gl> {
 }
 
 impl<'gl> SceneObject for Aggregate<'gl> {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+    fn location(&self) -> Point3<f32> {
+        self.cursor.location()
+    }
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        transforms::translate(self.location().coords)
+            * self.linear_transform.as_matrix()
+            * transforms::translate(-self.location().coords)
+    }
+}
+
+impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
+    fn draw_referential(
+        &self,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        projection_transform: &Matrix4<f32>,
+        view_transform: &Matrix4<f32>,
+    ) {
         match self.entities.len() {
             0 => {}
             1 => {
+                let only_id = self.entities.iter().next().unwrap();
                 self.cursor.draw(
                     projection_transform,
                     &(view_transform
-                        * self.entities.values().next().unwrap().model_transform()
+                        * entities[only_id].borrow().model_transform()
                         * transforms::translate(-self.cursor.location().coords)),
                 );
             }
@@ -107,57 +137,92 @@ impl<'gl> SceneObject for Aggregate<'gl> {
             }
         }
 
-        for entity in self.entities.values() {
-            entity.draw(
+        for id in &self.entities {
+            entities[id].borrow().draw_referential(
+                entities,
                 projection_transform,
                 &(view_transform * self.model_transform()),
             );
         }
     }
-
-    fn location(&self) -> Point3<f32> {
-        if self.entities.is_empty() {
-            return Point3::origin();
-        }
-
-        (Iterator::sum::<Vector3<f32>>(self.entities.values().map(|x| x.location().coords))
-            / self.entities.len() as f32)
-            .into()
-    }
-
-    fn model_transform(&self) -> Matrix4<f32> {
-        transforms::translate(self.location().coords)
-            * self.linear_transform.as_matrix()
-            * transforms::translate(-self.location().coords)
-    }
 }
 
-impl<'gl> Entity for Aggregate<'gl> {
-    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
-        let changed = match self.entities.len() {
-            0 => false,
-            1 => self.entities.values_mut().next().unwrap().control_ui(ui),
+impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
+    fn control_referential_ui(
+        &mut self,
+        ui: &imgui::Ui,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) -> (bool, HashSet<usize>) {
+        let changes = match self.entities.len() {
+            0 => (false, HashSet::new()),
+            1 => entities[self.entities.iter().next().unwrap()]
+                .borrow_mut()
+                .control_referential_ui(ui, entities),
             n => {
                 ui.text(format!("Control of {} entities", n));
 
                 let changed = self.linear_transform.control_ui(ui);
 
                 if ui.button("Apply") {
-                    for id in Iterator::collect::<Vec<usize>>(self.entities.keys().copied()) {
-                        let tra = self.basic_transform(id);
-                        self.entities.get_mut(&id).unwrap().set_model_transform(tra);
+                    for id in &self.entities {
+                        let transform =
+                            self.composed_transform(&entities[id].borrow().model_transform());
+
+                        entities[id].borrow_mut().set_model_transform(transform);
                     }
 
+                    self.update_cursor(entities);
                     self.reset_transform();
-                    true
+                    (true, self.entities.clone())
                 } else {
-                    changed
+                    (changed, HashSet::new())
                 }
             }
         };
 
-        self.cursor.set_position(self.location());
-
-        changed
+        changes
     }
+
+    fn notify_about_modification(
+        &mut self,
+        _modified: &HashSet<usize>,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        self.update_cursor(entities);
+    }
+
+    fn notify_about_deletion(
+        &mut self,
+        deleted: &HashSet<usize>,
+        remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        self.entities = self.entities.difference(deleted).copied().collect();
+        self.update_cursor(remaining);
+    }
+
+    fn subscribe(
+        &mut self,
+        subscribee: usize,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        self.entities.insert(subscribee);
+        self.reset_transform();
+        self.update_cursor(entities);
+    }
+
+    fn unsubscribe(
+        &mut self,
+        subscribee: usize,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        self.entities.remove(&subscribee);
+    }
+}
+
+impl<'gl> NamedEntity for Aggregate<'gl> {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn name_control_ui(&mut self, _ui: &imgui::Ui) {}
 }

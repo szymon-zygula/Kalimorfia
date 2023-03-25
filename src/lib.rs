@@ -7,3 +7,5 @@ pub mod utils;
 pub mod window;
 pub mod entities;
 pub mod scene;
+pub mod repositories;
+pub mod ui;

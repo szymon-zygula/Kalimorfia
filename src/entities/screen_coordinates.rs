@@ -16,17 +16,11 @@ impl ScreenCoordinates {
 
     pub fn set_ndc_coords(&mut self, coordinates: Point2<f32>) {
         let coordinates = (coordinates + Vector2::new(1.0, 1.0)) / 2.0;
-        self.coordinates.x = (coordinates.x * self.resolution.width as f32).round() as u32;
-        self.coordinates.y = ((1.0 - coordinates.y) * self.resolution.height as f32).round() as u32;
-
-        self.coordinates.x = std::cmp::min(
-            std::cmp::max(0, self.coordinates.x),
-            self.resolution.width - 1,
-        );
-        self.coordinates.y = std::cmp::min(
-            std::cmp::max(0, self.coordinates.y),
-            self.resolution.height - 1,
-        );
+        self.coordinates.x = ((coordinates.x * self.resolution.width as f32).round() as u32)
+            .clamp(0, self.resolution.width - 1);
+        self.coordinates.y = (((1.0 - coordinates.y) * self.resolution.height as f32).round()
+            as u32)
+            .clamp(0, self.resolution.height - 1);
     }
 
     pub fn get_ndc_coords(&self) -> Point2<f32> {

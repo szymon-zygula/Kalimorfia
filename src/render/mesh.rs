@@ -1,4 +1,4 @@
-use super::drawable::Drawable;
+use super::gl_drawable::GlDrawable;
 use crate::{primitives::vertex::ColoredVertex, render::opengl, utils};
 use glow::HasContext;
 use nalgebra::Point3;
@@ -90,7 +90,7 @@ impl<'gl> Drop for LineMesh<'gl> {
     }
 }
 
-impl<'gl> Drawable for LineMesh<'gl> {
+impl<'gl> GlDrawable for LineMesh<'gl> {
     fn draw(&self) {
         opengl::with_vao(self.gl, self.vertex_array, || unsafe {
             self.gl.line_width(self.thickness);
@@ -151,7 +151,7 @@ impl<'gl> ColoredLineMesh<'gl> {
     }
 }
 
-impl<'gl> Drawable for ColoredLineMesh<'gl> {
+impl<'gl> GlDrawable for ColoredLineMesh<'gl> {
     fn draw(&self) {
         self.line_mesh.draw();
     }

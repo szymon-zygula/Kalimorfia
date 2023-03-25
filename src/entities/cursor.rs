@@ -1,13 +1,13 @@
 use super::{
     basic::Translation,
-    entity::{Entity, SceneObject},
+    entity::{Entity, SceneObject, Drawable},
     screen_coordinates::ScreenCoordinates,
 };
 use crate::{
     camera::Camera,
     math::affine::transforms,
     primitives::vertex::ColoredVertex,
-    render::{drawable::Drawable, gl_program::GlProgram, mesh::ColoredLineMesh},
+    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::ColoredLineMesh},
 };
 use nalgebra::{Matrix4, Point3};
 use std::path::Path;
@@ -71,7 +71,7 @@ impl<'gl> Entity for Cursor<'gl> {
     }
 }
 
-impl<'gl> SceneObject for Cursor<'gl> {
+impl<'gl> Drawable for Cursor<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
         let model_transform = self.position.as_matrix() * transforms::uniform_scale(self.scale);
 
@@ -84,7 +84,9 @@ impl<'gl> SceneObject for Cursor<'gl> {
             .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
         self.mesh.draw();
     }
+}
 
+impl<'gl> SceneObject for Cursor<'gl> {
     fn location(&self) -> Point3<f32> {
         self.position.translation.into()
     }
@@ -173,11 +175,13 @@ impl<'gl> Entity for ScreenCursor<'gl> {
     }
 }
 
-impl<'gl> SceneObject for ScreenCursor<'gl> {
+impl<'gl> Drawable for ScreenCursor<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
         self.cursor.draw(projection_transform, view_transform)
     }
+}
 
+impl<'gl> SceneObject for ScreenCursor<'gl> {
     fn location(&self) -> Point3<f32> {
         self.cursor.location()
     }
