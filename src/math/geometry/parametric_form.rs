@@ -1,10 +1,26 @@
-use super::gridable::Gridable;
-use nalgebra::{Point, Point3, SVector, Vector2};
+use super::{curvable::Curvable, gridable::Gridable};
+use nalgebra::{Point, Point3, SVector, Vector1, Vector2};
 
 pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     const PARAMETER_BOUNDS: SVector<(f64, f64), IN_DIM>;
 
     fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
+}
+
+impl<T: ParametricForm<1, 3>> Curvable for T {
+    fn curve(&self, samples: usize) -> Vec<Point3<f32>> {
+        let mut points = Vec::with_capacity(samples);
+
+        for i in 0..samples {
+            let range = Self::PARAMETER_BOUNDS.x.1 - Self::PARAMETER_BOUNDS.x.0;
+            let t = i as f64 / (samples - 1) as f64 * range + Self::PARAMETER_BOUNDS.x.0;
+
+            let point = self.parametric(&Vector1::new(t));
+            points.push(Point3::new(point.x as f32, point.y as f32, point.z as f32));
+        }
+
+        points
+    }
 }
 
 impl<T: ParametricForm<2, 3>> Gridable for T {
