@@ -129,13 +129,16 @@ impl<'gl> ScreenCursor<'gl> {
     fn update_world_from_coords(&mut self) {
         let screen_projection = self.screen_coords_from_world();
         let screen_ndc = self.screen_coordinates.get_ndc_coords();
-        self.cursor.position.translation = Point3::from_homogeneous(
-            self.camera.inverse_view_transform()
-                * self.camera.inverse_projection_transform()
-                * Point3::new(screen_ndc.x, screen_ndc.y, screen_projection.z).to_homogeneous(),
-        )
-        .unwrap()
-        .coords;
+
+        let mut deprojected = self.camera.inverse_projection_transform()
+            * Point3::new(screen_ndc.x, screen_ndc.y, screen_projection.z).to_homogeneous();
+        deprojected.z = -deprojected.z.abs();
+        deprojected.w = deprojected.w.abs();
+
+        self.cursor.position.translation =
+            Point3::from_homogeneous(self.camera.inverse_view_transform() * deprojected)
+                .unwrap()
+                .coords;
     }
 
     pub fn set_camera(&mut self, camera: &Camera) {
