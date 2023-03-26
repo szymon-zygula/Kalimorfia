@@ -1,6 +1,6 @@
 use super::{
     basic::Translation,
-    entity::{Entity, SceneObject, Drawable},
+    entity::{Drawable, Entity, SceneObject},
     screen_coordinates::ScreenCoordinates,
 };
 use crate::{
@@ -117,7 +117,7 @@ impl<'gl> ScreenCursor<'gl> {
                 * self.camera.view_transform()
                 * Point3::from(self.cursor.position.translation).to_homogeneous(),
         )
-        .unwrap()
+        .unwrap_or(Point3::origin())
     }
 
     fn update_coords_from_world(&mut self) {

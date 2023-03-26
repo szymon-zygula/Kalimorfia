@@ -80,14 +80,14 @@ impl<'gl> EntityManager<'gl> {
 
     pub fn entities_mut(
         &mut self,
-    ) -> btree_map::IterMut<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
-        self.entities.iter_mut()
+    ) -> &mut BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
+        &mut self.entities
     }
 
     pub fn entities(
         &self,
-    ) -> btree_map::Iter<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
-        self.entities.iter()
+    ) -> &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
+        &self.entities
     }
 
     pub fn subscribe(&mut self, subscriber: usize, subscribee: usize) {

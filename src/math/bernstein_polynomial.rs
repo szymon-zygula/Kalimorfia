@@ -1,6 +1,6 @@
 use nalgebra::RealField;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct BernsteinPolynomial<T: RealField + Copy> {
     pub coeffs: Vec<T>,
 }

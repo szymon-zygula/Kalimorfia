@@ -4,6 +4,7 @@ use kalimorfia::{
     camera::Camera,
     entities::{
         aggregate::Aggregate,
+        cubic_spline_c0::CubicSplineC0,
         cursor::ScreenCursor,
         entity::{Drawable, Entity, ReferentialSceneEntity, SceneObject},
         manager::EntityManager,
@@ -68,6 +69,7 @@ fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
 
             ui.separator();
             ui.text("Object creation");
+            ui.columns(3, "creation_columns", false);
             if ui.button("Torus") {
                 let id = entity_manager
                     .borrow_mut()
@@ -79,6 +81,7 @@ fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
                 state.selector.add_selectable(id);
             };
 
+            ui.next_column();
             if ui.button("Point") {
                 let id = entity_manager
                     .borrow_mut()
@@ -89,6 +92,27 @@ fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
                     )));
                 state.selector.add_selectable(id);
             }
+
+            ui.next_column();
+            if ui.button("Cubic Spline C0") {
+                let selected: Vec<usize> = state.selector.selected().iter().copied().collect();
+                let spline = Box::new(CubicSplineC0::through_points(
+                    gl,
+                    Rc::clone(&state.name_repo),
+                    selected.clone(),
+                    entity_manager,
+                ));
+
+                let id = entity_manager.borrow_mut().add_entity(spline);
+
+                for selected in selected {
+                    entity_manager.borrow_mut().subscribe(id, selected);
+                }
+
+                state.selector.add_selectable(id);
+            }
+
+            ui.next_column();
 
             ui.separator();
 

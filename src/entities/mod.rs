@@ -8,3 +8,4 @@ pub mod aggregate;
 pub mod screen_coordinates;
 pub mod manager;
 pub mod changeable_name;
+pub mod cubic_spline_c0;

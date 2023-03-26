@@ -1,13 +1,13 @@
 use super::entity::Drawable;
 use crate::{
     math::affine::transforms,
-    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LineMesh},
+    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
 };
 use nalgebra::{Matrix4, Point3};
 use std::path::Path;
 
 pub struct SceneGrid<'gl> {
-    mesh: LineMesh<'gl>,
+    mesh: LinesMesh<'gl>,
     gl_program: GlProgram<'gl>,
     scale: f32,
 }
@@ -35,7 +35,7 @@ impl<'gl> SceneGrid<'gl> {
         }
     }
 
-    fn grid_mesh(gl: &'gl glow::Context, points_x: u32, points_z: u32) -> LineMesh {
+    fn grid_mesh(gl: &'gl glow::Context, points_x: u32, points_z: u32) -> LinesMesh {
         let mut points = Vec::new();
         let mut indices = Vec::new();
 
@@ -62,7 +62,7 @@ impl<'gl> SceneGrid<'gl> {
             }
         }
 
-        LineMesh::new(gl, points, indices)
+        LinesMesh::new(gl, points, indices)
     }
 }
 

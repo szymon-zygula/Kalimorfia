@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     math::geometry::{self, gridable::Gridable},
-    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LineMesh},
+    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
     repositories::NameRepository,
 };
 use nalgebra::{Matrix4, Point3};
@@ -13,7 +13,7 @@ use std::{cell::RefCell, path::Path, rc::Rc};
 
 pub struct Torus<'gl> {
     torus: geometry::torus::Torus,
-    mesh: LineMesh<'gl>,
+    mesh: LinesMesh<'gl>,
     tube_points: u32,
     round_points: u32,
     linear_transform: LinearTransformEntity,
@@ -29,7 +29,7 @@ impl<'gl> Torus<'gl> {
         let torus = geometry::torus::Torus::with_radii(2.0, 0.5);
         let (vertices, topology) = torus.grid(round_points, tube_points);
 
-        let mesh = LineMesh::new(gl, vertices, topology);
+        let mesh = LinesMesh::new(gl, vertices, topology);
 
         let gl_program = GlProgram::with_shader_paths(
             gl,

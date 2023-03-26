@@ -2,7 +2,7 @@ use super::parametric_form::ParametricForm;
 use crate::math::bernstein_polynomial::BernsteinPolynomial;
 use nalgebra::{Point3, Vector1};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct BezierCurve {
     x_t: BernsteinPolynomial<f64>,
     y_t: BernsteinPolynomial<f64>,
@@ -12,9 +12,9 @@ pub struct BezierCurve {
 impl BezierCurve {
     pub fn through_points(points: Vec<Point3<f64>>) -> Self {
         Self {
-            x_t: BernsteinPolynomial::with_coefficients(points.map(|p| p.x)),
-            y_t: BernsteinPolynomial::with_coefficients(points.map(|p| p.y)),
-            z_t: BernsteinPolynomial::with_coefficients(points.map(|p| p.z)),
+            x_t: BernsteinPolynomial::with_coefficients(points.iter().map(|p| p.x).collect()),
+            y_t: BernsteinPolynomial::with_coefficients(points.iter().map(|p| p.y).collect()),
+            z_t: BernsteinPolynomial::with_coefficients(points.iter().map(|p| p.z).collect()),
         }
     }
 }
@@ -40,7 +40,7 @@ impl CubicSplineC0 {
     pub fn through_points(points: Vec<Point3<f64>>) -> Self {
         assert_ne!(points.len(), 0);
         let curve_count = (points.len() - 1) / 3 + 1;
-        let curves = Vec::with_capacity(curve_count);
+        let mut curves = Vec::with_capacity(curve_count);
 
         for i in 0..(curve_count - 1) {
             curves.push(BezierCurve::through_points(vec![
@@ -60,6 +60,7 @@ impl CubicSplineC0 {
                 points[i * 3 + 1],
                 points[i * 3 + 2],
             ]),
+            _ => panic!("Invalid remainder"),
         });
 
         Self { curves }

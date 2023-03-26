@@ -3,7 +3,7 @@ use crate::{primitives::vertex::ColoredVertex, render::opengl, utils};
 use glow::HasContext;
 use nalgebra::Point3;
 
-pub struct LineMesh<'gl> {
+pub struct LinesMesh<'gl> {
     index_count: u32,
     vertex_buffer: u32,
     element_buffer: u32,
@@ -12,12 +12,12 @@ pub struct LineMesh<'gl> {
     thickness: f32,
 }
 
-impl<'gl> LineMesh<'gl> {
+impl<'gl> LinesMesh<'gl> {
     pub fn new(
         gl: &'gl glow::Context,
         vertices: Vec<Point3<f32>>,
         indices: Vec<u32>,
-    ) -> LineMesh<'gl> {
+    ) -> LinesMesh<'gl> {
         let mut mesh = Self::new_uninit(gl, indices.len() as u32);
 
         mesh.vertex_array = opengl::init_vao(gl, || {
@@ -39,11 +39,11 @@ impl<'gl> LineMesh<'gl> {
         mesh
     }
 
-    fn new_uninit(gl: &'gl glow::Context, index_count: u32) -> LineMesh {
+    fn new_uninit(gl: &'gl glow::Context, index_count: u32) -> LinesMesh {
         let vertex_buffer = unsafe { gl.create_buffer() }.unwrap();
         let element_buffer = unsafe { gl.create_buffer() }.unwrap();
 
-        LineMesh {
+        LinesMesh {
             index_count,
             vertex_buffer,
             element_buffer,
@@ -80,7 +80,7 @@ impl<'gl> LineMesh<'gl> {
     }
 }
 
-impl<'gl> Drop for LineMesh<'gl> {
+impl<'gl> Drop for LinesMesh<'gl> {
     fn drop(&mut self) {
         unsafe {
             self.gl.delete_vertex_array(self.vertex_array);
@@ -90,7 +90,7 @@ impl<'gl> Drop for LineMesh<'gl> {
     }
 }
 
-impl<'gl> GlDrawable for LineMesh<'gl> {
+impl<'gl> GlDrawable for LinesMesh<'gl> {
     fn draw(&self) {
         opengl::with_vao(self.gl, self.vertex_array, || unsafe {
             self.gl.line_width(self.thickness);
@@ -102,7 +102,7 @@ impl<'gl> GlDrawable for LineMesh<'gl> {
 }
 
 pub struct ColoredLineMesh<'gl> {
-    line_mesh: LineMesh<'gl>,
+    line_mesh: LinesMesh<'gl>,
 }
 
 impl<'gl> ColoredLineMesh<'gl> {
@@ -111,7 +111,7 @@ impl<'gl> ColoredLineMesh<'gl> {
         vertices: Vec<ColoredVertex>,
         indices: Vec<u32>,
     ) -> ColoredLineMesh<'gl> {
-        let mut mesh = LineMesh::new_uninit(gl, indices.len() as u32);
+        let mut mesh = LinesMesh::new_uninit(gl, indices.len() as u32);
 
         mesh.vertex_array = opengl::init_vao(gl, || {
             mesh.update_vertices(vertices, indices);
@@ -142,11 +142,11 @@ impl<'gl> ColoredLineMesh<'gl> {
         ColoredLineMesh { line_mesh: mesh }
     }
 
-    pub fn as_line_mesh_mut(&mut self) -> &mut LineMesh<'gl> {
+    pub fn as_line_mesh_mut(&mut self) -> &mut LinesMesh<'gl> {
         &mut self.line_mesh
     }
 
-    pub fn as_line_mesh(&self) -> &LineMesh<'gl> {
+    pub fn as_line_mesh(&self) -> &LinesMesh<'gl> {
         &self.line_mesh
     }
 }
