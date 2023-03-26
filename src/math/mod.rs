@@ -1,4 +1,5 @@
 pub mod affine;
-pub mod geometry;
 pub mod basic;
+pub mod bernstein_polynomial;
 pub mod decompositions;
+pub mod geometry;

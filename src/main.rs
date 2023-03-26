@@ -77,7 +77,7 @@ fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
                         Rc::clone(&state.name_repo),
                     )));
                 state.selector.add_selectable(id);
-            }
+            };
 
             if ui.button("Point") {
                 let id = entity_manager
