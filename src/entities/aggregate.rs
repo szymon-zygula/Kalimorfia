@@ -16,7 +16,7 @@ use crate::{
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
 pub struct Aggregate<'gl> {
@@ -151,13 +151,18 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
     fn control_referential_ui(
         &mut self,
         ui: &imgui::Ui,
+        controller_id: usize,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> (bool, HashSet<usize>) {
+        subscriptions: &mut HashMap<usize, HashSet<usize>>,
+    ) -> HashSet<usize> {
         let changes = match self.entities.len() {
-            0 => (false, HashSet::new()),
-            1 => entities[self.entities.iter().next().unwrap()]
-                .borrow_mut()
-                .control_referential_ui(ui, entities),
+            0 => HashSet::new(),
+            1 => {
+                let id = self.entities.iter().next().unwrap();
+                entities[id]
+                    .borrow_mut()
+                    .control_referential_ui(ui, *id, entities, subscriptions)
+            }
             n => {
                 ui.text(format!("Control of {} entities", n));
 
@@ -173,9 +178,13 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
 
                     self.update_cursor(entities);
                     self.reset_transform();
-                    (true, self.entities.clone())
+                    let mut changes = self.entities.clone();
+                    changes.insert(controller_id);
+                    changes
+                } else if changed {
+                    HashSet::from([controller_id])
                 } else {
-                    (changed, HashSet::new())
+                    HashSet::new()
                 }
             }
         };

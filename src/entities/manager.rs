@@ -2,9 +2,7 @@ pub(crate) use super::entity::ReferentialSceneEntity;
 use nalgebra::Matrix4;
 use std::{
     cell::{Ref, RefCell},
-    collections::{
-        HashMap, HashSet, {btree_map, BTreeMap},
-    },
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
 #[derive(Default)]
@@ -20,17 +18,13 @@ impl<'gl> EntityManager<'gl> {
     }
 
     pub fn control_referential_ui(&mut self, controller_id: usize, ui: &imgui::Ui) {
-        let (controller_modified, mut modified_ids) = self.entities[&controller_id]
+        let result = self.entities[&controller_id]
             .borrow_mut()
-            .control_referential_ui(ui, &self.entities);
-
-        if controller_modified {
-            modified_ids.insert(controller_id);
-        }
+            .control_referential_ui(ui, controller_id, &self.entities, &mut self.subscriptions);
 
         for (id, entity) in self.entities.iter().filter(|(&id, _)| id != controller_id) {
             entity.borrow_mut().notify_about_modification(
-                &modified_ids
+                &result
                     .intersection(&self.subscriptions[id])
                     .copied()
                     .collect(),
@@ -91,24 +85,28 @@ impl<'gl> EntityManager<'gl> {
     }
 
     pub fn subscribe(&mut self, subscriber: usize, subscribee: usize) {
-        self.subscriptions
+        if self
+            .subscriptions
             .get_mut(&subscriber)
             .unwrap()
-            .insert(subscribee);
-
-        self.entities[&subscriber]
-            .borrow_mut()
-            .subscribe(subscribee, &self.entities);
+            .insert(subscribee)
+        {
+            self.entities[&subscriber]
+                .borrow_mut()
+                .subscribe(subscribee, &self.entities);
+        }
     }
 
     pub fn unsubscribe(&mut self, subscriber: usize, subscribee: usize) {
-        self.subscriptions
+        if self
+            .subscriptions
             .get_mut(&subscriber)
             .unwrap()
-            .remove(&subscribee);
-
-        self.entities[&subscriber]
-            .borrow_mut()
-            .unsubscribe(subscribee, &self.entities);
+            .remove(&subscribee)
+        {
+            self.entities[&subscriber]
+                .borrow_mut()
+                .unsubscribe(subscribee, &self.entities);
+        }
     }
 }

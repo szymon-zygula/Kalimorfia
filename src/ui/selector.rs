@@ -4,20 +4,24 @@ use std::{
     collections::{BTreeMap, HashSet},
 };
 
-pub struct Selector<S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)> {
+pub struct Selector<'a> {
     selectables: BTreeMap<usize, bool>,
-    on_select: S,
-    on_deselect: D,
-    on_remove: R,
+    on_select: Box<dyn FnMut(usize) + 'a>,
+    on_deselect: Box<dyn FnMut(usize) + 'a>,
+    on_remove: Box<dyn FnMut(usize) + 'a>,
 }
 
-impl<S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)> Selector<S, D, R> {
-    pub fn new(on_select: S, on_deselect: D, on_remove: R) -> Self {
+impl<'a> Selector<'a> {
+    pub fn new(
+        on_select: impl FnMut(usize) + 'a,
+        on_deselect: impl FnMut(usize) + 'a,
+        on_remove: impl FnMut(usize) + 'a,
+    ) -> Self {
         Self {
             selectables: BTreeMap::new(),
-            on_select,
-            on_deselect,
-            on_remove,
+            on_select: Box::new(on_select),
+            on_deselect: Box::new(on_deselect),
+            on_remove: Box::new(on_remove),
         }
     }
 

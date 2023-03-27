@@ -1,17 +1,21 @@
 use super::{
     changeable_name::ChangeableName,
-    entity::{Drawable, NamedEntity, ReferentialEntity, ReferentialSceneEntity, SceneObject},
+    entity::{
+        Drawable, NamedEntity, ReferentialControlResult, ReferentialEntity, ReferentialSceneEntity,
+        SceneObject,
+    },
     manager::EntityManager,
 };
 use crate::{
     math::geometry::{self, curvable::Curvable},
     render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
     repositories::NameRepository,
+    ui::ordered_selector::ordered_selelector,
 };
 use nalgebra::{Matrix4, Point3};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::Path,
     rc::Rc,
 };
@@ -33,10 +37,6 @@ impl<'gl> CubicSplineC0<'gl> {
         point_ids: Vec<usize>,
         entity_manager: &RefCell<EntityManager<'gl>>,
     ) -> CubicSplineC0<'gl> {
-        let (vertices, indices) = Self::spline_mesh(&point_ids, entity_manager.borrow().entities());
-        let (polygon_vertices, polygon_indices) =
-            Self::polygon_mesh(&point_ids, entity_manager.borrow().entities());
-
         let gl_program = GlProgram::with_shader_paths(
             gl,
             vec![
@@ -51,15 +51,19 @@ impl<'gl> CubicSplineC0<'gl> {
             ],
         );
 
-        Self {
+        let mut spline = Self {
             gl,
             points: point_ids,
-            mesh: LinesMesh::new(gl, vertices, indices),
-            polygon_mesh: LinesMesh::new(gl, polygon_vertices, polygon_indices),
+            mesh: LinesMesh::empty(gl),
+            polygon_mesh: LinesMesh::empty(gl),
             draw_polygon: false,
             gl_program,
             name: ChangeableName::new("Cubic Spline C0", name_repo),
-        }
+        };
+
+        spline.recalculate_mesh(entity_manager.borrow().entities());
+
+        spline
     }
 
     fn spline_mesh(
@@ -109,10 +113,15 @@ impl<'gl> CubicSplineC0<'gl> {
         &mut self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
-        let (vertices, indices) = Self::spline_mesh(&self.points, entities);
-        self.mesh = LinesMesh::new(self.gl, vertices, indices);
-        let (vertices, indices) = Self::polygon_mesh(&self.points, entities);
-        self.polygon_mesh = LinesMesh::new(self.gl, vertices, indices);
+        if self.points.is_empty() {
+            self.mesh = LinesMesh::empty(self.gl);
+            self.polygon_mesh = LinesMesh::empty(self.gl);
+        } else {
+            let (vertices, indices) = Self::spline_mesh(&self.points, entities);
+            self.mesh = LinesMesh::new(self.gl, vertices, indices);
+            let (vertices, indices) = Self::polygon_mesh(&self.points, entities);
+            self.polygon_mesh = LinesMesh::new(self.gl, vertices, indices);
+        }
     }
 }
 
@@ -120,12 +129,58 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
     fn control_referential_ui(
         &mut self,
         ui: &imgui::Ui,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> (bool, HashSet<usize>) {
+        controller_id: usize,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        subscriptions: &mut HashMap<usize, HashSet<usize>>,
+    ) -> HashSet<usize> {
         self.name_control_ui(ui);
         ui.checkbox("Draw polygon", &mut self.draw_polygon);
 
-        (false, HashSet::new())
+        let selected = self
+            .points
+            .iter()
+            .map(|id| (*id, entities[id].borrow().name(), true));
+
+        let not_selected = entities
+            .iter()
+            .filter(|(id, entity)| {
+                !self.points.contains(id)
+                    && entity
+                        .try_borrow()
+                        .map_or(false, |entity| entity.is_single_point())
+            })
+            .map(|(id, entity)| (*id, entity.borrow().name(), false));
+
+        let points_names_selections = selected.chain(not_selected).collect();
+
+        let new_selection = ordered_selelector(ui, points_names_selections);
+        let new_points: Vec<usize> = new_selection
+            .iter()
+            .filter(|(_, selected)| *selected)
+            .map(|(id, _)| *id)
+            .collect();
+
+        let changed = self.points.iter().ne(new_points.iter());
+
+        if changed {
+            for (id, selected) in new_selection {
+                if selected {
+                    subscriptions.get_mut(&controller_id).unwrap().insert(id);
+                } else {
+                    subscriptions.get_mut(&controller_id).unwrap().remove(&id);
+                }
+                // Subscriptions
+            }
+
+            self.points = new_points;
+            self.recalculate_mesh(entities);
+        }
+
+        if changed {
+            HashSet::from([controller_id])
+        } else {
+            HashSet::new()
+        }
     }
 
     fn notify_about_modification(

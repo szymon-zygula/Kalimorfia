@@ -13,11 +13,11 @@ pub struct LinesMesh<'gl> {
 }
 
 impl<'gl> LinesMesh<'gl> {
-    pub fn new(
-        gl: &'gl glow::Context,
-        vertices: Vec<Point3<f32>>,
-        indices: Vec<u32>,
-    ) -> LinesMesh<'gl> {
+    pub fn empty(gl: &'gl glow::Context) -> Self {
+        Self::new(gl, Vec::new(), Vec::new())
+    }
+
+    pub fn new(gl: &'gl glow::Context, vertices: Vec<Point3<f32>>, indices: Vec<u32>) -> Self {
         let mut mesh = Self::new_uninit(gl, indices.len() as u32);
 
         mesh.vertex_array = opengl::init_vao(gl, || {

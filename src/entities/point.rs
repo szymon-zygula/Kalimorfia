@@ -126,6 +126,10 @@ impl<'gl> SceneObject for Point<'gl> {
     fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {
         self.position = linear_transform.translation;
     }
+
+    fn is_single_point(&self) -> bool {
+        true
+    }
 }
 
 impl<'gl> NamedEntity for Point<'gl> {

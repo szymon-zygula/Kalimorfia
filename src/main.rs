@@ -31,15 +31,15 @@ const CLEAR_COLOR: ColorAlpha = ColorAlpha {
     a: 1.0,
 };
 
-struct State<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)> {
+struct State<'gl, 'a> {
     pub cursor: ScreenCursor<'gl>,
     pub camera: Camera,
-    pub selector: Selector<S, D, R>,
+    pub selector: Selector<'a>,
     pub name_repo: Rc<RefCell<dyn NameRepository>>,
     pub selected_aggregate_id: usize,
 }
 
-impl<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)> State<'gl, S, D, R> {
+impl<'gl, 'a> State<'gl, 'a> {
     pub fn add_entity(
         &mut self,
         entity: Box<dyn ReferentialSceneEntity<'gl> + 'gl>,
@@ -50,10 +50,10 @@ impl<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)> State<'gl, S, D, R>
     }
 }
 
-fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
+fn build_ui<'gl>(
     gl: &'gl glow::Context,
     ui: &mut imgui::Ui,
-    state: &mut State<'gl, S, D, R>,
+    state: &mut State<'gl, '_>,
     entity_manager: &RefCell<EntityManager<'gl>>,
 ) {
     ui.window("Main control")
@@ -95,7 +95,8 @@ fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
 
             ui.next_column();
             if ui.button("Cubic Spline C0") {
-                let selected: Vec<usize> = state.selector.selected().iter().copied().collect();
+                let mut selected: Vec<usize> = state.selector.selected().iter().copied().collect();
+                selected.sort();
                 let spline = Box::new(CubicSplineC0::through_points(
                     gl,
                     Rc::clone(&state.name_repo),
@@ -130,9 +131,9 @@ fn build_ui<'gl, S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
         });
 }
 
-fn select_clicked<S: FnMut(usize), D: FnMut(usize), R: FnMut(usize)>(
+fn select_clicked(
     pixel: glutin::dpi::PhysicalPosition<f64>,
-    state: &mut State<S, D, R>,
+    state: &mut State,
     resolution: &glutin::dpi::PhysicalSize<u32>,
     entity_manager: &RefCell<EntityManager>,
 ) {
@@ -269,4 +270,6 @@ fn main() {
             window.handle_event(event, &gl);
         }
     });
+
+    drop(state);
 }

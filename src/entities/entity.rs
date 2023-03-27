@@ -2,12 +2,14 @@ use super::basic::LinearTransformEntity;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
 pub trait Entity {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool;
 }
+
+pub struct ReferentialControlResult {}
 
 pub trait ReferentialEntity<'gl> {
     /// In contrast to a regular `Entity`, a `ReferentialEntity` can also control any other
@@ -17,8 +19,10 @@ pub trait ReferentialEntity<'gl> {
     fn control_referential_ui(
         &mut self,
         ui: &imgui::Ui,
+        id: usize,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> (bool, HashSet<usize>);
+        subscriptions: &mut HashMap<usize, HashSet<usize>>,
+    ) -> HashSet<usize>;
 
     fn notify_about_modification(
         &mut self,
@@ -53,9 +57,15 @@ impl<'gl, T: Entity> ReferentialEntity<'gl> for T {
     fn control_referential_ui(
         &mut self,
         ui: &imgui::Ui,
+        controller_id: usize,
         _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> (bool, HashSet<usize>) {
-        (self.control_ui(ui), HashSet::new())
+        _subscriptions: &mut HashMap<usize, HashSet<usize>>,
+    ) -> HashSet<usize> {
+        if self.control_ui(ui) {
+            HashSet::from([controller_id])
+        } else {
+            HashSet::new()
+        }
     }
 }
 
@@ -106,6 +116,10 @@ pub trait SceneObject {
 
     fn set_model_transform(&mut self, _linear_transform: LinearTransformEntity) {
         panic!("Entity not is not transformable with LinearTransformEntity");
+    }
+
+    fn is_single_point(&self) -> bool {
+        false
     }
 }
 
