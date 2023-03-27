@@ -83,14 +83,23 @@ fn build_ui<'gl>(
 
             ui.next_column();
             if ui.button("Point") {
-                let id = entity_manager
-                    .borrow_mut()
-                    .add_entity(Box::new(Point::with_position(
-                        gl,
-                        state.cursor.location(),
-                        Rc::clone(&state.name_repo),
-                    )));
+                let point = Box::new(Point::with_position(
+                    gl,
+                    state.cursor.location(),
+                    Rc::clone(&state.name_repo),
+                ));
+
+                let id = entity_manager.borrow_mut().add_entity(point);
                 state.selector.add_selectable(id);
+
+                if let Some(only_id) = state.selector.only_selected() {
+                    if entity_manager.borrow().entities()[&only_id]
+                        .borrow_mut()
+                        .add_point(id, entity_manager.borrow().entities())
+                    {
+                        entity_manager.borrow_mut().subscribe(only_id, id);
+                    }
+                }
             }
 
             ui.next_column();

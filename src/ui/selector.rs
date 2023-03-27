@@ -83,6 +83,15 @@ impl<'a> Selector<'a> {
             .collect()
     }
 
+    pub fn only_selected(&self) -> Option<usize> {
+        let selected = self.selected();
+        if selected.len() == 1 {
+            Some(*selected.iter().next().unwrap())
+        } else {
+            None
+        }
+    }
+
     pub fn unselected(&self) -> HashSet<usize> {
         self.selectables
             .iter()

@@ -1,9 +1,6 @@
 use super::{
     changeable_name::ChangeableName,
-    entity::{
-        Drawable, NamedEntity, ReferentialControlResult, ReferentialEntity, ReferentialSceneEntity,
-        SceneObject,
-    },
+    entity::{Drawable, NamedEntity, ReferentialEntity, ReferentialSceneEntity, SceneObject},
     manager::EntityManager,
 };
 use crate::{
@@ -181,6 +178,16 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         } else {
             HashSet::new()
         }
+    }
+
+    fn add_point(
+        &mut self,
+        id: usize,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) -> bool {
+        self.points.push(id);
+        self.recalculate_mesh(entities);
+        true
     }
 
     fn notify_about_modification(

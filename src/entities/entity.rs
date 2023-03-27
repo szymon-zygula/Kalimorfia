@@ -9,8 +9,6 @@ pub trait Entity {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool;
 }
 
-pub struct ReferentialControlResult {}
-
 pub trait ReferentialEntity<'gl> {
     /// In contrast to a regular `Entity`, a `ReferentialEntity` can also control any other
     /// entities passed to its `control_ui`.
@@ -50,6 +48,14 @@ pub trait ReferentialEntity<'gl> {
         _subscribees: usize,
         _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
+    }
+
+    fn add_point(
+        &mut self,
+        _id: usize,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) -> bool {
+        false
     }
 }
 
