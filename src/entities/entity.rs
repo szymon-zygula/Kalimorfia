@@ -1,4 +1,5 @@
 use super::basic::LinearTransformEntity;
+use crate::camera::Camera;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
     cell::RefCell,
@@ -75,16 +76,27 @@ impl<'gl, T: Entity> ReferentialEntity<'gl> for T {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum DrawType {
+    Normal,
+    Selected,
+}
+
 pub trait Drawable {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>);
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType);
+
+    fn draw_normal(&self, camera: &Camera) {
+        self.draw(camera, &Matrix4::identity(), DrawType::Normal);
+    }
 }
 
 pub trait ReferentialDrawable<'gl> {
     fn draw_referential(
         &self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
+        camera: &Camera,
+        premul: &Matrix4<f32>,
+        draw_type: DrawType,
     );
 }
 
@@ -92,10 +104,11 @@ impl<'gl, T: Drawable> ReferentialDrawable<'gl> for T {
     fn draw_referential(
         &self,
         _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
+        camera: &Camera,
+        premul: &Matrix4<f32>,
+        draw_type: DrawType,
     ) {
-        self.draw(projection_transform, view_transform);
+        self.draw(camera, premul, draw_type);
     }
 }
 

@@ -1,9 +1,10 @@
 use crate::{
+    camera::Camera,
     entities::{
         basic::LinearTransformEntity,
         cursor::Cursor,
         entity::{
-            Drawable, Entity, NamedEntity, ReferentialDrawable, ReferentialEntity,
+            DrawType, Drawable, Entity, NamedEntity, ReferentialDrawable, ReferentialEntity,
             ReferentialSceneEntity, SceneObject,
         },
     },
@@ -126,8 +127,9 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
     fn draw_referential(
         &self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
+        camera: &Camera,
+        premul: &Matrix4<f32>,
+        draw_type: DrawType,
     ) {
         match self.entities.len() {
             0 => {}
@@ -135,26 +137,24 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
                 let only_id = self.entities.iter().next().unwrap();
                 if let Some(ref location) = self.cursor.location() {
                     self.cursor.draw(
-                        projection_transform,
-                        &(view_transform
-                            * entities[only_id].borrow().model_transform()
+                        camera,
+                        &(premul * entities[only_id].borrow().model_transform()
                             * transforms::translate(-location.coords)),
+                        draw_type,
                     );
                 }
             }
             _ => {
-                self.cursor.draw(
-                    projection_transform,
-                    &(view_transform * self.model_transform()),
-                );
+                self.cursor.draw(camera, &self.model_transform(), draw_type);
             }
         }
 
         for id in &self.entities {
             entities[id].borrow().draw_referential(
                 entities,
-                projection_transform,
-                &(view_transform * self.model_transform()),
+                camera,
+                &(premul * self.model_transform()),
+                draw_type,
             );
         }
     }

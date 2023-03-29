@@ -1,9 +1,12 @@
 use super::{
     changeable_name::ChangeableName,
-    entity::{Drawable, NamedEntity, ReferentialEntity, ReferentialSceneEntity, SceneObject},
+    entity::{
+        DrawType, Drawable, NamedEntity, ReferentialEntity, ReferentialSceneEntity, SceneObject,
+    },
     manager::EntityManager,
 };
 use crate::{
+    camera::Camera,
     math::geometry::{self, curvable::Curvable},
     render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
     repositories::NameRepository,
@@ -208,14 +211,16 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
 }
 
 impl<'gl> Drawable for CubicSplineC0<'gl> {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         self.gl_program.enable();
         self.gl_program
-            .uniform_matrix_4_f32_slice("model_transform", Matrix4::identity().as_slice());
+            .uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
         self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
+            .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        self.gl_program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
 
         self.mesh.draw();
 

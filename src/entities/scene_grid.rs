@@ -1,5 +1,6 @@
-use super::entity::Drawable;
+use super::entity::{DrawType, Drawable};
 use crate::{
+    camera::Camera,
     math::affine::transforms,
     render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
 };
@@ -67,16 +68,18 @@ impl<'gl> SceneGrid<'gl> {
 }
 
 impl<'gl> Drawable for SceneGrid<'gl> {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         let model_transform = transforms::scale(self.scale, 1.0, self.scale);
 
         self.gl_program.enable();
         self.gl_program
-            .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
+            .uniform_matrix_4_f32_slice("model_transform", (premul * model_transform).as_slice());
         self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
+            .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        self.gl_program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
         self.mesh.draw();
     }
 }

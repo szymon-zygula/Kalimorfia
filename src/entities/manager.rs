@@ -1,4 +1,5 @@
-pub(crate) use super::entity::ReferentialSceneEntity;
+use super::entity::{DrawType, ReferentialSceneEntity};
+use crate::camera::Camera;
 use nalgebra::Matrix4;
 use std::{
     cell::{Ref, RefCell},
@@ -36,14 +37,13 @@ impl<'gl> EntityManager<'gl> {
     pub fn draw_referential(
         &self,
         id: usize,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
+        camera: &Camera,
+        premul: &Matrix4<f32>,
+        draw_type: DrawType,
     ) {
-        self.entities[&id].borrow().draw_referential(
-            &self.entities,
-            projection_transform,
-            view_transform,
-        );
+        self.entities[&id]
+            .borrow()
+            .draw_referential(&self.entities, camera, premul, draw_type);
     }
 
     pub fn remove_entity(&mut self, removed_id: usize) {

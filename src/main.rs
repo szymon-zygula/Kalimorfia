@@ -6,7 +6,7 @@ use kalimorfia::{
         aggregate::Aggregate,
         cubic_spline_c0::CubicSplineC0,
         cursor::ScreenCursor,
-        entity::{Drawable, Entity, ReferentialSceneEntity, SceneObject},
+        entity::{DrawType, Drawable, Entity, ReferentialSceneEntity, SceneObject},
         manager::EntityManager,
         point::Point,
         scene_grid::SceneGrid,
@@ -18,7 +18,7 @@ use kalimorfia::{
     ui::selector::Selector,
     window::Window,
 };
-use nalgebra::Point2;
+use nalgebra::{Matrix4, Point2};
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
 const WINDOW_TITLE: &str = "Kalimorfia";
@@ -104,7 +104,13 @@ fn build_ui<'gl>(
 
             ui.next_column();
             if ui.button("Cubic Spline C0") {
-                let mut selected: Vec<usize> = state.selector.selected().iter().copied().collect();
+                let mut selected: Vec<usize> = state
+                    .selector
+                    .selected()
+                    .iter()
+                    .filter(|&&id| entity_manager.borrow().get_entity(id).is_single_point())
+                    .copied()
+                    .collect();
                 selected.sort();
                 let spline = Box::new(CubicSplineC0::through_points(
                     gl,
@@ -238,26 +244,25 @@ fn main() {
                 }
             }
 
-            let view_transform = state.camera.view_transform();
-            let projection_transform = state.camera.projection_transform();
-
-            grid.draw(&projection_transform, &view_transform);
+            grid.draw_normal(&state.camera);
 
             for id in state.selector.unselected() {
                 entity_manager.borrow().draw_referential(
                     id,
-                    &projection_transform,
-                    &view_transform,
+                    &state.camera,
+                    &Matrix4::identity(),
+                    DrawType::Selected,
                 );
             }
 
             entity_manager.borrow().draw_referential(
                 selected_aggregate_id,
-                &projection_transform,
-                &view_transform,
+                &state.camera,
+                &Matrix4::identity(),
+                DrawType::Normal,
             );
 
-            state.cursor.draw(&projection_transform, &view_transform);
+            state.cursor.draw_normal(&state.camera);
             window.render(&gl, |ui| build_ui(&gl, ui, &mut state, &entity_manager));
         }
         Event::WindowEvent {

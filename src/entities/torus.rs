@@ -1,9 +1,10 @@
 use super::{
     basic::LinearTransformEntity,
     changeable_name::ChangeableName,
-    entity::{Drawable, Entity, NamedEntity, SceneObject},
+    entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject},
 };
 use crate::{
+    camera::Camera,
     math::geometry::{self, gridable::Gridable},
     render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
     repositories::NameRepository,
@@ -97,16 +98,18 @@ impl<'gl> Entity for Torus<'gl> {
 }
 
 impl<'gl> Drawable for Torus<'gl> {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         let model_transform = self.model_transform();
 
         self.gl_program.enable();
         self.gl_program
-            .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
+            .uniform_matrix_4_f32_slice("model_transform", (premul * model_transform).as_slice());
         self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
+            .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        self.gl_program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
         self.mesh.draw();
     }
 }

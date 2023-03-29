@@ -1,6 +1,6 @@
 use super::{
     basic::Translation,
-    entity::{Drawable, Entity, SceneObject},
+    entity::{DrawType, Drawable, Entity, SceneObject},
     screen_coordinates::ScreenCoordinates,
 };
 use crate::{
@@ -77,18 +77,20 @@ impl<'gl> Entity for Cursor<'gl> {
 }
 
 impl<'gl> Drawable for Cursor<'gl> {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         if let Some(ref position) = self.position {
             let model_transform = position.as_matrix() * transforms::uniform_scale(self.scale);
 
             self.gl_program.enable();
+            self.gl_program.uniform_matrix_4_f32_slice(
+                "model_transform",
+                (premul * model_transform).as_slice(),
+            );
             self.gl_program
-                .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
-            self.gl_program
-                .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
+                .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
             self.gl_program.uniform_matrix_4_f32_slice(
                 "projection_transform",
-                projection_transform.as_slice(),
+                camera.projection_transform().as_slice(),
             );
             self.mesh.draw();
         }
@@ -188,8 +190,8 @@ impl<'gl> Entity for ScreenCursor<'gl> {
 }
 
 impl<'gl> Drawable for ScreenCursor<'gl> {
-    fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
-        self.cursor.draw(projection_transform, view_transform)
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+        self.cursor.draw(camera, premul, draw_type)
     }
 }
 
