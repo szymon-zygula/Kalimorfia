@@ -13,7 +13,7 @@ use nalgebra::{Matrix4, Point3};
 use std::path::Path;
 
 pub struct Cursor<'gl> {
-    position: Translation,
+    position: Option<Translation>,
     mesh: ColoredLineMesh<'gl>,
     gl_program: GlProgram<'gl>,
     scale: f32,
@@ -51,15 +51,15 @@ impl<'gl> Cursor<'gl> {
         );
 
         Cursor {
-            position: Translation::new(),
+            position: Some(Translation::new()),
             mesh,
             gl_program,
             scale,
         }
     }
 
-    pub fn set_position(&mut self, position: Point3<f32>) {
-        self.position.translation = position.coords;
+    pub fn set_position(&mut self, position: Option<Point3<f32>>) {
+        self.position = position.map(|p| Translation::with(p.coords));
     }
 }
 
@@ -67,28 +67,37 @@ impl<'gl> Entity for Cursor<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         let _token = ui.push_id("cursor");
         ui.text("Cursor control");
-        self.position.control_ui(ui)
+
+        if let Some(ref mut position) = self.position {
+            position.control_ui(ui)
+        } else {
+            false
+        }
     }
 }
 
 impl<'gl> Drawable for Cursor<'gl> {
     fn draw(&self, projection_transform: &Matrix4<f32>, view_transform: &Matrix4<f32>) {
-        let model_transform = self.position.as_matrix() * transforms::uniform_scale(self.scale);
+        if let Some(ref position) = self.position {
+            let model_transform = position.as_matrix() * transforms::uniform_scale(self.scale);
 
-        self.gl_program.enable();
-        self.gl_program
-            .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("projection_transform", projection_transform.as_slice());
-        self.mesh.draw();
+            self.gl_program.enable();
+            self.gl_program
+                .uniform_matrix_4_f32_slice("model_transform", model_transform.as_slice());
+            self.gl_program
+                .uniform_matrix_4_f32_slice("view_transform", view_transform.as_slice());
+            self.gl_program.uniform_matrix_4_f32_slice(
+                "projection_transform",
+                projection_transform.as_slice(),
+            );
+            self.mesh.draw();
+        }
     }
 }
 
 impl<'gl> SceneObject for Cursor<'gl> {
-    fn location(&self) -> Point3<f32> {
-        self.position.translation.into()
+    fn location(&self) -> Option<Point3<f32>> {
+        self.position.as_ref().map(|p| p.translation.into())
     }
 }
 
@@ -115,7 +124,7 @@ impl<'gl> ScreenCursor<'gl> {
         Point3::from_homogeneous(
             self.camera.projection_transform()
                 * self.camera.view_transform()
-                * Point3::from(self.cursor.position.translation).to_homogeneous(),
+                * Point3::from(self.cursor.position.as_ref().unwrap().translation).to_homogeneous(),
         )
         .unwrap_or(Point3::origin())
     }
@@ -135,7 +144,7 @@ impl<'gl> ScreenCursor<'gl> {
         deprojected.z = -deprojected.z.abs();
         deprojected.w = deprojected.w.abs();
 
-        self.cursor.position.translation =
+        self.cursor.position.as_mut().unwrap().translation =
             Point3::from_homogeneous(self.camera.inverse_view_transform() * deprojected)
                 .unwrap()
                 .coords;
@@ -185,7 +194,7 @@ impl<'gl> Drawable for ScreenCursor<'gl> {
 }
 
 impl<'gl> SceneObject for ScreenCursor<'gl> {
-    fn location(&self) -> Point3<f32> {
+    fn location(&self) -> Option<Point3<f32>> {
         self.cursor.location()
     }
 }

@@ -115,8 +115,8 @@ impl<'gl> SceneObject for Point<'gl> {
         (is_at_point, camera_distance)
     }
 
-    fn location(&self) -> Point3<f32> {
-        self.position.translation.into()
+    fn location(&self) -> Option<Point3<f32>> {
+        Some(self.position.translation.into())
     }
 
     fn model_transform(&self) -> Matrix4<f32> {

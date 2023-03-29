@@ -64,7 +64,7 @@ fn build_ui<'gl>(
             state.cursor.control_ui(ui);
 
             if ui.button("Center on cursor") {
-                state.camera.center = state.cursor.location();
+                state.camera.center = state.cursor.location().unwrap();
             }
 
             ui.separator();
@@ -75,7 +75,7 @@ fn build_ui<'gl>(
                     .borrow_mut()
                     .add_entity(Box::new(Torus::with_position(
                         gl,
-                        state.cursor.location(),
+                        state.cursor.location().unwrap(),
                         Rc::clone(&state.name_repo),
                     )));
                 state.selector.add_selectable(id);
@@ -85,7 +85,7 @@ fn build_ui<'gl>(
             if ui.button("Point") {
                 let point = Box::new(Point::with_position(
                     gl,
-                    state.cursor.location(),
+                    state.cursor.location().unwrap(),
                     Rc::clone(&state.name_repo),
                 ));
 

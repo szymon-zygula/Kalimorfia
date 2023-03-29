@@ -112,8 +112,8 @@ impl<'gl> Drawable for Torus<'gl> {
 }
 
 impl<'gl> SceneObject for Torus<'gl> {
-    fn location(&self) -> Point3<f32> {
-        self.linear_transform.translation.translation.into()
+    fn location(&self) -> Option<Point3<f32>> {
+        Some(self.linear_transform.translation.translation.into())
     }
 
     fn model_transform(&self) -> Matrix4<f32> {

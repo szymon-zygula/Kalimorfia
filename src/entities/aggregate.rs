@@ -59,25 +59,32 @@ impl<'gl> Aggregate<'gl> {
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         if self.entities.is_empty() {
-            self.cursor.set_position(Point3::origin());
+            self.cursor.set_position(None);
             return;
         }
 
         let mut sum = Vector3::zeros();
+        let mut count = 0.0;
 
         for id in &self.entities {
-            sum += entities[id].borrow().location().coords;
+            if let Some(location) = entities[id].borrow().location() {
+                sum += location.coords;
+                count += 1.0;
+            }
         }
 
-        sum /= self.entities.len() as f32;
-
-        self.cursor.set_position(sum.into());
+        if count == 0.0 {
+            self.cursor.set_position(None);
+        } else {
+            sum /= count;
+            self.cursor.set_position(Some(sum.into()));
+        }
     }
 
     fn composed_transform(&self, transform: &Matrix4<f32>) -> LinearTransformEntity {
-        let composed_transform = transforms::translate(self.cursor.location().coords)
+        let composed_transform = transforms::translate(self.cursor.location().unwrap().coords)
             * self.linear_transform.as_matrix()
-            * transforms::translate(-self.cursor.location().coords)
+            * transforms::translate(-self.cursor.location().unwrap().coords)
             * transform;
 
         let decomposed_transform = TRSSDecomposition::decompose(composed_transform);
@@ -100,14 +107,18 @@ impl<'gl> Aggregate<'gl> {
 }
 
 impl<'gl> SceneObject for Aggregate<'gl> {
-    fn location(&self) -> Point3<f32> {
+    fn location(&self) -> Option<Point3<f32>> {
         self.cursor.location()
     }
 
     fn model_transform(&self) -> Matrix4<f32> {
-        transforms::translate(self.location().coords)
-            * self.linear_transform.as_matrix()
-            * transforms::translate(-self.location().coords)
+        if let Some(location) = self.location() {
+            transforms::translate(location.coords)
+                * self.linear_transform.as_matrix()
+                * transforms::translate(-self.location().unwrap().coords)
+        } else {
+            Matrix4::identity()
+        }
     }
 }
 
@@ -122,12 +133,14 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
             0 => {}
             1 => {
                 let only_id = self.entities.iter().next().unwrap();
-                self.cursor.draw(
-                    projection_transform,
-                    &(view_transform
-                        * entities[only_id].borrow().model_transform()
-                        * transforms::translate(-self.cursor.location().coords)),
-                );
+                if let Some(ref location) = self.cursor.location() {
+                    self.cursor.draw(
+                        projection_transform,
+                        &(view_transform
+                            * entities[only_id].borrow().model_transform()
+                            * transforms::translate(-location.coords)),
+                    );
+                }
             }
             _ => {
                 self.cursor.draw(

@@ -70,7 +70,7 @@ impl<'gl> CubicSplineC0<'gl> {
         let mut points = Vec::with_capacity(point_ids.len());
 
         for &id in point_ids {
-            let p = entities[&id].borrow().location();
+            let p = entities[&id].borrow().location().unwrap();
             points.push(Point3::new(p.x as f64, p.y as f64, p.z as f64));
         }
 
@@ -93,8 +93,7 @@ impl<'gl> CubicSplineC0<'gl> {
         let mut points = Vec::with_capacity(point_ids.len());
 
         for &id in point_ids {
-            let p = entities[&id].borrow().location();
-            points.push(Point3::new(p.x, p.y, p.z));
+            points.push(entities[&id].borrow().location().unwrap());
         }
 
         let mut indices = Vec::with_capacity(points.len() * 2);
@@ -226,11 +225,7 @@ impl<'gl> Drawable for CubicSplineC0<'gl> {
     }
 }
 
-impl<'gl> SceneObject for CubicSplineC0<'gl> {
-    fn location(&self) -> Point3<f32> {
-        Point3::origin()
-    }
-}
+impl<'gl> SceneObject for CubicSplineC0<'gl> {}
 
 impl<'gl> NamedEntity for CubicSplineC0<'gl> {
     fn name(&self) -> String {
