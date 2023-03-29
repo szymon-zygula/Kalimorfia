@@ -1,5 +1,5 @@
 use crate::{math::affine::transforms, mouse::MouseState, window::Window};
-use glutin::dpi::PhysicalPosition;
+use glutin::dpi::{PhysicalPosition, PhysicalSize};
 use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 
 #[derive(Debug, Clone)]
@@ -8,7 +8,7 @@ pub struct Camera {
     pub altitude: f32,
     pub distance: f32,
     pub center: Point3<f32>,
-    pub aspect_ratio: f32,
+    pub window_size: PhysicalSize<u32>,
 }
 
 impl Camera {
@@ -21,7 +21,7 @@ impl Camera {
             altitude: std::f32::consts::FRAC_PI_4,
             distance: 5.0,
             center: Point3::new(0.0, 0.0, 0.0),
-            aspect_ratio: 1.0,
+            window_size: PhysicalSize::new(0, 0),
         }
     }
 
@@ -29,7 +29,9 @@ impl Camera {
         let mouse_delta = mouse.position_delta();
         let scroll_delta = mouse.scroll_delta();
 
-        if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0 || scroll_delta != 0.0) && !window.imgui_using_mouse() {
+        if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0 || scroll_delta != 0.0)
+            && !window.imgui_using_mouse()
+        {
             self.update_angles(mouse, &mouse_delta);
             self.update_center(mouse, &mouse_delta);
 
@@ -82,12 +84,16 @@ impl Camera {
             * transforms::translate(Vector3::new(0.0, 0.0, self.distance))
     }
 
+    pub fn aspect_ratio(&self) -> f32 {
+        self.window_size.width as f32 / self.window_size.height as f32
+    }
+
     pub fn projection_transform(&self) -> Matrix4<f32> {
-        transforms::projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio, 0.1, 100.0)
+        transforms::projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio(), 0.1, 100.0)
     }
 
     pub fn inverse_projection_transform(&self) -> Matrix4<f32> {
-        transforms::inverse_projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio, 0.1, 100.0)
+        transforms::inverse_projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio(), 0.1, 100.0)
     }
 
     pub fn project_ray(&self, pixel: Point2<f32>) -> Vector3<f32> {
@@ -97,7 +103,7 @@ impl Camera {
             self.inverse_view_transform()
                 * transforms::inverse_projection(
                     std::f32::consts::FRAC_PI_2,
-                    self.aspect_ratio,
+                    self.aspect_ratio(),
                     0.1,
                     100.0,
                 )

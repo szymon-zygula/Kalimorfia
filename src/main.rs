@@ -269,7 +269,7 @@ fn main() {
                 mouse.handle_window_event(event);
 
                 if let WindowEvent::Resized(resolution) = event {
-                    state.camera.aspect_ratio = resolution.width as f32 / resolution.height as f32;
+                    state.camera.window_size = resolution.clone();
                     state
                         .cursor
                         .set_camera_and_resolution(&state.camera, resolution);
