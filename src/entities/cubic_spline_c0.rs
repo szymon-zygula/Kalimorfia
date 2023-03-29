@@ -1,7 +1,8 @@
 use super::{
     changeable_name::ChangeableName,
     entity::{
-        DrawType, Drawable, NamedEntity, ReferentialEntity, ReferentialSceneEntity, SceneObject,
+        DrawType, NamedEntity, ReferentialDrawable, ReferentialEntity, ReferentialSceneEntity,
+        SceneObject,
     },
     manager::EntityManager,
 };
@@ -22,12 +23,13 @@ use std::{
 
 pub struct CubicSplineC0<'gl> {
     gl: &'gl glow::Context,
-    mesh: LinesMesh<'gl>,
-    polygon_mesh: LinesMesh<'gl>,
+    mesh: RefCell<Option<LinesMesh<'gl>>>,
+    polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
     draw_polygon: bool,
     points: Vec<usize>,
     gl_program: GlProgram<'gl>,
     name: ChangeableName,
+    last_camera: RefCell<Option<Camera>>,
 }
 
 impl<'gl> CubicSplineC0<'gl> {
@@ -51,19 +53,16 @@ impl<'gl> CubicSplineC0<'gl> {
             ],
         );
 
-        let mut spline = Self {
+        Self {
             gl,
             points: point_ids,
-            mesh: LinesMesh::empty(gl),
-            polygon_mesh: LinesMesh::empty(gl),
+            mesh: RefCell::new(None),
+            polygon_mesh: RefCell::new(None),
             draw_polygon: false,
             gl_program,
             name: ChangeableName::new("Cubic Spline C0", name_repo),
-        };
-
-        spline.recalculate_mesh(entity_manager.borrow().entities());
-
-        spline
+            last_camera: RefCell::new(None),
+        }
     }
 
     fn spline_mesh(
@@ -109,18 +108,29 @@ impl<'gl> CubicSplineC0<'gl> {
     }
 
     fn recalculate_mesh(
-        &mut self,
+        &self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        camera: &Camera,
     ) {
         if self.points.is_empty() {
-            self.mesh = LinesMesh::empty(self.gl);
-            self.polygon_mesh = LinesMesh::empty(self.gl);
+            self.invalidate_mesh();
         } else {
             let (vertices, indices) = Self::spline_mesh(&self.points, entities);
-            self.mesh = LinesMesh::new(self.gl, vertices, indices);
+            self.mesh
+                .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
             let (vertices, indices) = Self::polygon_mesh(&self.points, entities);
-            self.polygon_mesh = LinesMesh::new(self.gl, vertices, indices);
+            self.polygon_mesh
+                .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
         }
+    }
+
+    fn invalidate_mesh(&self) {
+        self.mesh.replace(None);
+        self.polygon_mesh.replace(None);
+    }
+
+    fn is_mesh_valid(&self) -> bool {
+        self.mesh.borrow().is_some() && self.polygon_mesh.borrow().is_some()
     }
 }
 
@@ -168,11 +178,10 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
                 } else {
                     subscriptions.get_mut(&controller_id).unwrap().remove(&id);
                 }
-                // Subscriptions
             }
 
             self.points = new_points;
-            self.recalculate_mesh(entities);
+            self.invalidate_mesh();
         }
 
         if changed {
@@ -185,33 +194,49 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
     fn add_point(
         &mut self,
         id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) -> bool {
         self.points.push(id);
-        self.recalculate_mesh(entities);
+        self.invalidate_mesh();
         true
     }
 
     fn notify_about_modification(
         &mut self,
         _modified: &HashSet<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
-        self.recalculate_mesh(entities);
+        self.invalidate_mesh();
     }
 
     fn notify_about_deletion(
         &mut self,
         deleted: &HashSet<usize>,
-        remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         self.points.retain(|id| !deleted.contains(id));
-        self.recalculate_mesh(remaining);
+        self.invalidate_mesh();
     }
 }
 
-impl<'gl> Drawable for CubicSplineC0<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {
+    fn draw_referential(
+        &self,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        camera: &Camera,
+        premul: &Matrix4<f32>,
+        draw_type: DrawType,
+    ) {
+        if self.last_camera.borrow().as_ref().eq(&Some(camera)) {
+            self.recalculate_mesh(entities, camera);
+        } else {
+            self.last_camera.replace(Some(camera.clone()));
+        }
+
+        if !self.is_mesh_valid() {
+            self.recalculate_mesh(entities, camera);
+        }
+
         self.gl_program.enable();
         self.gl_program
             .uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
@@ -222,10 +247,17 @@ impl<'gl> Drawable for CubicSplineC0<'gl> {
             camera.projection_transform().as_slice(),
         );
 
-        self.mesh.draw();
+        if let Some((mesh, polygon_mesh)) = self
+            .mesh
+            .borrow()
+            .as_ref()
+            .zip(self.polygon_mesh.borrow().as_ref())
+        {
+            mesh.draw();
 
-        if self.draw_polygon {
-            self.polygon_mesh.draw();
+            if self.draw_polygon {
+                polygon_mesh.draw();
+            }
         }
     }
 }

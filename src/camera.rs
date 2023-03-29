@@ -2,7 +2,7 @@ use crate::{math::affine::transforms, mouse::MouseState, window::Window};
 use glutin::dpi::{PhysicalPosition, PhysicalSize};
 use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Camera {
     pub azimuth: f32,
     pub altitude: f32,
@@ -48,7 +48,7 @@ impl Camera {
     }
 
     fn update_angles(&mut self, mouse: &MouseState, mouse_delta: &PhysicalPosition<f64>) {
-        if mouse.is_middle_button_down() {
+        if mouse.is_left_button_down() {
             self.azimuth += mouse_delta.x as f32 * Self::ROTATION_SPEED;
             self.altitude += mouse_delta.y as f32 * Self::ROTATION_SPEED;
         }
