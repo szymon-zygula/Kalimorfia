@@ -25,6 +25,7 @@ pub struct Aggregate<'gl> {
     linear_transform: LinearTransformEntity,
     entities: HashSet<usize>,
     name: String,
+    original_transforms: HashMap<usize, Matrix4<f32>>,
 }
 
 impl<'gl> Aggregate<'gl> {
@@ -35,6 +36,7 @@ impl<'gl> Aggregate<'gl> {
             linear_transform: LinearTransformEntity::new(),
             entities: HashSet::new(),
             name: name_repo.generate_name("Entity selection"),
+            original_transforms: HashMap::new(),
         }
     }
 
@@ -51,11 +53,21 @@ impl<'gl> Aggregate<'gl> {
         *id
     }
 
-    fn reset_transform(&mut self) {
-        self.linear_transform.reset()
+    fn reset_transforms(
+        &mut self,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        self.linear_transform.reset();
+        for (id, original_transform) in self
+            .original_transforms
+            .iter_mut()
+            .filter(|(id, _)| entities[id].borrow().location().is_some())
+        {
+            *original_transform = entities[id].borrow().model_transform();
+        }
     }
 
-    fn update_cursor(
+    fn update_cursor_position(
         &mut self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
@@ -153,18 +165,9 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
         }
 
         for id in &self.entities {
-            if entities[id].borrow().location().is_some() {
-                entities[id].borrow().draw_referential(
-                    entities,
-                    camera,
-                    &(premul * self.model_transform()),
-                    draw_type,
-                );
-            } else {
-                entities[id]
-                    .borrow()
-                    .draw_referential(entities, camera, premul, draw_type);
-            }
+            entities[id]
+                .borrow()
+                .draw_referential(entities, camera, premul, draw_type);
         }
     }
 }
@@ -190,23 +193,17 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
 
                 let changed = self.linear_transform.control_ui(ui);
 
-                if ui.button("Apply") {
+                if changed {
                     for id in &self.entities {
-                        let transform =
-                            self.composed_transform(&entities[id].borrow().model_transform());
-
                         if entities[id].borrow().location().is_some() {
+                            let transform = self.composed_transform(&self.original_transforms[id]);
                             entities[id].borrow_mut().set_model_transform(transform);
                         }
                     }
 
-                    self.update_cursor(entities);
-                    self.reset_transform();
                     let mut changes = self.entities.clone();
                     changes.insert(controller_id);
                     changes
-                } else if changed {
-                    HashSet::from([controller_id])
                 } else {
                     HashSet::new()
                 }
@@ -221,7 +218,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         _modified: &HashSet<usize>,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
-        self.update_cursor(entities);
+        self.update_cursor_position(entities);
     }
 
     fn notify_about_deletion(
@@ -230,7 +227,9 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         self.entities = self.entities.difference(deleted).copied().collect();
-        self.update_cursor(remaining);
+        self.original_transforms
+            .retain(|id, _| !deleted.contains(id));
+        self.update_cursor_position(remaining);
     }
 
     fn subscribe(
@@ -239,8 +238,13 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         self.entities.insert(subscribee);
-        self.reset_transform();
-        self.update_cursor(entities);
+        if entities[&subscribee].borrow().location().is_some() {
+            self.original_transforms
+                .insert(subscribee, entities[&subscribee].borrow().model_transform());
+        }
+
+        self.reset_transforms(entities);
+        self.update_cursor_position(entities);
     }
 
     fn unsubscribe(
@@ -249,6 +253,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         self.entities.remove(&subscribee);
+        self.original_transforms.remove(&subscribee);
     }
 }
 
