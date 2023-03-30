@@ -153,12 +153,18 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
         }
 
         for id in &self.entities {
-            entities[id].borrow().draw_referential(
-                entities,
-                camera,
-                &(premul * self.model_transform()),
-                draw_type,
-            );
+            if entities[id].borrow().location().is_some() {
+                entities[id].borrow().draw_referential(
+                    entities,
+                    camera,
+                    &(premul * self.model_transform()),
+                    draw_type,
+                );
+            } else {
+                entities[id]
+                    .borrow()
+                    .draw_referential(entities, camera, premul, draw_type);
+            }
         }
     }
 }
@@ -189,7 +195,9 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
                         let transform =
                             self.composed_transform(&entities[id].borrow().model_transform());
 
-                        entities[id].borrow_mut().set_model_transform(transform);
+                        if entities[id].borrow().location().is_some() {
+                            entities[id].borrow_mut().set_model_transform(transform);
+                        }
                     }
 
                     self.update_cursor(entities);
