@@ -246,7 +246,7 @@ fn main() {
 
             grid.draw_normal(&state.camera);
 
-            for id in state.selector.unselected() {
+            for id in state.selector.selectables() {
                 entity_manager.borrow().draw_referential(
                     id,
                     &state.camera,

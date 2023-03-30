@@ -163,12 +163,6 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
                 self.cursor.draw(camera, &self.model_transform(), draw_type);
             }
         }
-
-        for id in &self.entities {
-            entities[id]
-                .borrow()
-                .draw_referential(entities, camera, premul, draw_type);
-        }
     }
 }
 
