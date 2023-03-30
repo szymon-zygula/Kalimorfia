@@ -84,7 +84,7 @@ impl<'gl> Aggregate<'gl> {
 
     fn composed_transform(&self, transform: &Matrix4<f32>) -> LinearTransformEntity {
         let composed_transform = transforms::translate(self.cursor.location().unwrap().coords)
-            * self.linear_transform.as_matrix()
+            * self.linear_transform.matrix()
             * transforms::translate(-self.cursor.location().unwrap().coords)
             * transform;
 
@@ -115,7 +115,7 @@ impl<'gl> SceneObject for Aggregate<'gl> {
     fn model_transform(&self) -> Matrix4<f32> {
         if let Some(location) = self.location() {
             transforms::translate(location.coords)
-                * self.linear_transform.as_matrix()
+                * self.linear_transform.matrix()
                 * transforms::translate(-self.location().unwrap().coords)
         } else {
             Matrix4::identity()

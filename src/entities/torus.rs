@@ -120,7 +120,7 @@ impl<'gl> SceneObject for Torus<'gl> {
     }
 
     fn model_transform(&self) -> Matrix4<f32> {
-        self.linear_transform.as_matrix()
+        self.linear_transform.matrix()
     }
 
     fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {

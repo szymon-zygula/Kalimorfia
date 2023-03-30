@@ -15,8 +15,12 @@ impl Orientation {
         }
     }
 
-    pub fn as_matrix(&self) -> Matrix4<f32> {
+    pub fn matrix(&self) -> Matrix4<f32> {
         transforms::rotate_axis(self.axis, self.angle)
+    }
+
+    pub fn inverse_matrix(&self) -> Matrix4<f32> {
+        transforms::rotate_axis(self.axis, -self.angle)
     }
 
     pub fn reset(&mut self) {
@@ -80,8 +84,12 @@ impl Translation {
         Translation { translation }
     }
 
-    pub fn as_matrix(&self) -> Matrix4<f32> {
+    pub fn matrix(&self) -> Matrix4<f32> {
         transforms::translate(self.translation)
+    }
+
+    pub fn inverse_matrix(&self) -> Matrix4<f32> {
+        transforms::translate(-self.translation)
     }
 
     pub fn reset(&mut self) {
@@ -130,8 +138,12 @@ impl Scale {
         }
     }
 
-    pub fn as_matrix(&self) -> Matrix4<f32> {
+    pub fn matrix(&self) -> Matrix4<f32> {
         transforms::scale(self.scale.x, self.scale.y, self.scale.z)
+    }
+
+    pub fn inverse_matrix(&self) -> Matrix4<f32> {
+        transforms::scale(1.0 / self.scale.x, 1.0 / self.scale.y, 1.0 / self.scale.z)
     }
 
     pub fn reset(&mut self) {
@@ -184,8 +196,12 @@ impl Shear {
         }
     }
 
-    pub fn as_matrix(&self) -> Matrix4<f32> {
+    pub fn matrix(&self) -> Matrix4<f32> {
         transforms::shear_xy_xz_yz(self.xy, self.xz, self.yz)
+    }
+
+    pub fn inverse_matrix(&self) -> Matrix4<f32> {
+        transforms::inverse_shear_xy_xz_yz(self.xy, self.xz, self.yz)
     }
 
     pub fn reset(&mut self) {
@@ -249,11 +265,18 @@ impl LinearTransformEntity {
         self.shear.reset();
     }
 
-    pub fn as_matrix(&self) -> Matrix4<f32> {
-        self.translation.as_matrix()
-            * self.orientation.as_matrix()
-            * self.shear.as_matrix()
-            * self.scale.as_matrix()
+    pub fn matrix(&self) -> Matrix4<f32> {
+        self.translation.matrix()
+            * self.orientation.matrix()
+            * self.shear.matrix()
+            * self.scale.matrix()
+    }
+
+    pub fn inverse_matrix(&self) -> Matrix4<f32> {
+        self.scale.inverse_matrix()
+            * self.shear.inverse_matrix()
+            * self.orientation.inverse_matrix()
+            * self.translation.inverse_matrix()
     }
 }
 

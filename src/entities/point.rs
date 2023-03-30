@@ -66,7 +66,7 @@ impl<'gl> Entity for Point<'gl> {
 
 impl<'gl> Drawable for Point<'gl> {
     fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
-        let model_transform = self.position.as_matrix();
+        let model_transform = self.position.matrix();
 
         self.gl_program.enable();
         self.gl_program
@@ -123,7 +123,7 @@ impl<'gl> SceneObject for Point<'gl> {
     }
 
     fn model_transform(&self) -> Matrix4<f32> {
-        self.position.as_matrix()
+        self.position.matrix()
     }
 
     fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {

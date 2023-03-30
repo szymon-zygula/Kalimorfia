@@ -86,6 +86,15 @@ pub fn shear_xy_xz_yz<T: RealField + Copy>(xy: T, xz: T, yz: T) -> Matrix4<T> {
     shear
 }
 
+pub fn inverse_shear_xy_xz_yz<T: RealField + Copy>(xy: T, xz: T, yz: T) -> Matrix4<T> {
+    let mut inverse_shear = Matrix4::identity();
+    inverse_shear[(0, 1)] = -xy;
+    inverse_shear[(0, 2)] = xy * yz - xz;
+    inverse_shear[(1, 2)] = -yz;
+
+    inverse_shear
+}
+
 pub fn uniform_scale<T: RealField + Copy>(sxyz: T) -> Matrix4<T> {
     scale(sxyz, sxyz, sxyz)
 }
