@@ -136,12 +136,15 @@ impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
             1 => {
                 let only_id = self.entities.iter().next().unwrap();
                 if let Some(ref location) = self.cursor.location() {
-                    self.cursor.draw(
-                        camera,
-                        &(premul * entities[only_id].borrow().model_transform()
-                            * transforms::translate(-location.coords)),
-                        draw_type,
-                    );
+                    if entities[only_id].borrow().location().is_some() {
+                        self.cursor.draw(
+                            camera,
+                            &(premul
+                                * entities[only_id].borrow().model_transform()
+                                * transforms::translate(-location.coords)),
+                            draw_type,
+                        );
+                    }
                 }
             }
             _ => {
