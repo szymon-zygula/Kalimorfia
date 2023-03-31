@@ -77,8 +77,7 @@ impl<'gl> CubicSplineC0<'gl> {
         }
 
         let spline = geometry::bezier::CubicSplineC0::through_points(points);
-        let (vertices, indices) =
-            spline.filtered_curve(samples as usize, |p| camera.point_almost_visible(p));
+        let (vertices, indices) = spline.curve(samples as usize);
 
         (vertices, indices)
     }
