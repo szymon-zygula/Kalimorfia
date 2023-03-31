@@ -6,23 +6,55 @@ use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 pub struct Camera {
     pub azimuth: f32,
     pub altitude: f32,
-    pub distance: f32,
+    pub log_distance: f32,
     pub center: Point3<f32>,
     pub window_size: PhysicalSize<u32>,
+    pub near_plane: f32,
+    pub far_plane: f32,
+    pub fov: f32,
 }
 
 impl Camera {
     const ROTATION_SPEED: f32 = 0.05;
     const MOVEMENT_SPEED: f32 = 0.01;
+    const SCROLL_SPEED: f32 = 0.2;
 
     pub fn new() -> Camera {
         Camera {
             azimuth: -std::f32::consts::FRAC_PI_4,
             altitude: std::f32::consts::FRAC_PI_4,
-            distance: 5.0,
+            log_distance: 1.0,
             center: Point3::new(0.0, 0.0, 0.0),
             window_size: PhysicalSize::new(0, 0),
+            near_plane: 0.1,
+            far_plane: 100.0,
+            fov: std::f32::consts::FRAC_PI_2,
         }
+    }
+
+    pub fn linear_distance(&self) -> f32 {
+        self.log_distance.exp()
+    }
+
+    fn point_visible_with_tolerance(&self, point: &Point3<f32>, tolerance: f32) -> bool {
+        Point3::from_homogeneous(
+            self.projection_transform() * self.view_transform() * point.to_homogeneous(),
+        )
+        .map(|p| {
+            p.x.abs() <= (1.0 + tolerance)
+                && p.y.abs() <= (1.0 + tolerance)
+                && p.z >= self.near_plane
+                && p.z <= self.far_plane
+        })
+        .unwrap_or(false)
+    }
+
+    pub fn point_visible(&self, point: &Point3<f32>) -> bool {
+        self.point_visible_with_tolerance(point, 0.0)
+    }
+
+    pub fn point_almost_visible(&self, point: &Point3<f32>) -> bool {
+        self.point_visible_with_tolerance(point, 0.1)
     }
 
     pub fn update_from_mouse(&mut self, mouse: &mut MouseState, window: &Window) -> bool {
@@ -35,11 +67,10 @@ impl Camera {
             self.update_angles(mouse, &mouse_delta);
             self.update_center(mouse, &mouse_delta);
 
-            self.distance -= scroll_delta;
-
-            if self.distance < 0.0 {
-                self.distance = 0.0;
-            }
+            self.log_distance -= Self::SCROLL_SPEED * scroll_delta;
+            self.log_distance = self
+                .log_distance
+                .clamp(self.near_plane.ln(), self.far_plane.ln());
 
             true
         } else {
@@ -60,7 +91,7 @@ impl Camera {
                 * transforms::rotate_x(-self.altitude)
                 * Vector4::new(-mouse_delta.x as f32, mouse_delta.y as f32, 0.0, 0.0))
             .xyz()
-                * self.distance
+                * self.linear_distance()
                 * Self::MOVEMENT_SPEED;
         }
     }
@@ -71,7 +102,7 @@ impl Camera {
     }
 
     pub fn view_transform(&self) -> Matrix4<f32> {
-        transforms::translate(Vector3::new(0.0, 0.0, -self.distance))
+        transforms::translate(Vector3::new(0.0, 0.0, -self.linear_distance()))
             * transforms::rotate_x(self.altitude)
             * transforms::rotate_y(self.azimuth)
             * transforms::translate(-self.center.coords)
@@ -81,7 +112,7 @@ impl Camera {
         transforms::translate(self.center.coords)
             * transforms::rotate_y(-self.azimuth)
             * transforms::rotate_x(-self.altitude)
-            * transforms::translate(Vector3::new(0.0, 0.0, self.distance))
+            * transforms::translate(Vector3::new(0.0, 0.0, self.linear_distance()))
     }
 
     pub fn aspect_ratio(&self) -> f32 {
@@ -89,11 +120,21 @@ impl Camera {
     }
 
     pub fn projection_transform(&self) -> Matrix4<f32> {
-        transforms::projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio(), 0.1, 100.0)
+        transforms::projection(
+            self.fov,
+            self.aspect_ratio(),
+            self.near_plane,
+            self.far_plane,
+        )
     }
 
     pub fn inverse_projection_transform(&self) -> Matrix4<f32> {
-        transforms::inverse_projection(std::f32::consts::FRAC_PI_2, self.aspect_ratio(), 0.1, 100.0)
+        transforms::inverse_projection(
+            self.fov,
+            self.aspect_ratio(),
+            self.near_plane,
+            self.far_plane,
+        )
     }
 
     pub fn project_ray(&self, pixel: Point2<f32>) -> Vector3<f32> {
@@ -101,12 +142,7 @@ impl Camera {
 
         Point3::from_homogeneous(
             self.inverse_view_transform()
-                * transforms::inverse_projection(
-                    std::f32::consts::FRAC_PI_2,
-                    self.aspect_ratio(),
-                    0.1,
-                    100.0,
-                )
+                * self.inverse_projection_transform()
                 * Vector4::new(
                     screen_point.coords.x,
                     screen_point.coords.y,

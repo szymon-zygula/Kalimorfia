@@ -98,7 +98,7 @@ impl<'gl> Entity for Torus<'gl> {
 }
 
 impl<'gl> Drawable for Torus<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, _draw_type: DrawType) {
         let model_transform = self.model_transform();
 
         self.gl_program.enable();

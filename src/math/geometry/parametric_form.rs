@@ -7,19 +7,81 @@ pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
 }
 
-impl<T: ParametricForm<1, 3>> Curvable for T {
-    fn curve(&self, samples: usize) -> Vec<Point3<f32>> {
-        let mut points = Vec::with_capacity(samples);
+fn filtered_curve_thread<F: Fn(&Point3<f32>) -> bool + Send + Copy, P: ParametricForm<1, 3>>(
+    samples: usize,
+    th: usize,
+    samples_per_thread: usize,
+    form: &P,
+    filter: F,
+) -> (Vec<Point3<f32>>, Vec<u32>) {
+    let mut points = Vec::with_capacity(samples);
+    let mut indices = Vec::with_capacity(2 * samples);
 
-        for i in 0..samples {
-            let range = Self::PARAMETER_BOUNDS.x.1 - Self::PARAMETER_BOUNDS.x.0;
-            let t = i as f64 / (samples - 1) as f64 * range + Self::PARAMETER_BOUNDS.x.0;
+    // Allow overlap between segments so that the curve is without breaks
+    let lower = samples_per_thread * th;
+    let upper = std::cmp::min(samples_per_thread * (th + 1), samples - 1);
+    for i in lower..=upper {
+        let range = P::PARAMETER_BOUNDS.x.1 - P::PARAMETER_BOUNDS.x.0;
+        let t = i as f64 / (samples - 1) as f64 * range + P::PARAMETER_BOUNDS.x.0;
 
-            let point = self.parametric(&Vector1::new(t));
-            points.push(Point3::new(point.x as f32, point.y as f32, point.z as f32));
+        let point = form.parametric(&Vector1::new(t));
+        let point = Point3::new(point.x as f32, point.y as f32, point.z as f32);
+        if filter(&point) {
+            let idx = points.len();
+            points.push(point);
+
+            if idx != 0 {
+                indices.push(idx as u32 - 1);
+                indices.push(idx as u32);
+            }
+        }
+    }
+
+    (points, indices)
+}
+
+impl<T: ParametricForm<1, 3> + Sync> Curvable for T {
+    fn filtered_curve<F: Fn(&Point3<f32>) -> bool + Send + Copy>(
+        &self,
+        samples: usize,
+        filter: F,
+    ) -> (Vec<Point3<f32>>, Vec<u32>) {
+        if samples == 0 {
+            return (Vec::new(), Vec::new());
         }
 
-        points
+        const THREADS: usize = 16;
+        let samples_per_thread = (samples - 1) / THREADS + 1;
+
+        std::thread::scope(|scope| {
+            let mut handles = Vec::new();
+
+            for th in 0..THREADS {
+                handles.push(scope.spawn({
+                    move || filtered_curve_thread(samples, th, samples_per_thread, self, filter)
+                }));
+            }
+
+            let mut points = Vec::new();
+            let mut indices = Vec::new();
+            for (batch_points, batch_indices) in
+                handles.into_iter().map(|handle| handle.join().unwrap())
+            {
+                points.push(batch_points);
+                indices.push(batch_indices);
+            }
+
+            // Make indices consistent between results from different threads
+            let mut points_sum = 0;
+            for i in 1..THREADS {
+                points_sum += points[i - 1].len();
+                for indice in &mut indices[i] {
+                    *indice += points_sum as u32;
+                }
+            }
+
+            (points.concat(), indices.concat())
+        })
     }
 }
 

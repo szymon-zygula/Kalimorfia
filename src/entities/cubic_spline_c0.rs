@@ -4,7 +4,6 @@ use super::{
         DrawType, NamedEntity, ReferentialDrawable, ReferentialEntity, ReferentialSceneEntity,
         SceneObject,
     },
-    manager::EntityManager,
 };
 use crate::{
     camera::Camera,
@@ -13,7 +12,7 @@ use crate::{
     repositories::NameRepository,
     ui::ordered_selector::ordered_selelector,
 };
-use nalgebra::{Matrix4, Point3};
+use nalgebra::{Matrix4, Point3, Vector2};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
@@ -37,7 +36,6 @@ impl<'gl> CubicSplineC0<'gl> {
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
         point_ids: Vec<usize>,
-        entity_manager: &RefCell<EntityManager<'gl>>,
     ) -> CubicSplineC0<'gl> {
         let gl_program = GlProgram::with_shader_paths(
             gl,
@@ -68,6 +66,8 @@ impl<'gl> CubicSplineC0<'gl> {
     fn spline_mesh(
         point_ids: &Vec<usize>,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        samples: u32,
+        camera: &Camera,
     ) -> (Vec<Point3<f32>>, Vec<u32>) {
         let mut points = Vec::with_capacity(point_ids.len());
 
@@ -77,13 +77,8 @@ impl<'gl> CubicSplineC0<'gl> {
         }
 
         let spline = geometry::bezier::CubicSplineC0::through_points(points);
-        let vertices = spline.curve(100); // TODO: make adaptative
-
-        let mut indices = Vec::with_capacity(200);
-        for i in 0..99 {
-            indices.push(i);
-            indices.push(i + 1);
-        }
+        let (vertices, indices) =
+            spline.filtered_curve(samples as usize, |p| camera.point_almost_visible(p));
 
         (vertices, indices)
     }
@@ -115,13 +110,58 @@ impl<'gl> CubicSplineC0<'gl> {
         if self.points.is_empty() {
             self.invalidate_mesh();
         } else {
-            let (vertices, indices) = Self::spline_mesh(&self.points, entities);
+            let (vertices, indices) = Self::spline_mesh(
+                &self.points,
+                entities,
+                (self.polygon_pixel_length(entities, camera) * 0.5).round() as u32,
+                camera,
+            );
+
+            if vertices.is_empty() || indices.is_empty() {
+                self.invalidate_mesh();
+                return;
+            }
+
             self.mesh
                 .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
             let (vertices, indices) = Self::polygon_mesh(&self.points, entities);
             self.polygon_mesh
                 .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
         }
+    }
+
+    fn polygon_pixel_length(
+        &self,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        camera: &Camera,
+    ) -> f32 {
+        let mut sum = 0.0;
+        for i in 1..self.points.len() {
+            let point1 = entities[&self.points[i - 1]].borrow().location().unwrap();
+            let point2 = entities[&self.points[i]].borrow().location().unwrap();
+
+            let point1 =
+                camera.projection_transform() * camera.view_transform() * point1.to_homogeneous();
+            let point2 =
+                camera.projection_transform() * camera.view_transform() * point2.to_homogeneous();
+
+            let diff = Point3::from_homogeneous(point1)
+                .unwrap_or(Point3::origin())
+                .xy()
+                - Point3::from_homogeneous(point2)
+                    .unwrap_or(Point3::origin())
+                    .xy();
+
+            let clamped_point = Vector2::new(diff.x.clamp(-1.0, 1.0), diff.y.clamp(-1.0, 1.0));
+            sum += clamped_point
+                .component_mul(&Vector2::new(
+                    0.5 * camera.window_size.width as f32,
+                    0.5 * camera.window_size.height as f32,
+                ))
+                .norm();
+        }
+
+        sum
     }
 
     fn invalidate_mesh(&self) {
@@ -225,11 +265,10 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         camera: &Camera,
         premul: &Matrix4<f32>,
-        draw_type: DrawType,
+        _draw_type: DrawType,
     ) {
-        if self.last_camera.borrow().as_ref().eq(&Some(camera)) {
-            self.recalculate_mesh(entities, camera);
-        } else {
+        if !self.last_camera.borrow().as_ref().eq(&Some(camera)) {
+            self.invalidate_mesh();
             self.last_camera.replace(Some(camera.clone()));
         }
 

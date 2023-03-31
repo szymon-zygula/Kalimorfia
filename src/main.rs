@@ -116,7 +116,6 @@ fn build_ui<'gl>(
                     gl,
                     Rc::clone(&state.name_repo),
                     selected.clone(),
-                    entity_manager,
                 ));
 
                 let id = entity_manager.borrow_mut().add_entity(spline);
@@ -274,7 +273,7 @@ fn main() {
                 mouse.handle_window_event(event);
 
                 if let WindowEvent::Resized(resolution) = event {
-                    state.camera.window_size = resolution.clone();
+                    state.camera.window_size = *resolution;
                     state
                         .cursor
                         .set_camera_and_resolution(&state.camera, resolution);

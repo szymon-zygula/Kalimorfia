@@ -65,7 +65,7 @@ impl<'gl> Entity for Point<'gl> {
 }
 
 impl<'gl> Drawable for Point<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, _draw_type: DrawType) {
         let model_transform = self.position.matrix();
 
         self.gl_program.enable();
@@ -107,15 +107,18 @@ impl<'gl> SceneObject for Point<'gl> {
         let projected = projection_transform
             * view_transform
             * Point3::from(self.position.translation).to_homogeneous();
-        let projected = Point3::from_homogeneous(projected).unwrap();
+        if let Some(projected) = Point3::from_homogeneous(projected) {
+            let is_at_point = (projected.x - point.x).abs() * resolution.width as f32 <= self.size
+                && (projected.y - point.y).abs() * resolution.height as f32 <= self.size
+                && projected.z > 0.0;
 
-        let is_at_point = (projected.x - point.x).abs() * resolution.width as f32 <= self.size
-            && (projected.y - point.y).abs() * resolution.height as f32 <= self.size
-            && projected.z > 0.0;
+            let camera_distance =
+                (self.position.translation - view_transform.column(3).xyz()).norm();
 
-        let camera_distance = (self.position.translation - view_transform.column(3).xyz()).norm();
-
-        (is_at_point, camera_distance)
+            (is_at_point, camera_distance)
+        } else {
+            (false, 0.0)
+        }
     }
 
     fn location(&self) -> Option<Point3<f32>> {

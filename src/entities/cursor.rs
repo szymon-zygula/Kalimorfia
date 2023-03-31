@@ -77,7 +77,7 @@ impl<'gl> Entity for Cursor<'gl> {
 }
 
 impl<'gl> Drawable for Cursor<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, _draw_type: DrawType) {
         if let Some(ref position) = self.position {
             let model_transform = position.matrix() * transforms::uniform_scale(self.scale);
 

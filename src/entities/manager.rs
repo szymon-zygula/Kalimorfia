@@ -24,13 +24,15 @@ impl<'gl> EntityManager<'gl> {
             .control_referential_ui(ui, controller_id, &self.entities, &mut self.subscriptions);
 
         for (id, entity) in self.entities.iter().filter(|(&id, _)| id != controller_id) {
-            entity.borrow_mut().notify_about_modification(
-                &result
-                    .intersection(&self.subscriptions[id])
-                    .copied()
-                    .collect(),
-                &self.entities,
-            );
+            let intersection: HashSet<usize> = result
+                .intersection(&self.subscriptions[id])
+                .copied()
+                .collect();
+            if !intersection.is_empty() {
+                entity
+                    .borrow_mut()
+                    .notify_about_modification(&intersection, &self.entities);
+            }
         }
     }
 

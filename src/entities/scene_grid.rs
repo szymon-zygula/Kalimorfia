@@ -68,7 +68,7 @@ impl<'gl> SceneGrid<'gl> {
 }
 
 impl<'gl> Drawable for SceneGrid<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, _draw_type: DrawType) {
         let model_transform = transforms::scale(self.scale, 1.0, self.scale);
 
         self.gl_program.enable();
