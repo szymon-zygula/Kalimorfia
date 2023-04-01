@@ -6,21 +6,20 @@ use super::{
 use crate::{
     camera::Camera,
     primitives::color::Color,
-    render::{gl_drawable::GlDrawable, gl_program::GlProgram, point_cloud::PointCloud},
+    render::{gl_drawable::GlDrawable, point_cloud::PointCloud, shader_manager::ShaderManager},
     repositories::NameRepository,
 };
 use glow::HasContext;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
-use std::{cell::RefCell, path::Path, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct Point<'gl> {
     position: Translation,
     point_cloud: PointCloud<'gl>,
-    gl_program: GlProgram<'gl>,
     gl: &'gl glow::Context,
     size: f32,
-    color: Color,
     name: ChangeableName,
+    shader_manager: Rc<ShaderManager<'gl>>,
 }
 
 impl<'gl> Point<'gl> {
@@ -30,27 +29,13 @@ impl<'gl> Point<'gl> {
         gl: &'gl glow::Context,
         position: Point3<f32>,
         name_repo: Rc<RefCell<dyn NameRepository>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
     ) -> Self {
-        let gl_program = GlProgram::with_shader_paths(
-            gl,
-            vec![
-                (
-                    Path::new("shaders/point_cloud_vertex.glsl"),
-                    glow::VERTEX_SHADER,
-                ),
-                (
-                    Path::new("shaders/fragment_colored.glsl"),
-                    glow::FRAGMENT_SHADER,
-                ),
-            ],
-        );
-
         Point {
-            color: Color::white(),
+            shader_manager,
             size: Self::DEFAULT_SIZE,
             gl,
             position: Translation::with(position.coords),
-            gl_program,
             point_cloud: PointCloud::new(gl, vec![Point3::new(0.0, 0.0, 0.0)]),
             name: ChangeableName::new("Point", name_repo),
         }
@@ -65,23 +50,23 @@ impl<'gl> Entity for Point<'gl> {
 }
 
 impl<'gl> Drawable for Point<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, _draw_type: DrawType) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         let model_transform = self.position.matrix();
 
-        self.gl_program.enable();
-        self.gl_program
+        let program = self.shader_manager.program("point");
+        program.enable();
+        program
             .uniform_matrix_4_f32_slice("model_transform", (premul * model_transform).as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
-        self.gl_program.uniform_matrix_4_f32_slice(
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
             "projection_transform",
             camera.projection_transform().as_slice(),
         );
 
         unsafe { self.gl.enable(glow::PROGRAM_POINT_SIZE) };
-        self.gl_program.uniform_f32("point_size", self.size);
-        self.gl_program
-            .uniform_3_f32("point_color", self.color.r, self.color.g, self.color.b);
+        program.uniform_f32("point_size", self.size);
+
+        program.uniform_color("point_color", &Color::for_draw_type(&draw_type));
 
         self.point_cloud.draw();
     }

@@ -1,4 +1,5 @@
 use super::shader::Shader;
+use crate::primitives::color::Color;
 use glow::{self, HasContext};
 
 pub struct GlProgram<'gl> {
@@ -18,29 +19,18 @@ macro_rules! fn_set_uniform {
 }
 
 impl<'gl> GlProgram<'gl> {
-    pub fn with_shader_paths(
-        gl: &'gl glow::Context,
-        shader_paths: Vec<(&std::path::Path, u32)>,
-    ) -> GlProgram<'gl> {
+    pub fn with_shaders(gl: &'gl glow::Context, shaders: &[&Shader]) -> GlProgram<'gl> {
         let handle = unsafe { gl.create_program() }.unwrap();
 
-        let shaders: Vec<Shader> = shader_paths
-            .into_iter()
-            .map(|(path, kind)| Shader::from_file(gl, path, kind))
-            .collect();
-
         unsafe {
-            for shader in &shaders {
+            for shader in shaders {
                 gl.attach_shader(handle, shader.handle());
             }
 
             gl.link_program(handle);
 
             if !gl.get_program_link_status(handle) {
-                panic!(
-                    "Error while linking shader: {}",
-                    gl.get_program_info_log(handle)
-                );
+                panic!("Error linking shader: {}", gl.get_program_info_log(handle));
             }
 
             for shader in shaders {
@@ -49,6 +39,18 @@ impl<'gl> GlProgram<'gl> {
         }
 
         GlProgram { handle, gl }
+    }
+
+    pub fn with_shader_paths(
+        gl: &'gl glow::Context,
+        shader_paths: Vec<(&std::path::Path, u32)>,
+    ) -> GlProgram<'gl> {
+        let shaders: Vec<Shader> = shader_paths
+            .into_iter()
+            .map(|(path, kind)| Shader::from_file(gl, path, kind))
+            .collect();
+
+        Self::with_shaders(gl, &shaders.iter().collect::<Vec<&Shader>>())
     }
 
     fn_set_uniform!(&[f32], uniform_matrix_2_f32_slice);
@@ -67,6 +69,10 @@ impl<'gl> GlProgram<'gl> {
             let location = self.gl.get_uniform_location(self.handle, name).unwrap();
             self.gl.uniform_3_f32(Some(&location), x, y, z);
         }
+    }
+
+    pub fn uniform_color(&self, name: &str, color: &Color) {
+        self.uniform_3_f32(name, color.r, color.g, color.b);
     }
 
     pub fn handle(&self) -> u32 {

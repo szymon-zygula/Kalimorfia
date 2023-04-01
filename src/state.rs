@@ -1,12 +1,8 @@
 use kalimorfia::{
     camera::Camera,
-    entities::{
-        aggregate::Aggregate, cursor::ScreenCursor, entity::ReferentialSceneEntity,
-        manager::EntityManager,
-    },
-    repositories::ExactNameRepository,
-    repositories::NameRepository,
-    repositories::UniqueNameRepository,
+    entities::{aggregate::Aggregate, cursor::ScreenCursor, manager::EntityManager},
+    render::shader_manager::ShaderManager,
+    repositories::{ExactNameRepository, NameRepository, UniqueNameRepository},
     ui::selector::Selector,
     window::Window,
 };
@@ -25,6 +21,7 @@ impl<'gl, 'a> State<'gl, 'a> {
         gl: &'gl glow::Context,
         window: &Window,
         entity_manager: &'a RefCell<EntityManager<'gl>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
     ) -> Self {
         let selected_aggregate_id =
             entity_manager
@@ -32,11 +29,12 @@ impl<'gl, 'a> State<'gl, 'a> {
                 .add_entity(Box::new(Aggregate::new(
                     gl,
                     &mut ExactNameRepository::new(),
+                    Rc::clone(&shader_manager),
                 )));
 
         State {
             camera: Camera::new(),
-            cursor: ScreenCursor::new(gl, Camera::new(), window.size()),
+            cursor: ScreenCursor::new(gl, Camera::new(), Rc::clone(&shader_manager), window.size()),
             name_repo: Rc::new(RefCell::new(UniqueNameRepository::new())),
             selector: Selector::new(
                 move |id| {
@@ -55,14 +53,5 @@ impl<'gl, 'a> State<'gl, 'a> {
             ),
             selected_aggregate_id,
         }
-    }
-
-    pub fn add_entity(
-        &mut self,
-        entity: Box<dyn ReferentialSceneEntity<'gl> + 'gl>,
-        entity_manager: &mut EntityManager<'gl>,
-    ) {
-        let id = entity_manager.add_entity(entity);
-        self.selector.add_selectable(id);
     }
 }

@@ -1,5 +1,6 @@
 mod constants;
 mod main_control;
+mod shaders;
 mod state;
 
 use crate::{constants::*, main_control::MainControl, state::State};
@@ -15,7 +16,7 @@ use kalimorfia::{
     window::Window,
 };
 use nalgebra::{Matrix4, Point2};
-use std::{cell::RefCell, time::Instant};
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
 fn select_clicked(
     pixel: glutin::dpi::PhysicalPosition<f64>,
@@ -55,10 +56,10 @@ fn main() {
     let mut last_frame = Instant::now();
     let mut mouse = MouseState::new();
     let grid = SceneGrid::new(&gl, 100, 50.0);
-
+    let shader_manager = shaders::create_shader_manager(&gl);
     let entity_manager = RefCell::new(EntityManager::new());
-    let mut state = State::new(&gl, &window, &entity_manager);
-    let main_control = MainControl::new(&entity_manager, &gl);
+    let mut state = State::new(&gl, &window, &entity_manager, Rc::clone(&shader_manager));
+    let main_control = MainControl::new(Rc::clone(&shader_manager), &entity_manager, &gl);
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
@@ -91,12 +92,16 @@ fn main() {
 
             grid.draw_regular(&state.camera);
 
-            for id in state.selector.selectables() {
+            for (&id, &selected) in state.selector.selectables() {
                 entity_manager.borrow().draw_referential(
                     id,
                     &state.camera,
                     &Matrix4::identity(),
-                    DrawType::Selected,
+                    if selected {
+                        DrawType::Selected
+                    } else {
+                        DrawType::Regular
+                    },
                 );
             }
 

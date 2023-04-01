@@ -7,20 +7,20 @@ use crate::{
     camera::Camera,
     math::affine::transforms,
     primitives::vertex::ColoredVertex,
-    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::ColoredLineMesh},
+    render::{gl_drawable::GlDrawable, mesh::ColoredLineMesh, shader_manager::ShaderManager},
 };
 use nalgebra::{Matrix4, Point3};
-use std::path::Path;
+use std::rc::Rc;
 
 pub struct Cursor<'gl> {
     position: Option<Translation>,
     mesh: ColoredLineMesh<'gl>,
-    gl_program: GlProgram<'gl>,
+    shader_manager: Rc<ShaderManager<'gl>>,
     scale: f32,
 }
 
 impl<'gl> Cursor<'gl> {
-    pub fn new(gl: &glow::Context, scale: f32) -> Cursor {
+    pub fn new(gl: &'gl glow::Context, shader_manager: Rc<ShaderManager<'gl>>, scale: f32) -> Self {
         let mut mesh = ColoredLineMesh::new(
             gl,
             vec![
@@ -36,24 +36,10 @@ impl<'gl> Cursor<'gl> {
 
         mesh.as_line_mesh_mut().thickness(3.0);
 
-        let gl_program = GlProgram::with_shader_paths(
-            gl,
-            vec![
-                (
-                    Path::new("shaders/perspective_vertex_colored.glsl"),
-                    glow::VERTEX_SHADER,
-                ),
-                (
-                    Path::new("shaders/fragment_colored.glsl"),
-                    glow::FRAGMENT_SHADER,
-                ),
-            ],
-        );
-
-        Cursor {
+        Self {
             position: Some(Translation::new()),
             mesh,
-            gl_program,
+            shader_manager,
             scale,
         }
     }
@@ -81,14 +67,15 @@ impl<'gl> Drawable for Cursor<'gl> {
         if let Some(ref position) = self.position {
             let model_transform = position.matrix() * transforms::uniform_scale(self.scale);
 
-            self.gl_program.enable();
-            self.gl_program.uniform_matrix_4_f32_slice(
+            let program = self.shader_manager.program("cursor");
+            program.enable();
+            program.uniform_matrix_4_f32_slice(
                 "model_transform",
                 (premul * model_transform).as_slice(),
             );
-            self.gl_program
+            program
                 .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
-            self.gl_program.uniform_matrix_4_f32_slice(
+            program.uniform_matrix_4_f32_slice(
                 "projection_transform",
                 camera.projection_transform().as_slice(),
             );
@@ -113,10 +100,11 @@ impl<'gl> ScreenCursor<'gl> {
     pub fn new(
         gl: &'gl glow::Context,
         camera: Camera,
+        shader_manager: Rc<ShaderManager<'gl>>,
         resolution: glutin::dpi::PhysicalSize<u32>,
-    ) -> ScreenCursor<'gl> {
-        ScreenCursor {
-            cursor: Cursor::new(gl, 1.0),
+    ) -> Self {
+        Self {
+            cursor: Cursor::new(gl, shader_manager, 1.0),
             screen_coordinates: ScreenCoordinates::new(resolution),
             camera,
         }

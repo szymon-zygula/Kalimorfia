@@ -6,11 +6,12 @@ use super::{
 use crate::{
     camera::Camera,
     math::geometry::{self, gridable::Gridable},
-    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
+    primitives::color::Color,
+    render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
     repositories::NameRepository,
 };
 use nalgebra::{Matrix4, Point3};
-use std::{cell::RefCell, path::Path, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct Torus<'gl> {
     torus: geometry::torus::Torus,
@@ -18,12 +19,16 @@ pub struct Torus<'gl> {
     tube_points: u32,
     round_points: u32,
     linear_transform: LinearTransformEntity,
-    gl_program: GlProgram<'gl>,
     name: ChangeableName,
+    shader_manager: Rc<ShaderManager<'gl>>,
 }
 
 impl<'gl> Torus<'gl> {
-    pub fn new(gl: &'gl glow::Context, name_repo: Rc<RefCell<dyn NameRepository>>) -> Torus<'gl> {
+    pub fn new(
+        gl: &'gl glow::Context,
+        name_repo: Rc<RefCell<dyn NameRepository>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
+    ) -> Torus<'gl> {
         let tube_points = 10;
         let round_points = 10;
 
@@ -32,26 +37,12 @@ impl<'gl> Torus<'gl> {
 
         let mesh = LinesMesh::new(gl, vertices, topology);
 
-        let gl_program = GlProgram::with_shader_paths(
-            gl,
-            vec![
-                (
-                    Path::new("shaders/perspective_vertex.glsl"),
-                    glow::VERTEX_SHADER,
-                ),
-                (
-                    Path::new("shaders/simple_fragment.glsl"),
-                    glow::FRAGMENT_SHADER,
-                ),
-            ],
-        );
-
         Torus {
             torus,
             mesh,
             tube_points,
             round_points,
-            gl_program,
+            shader_manager,
             linear_transform: LinearTransformEntity::new(),
             name: ChangeableName::new("Torus", name_repo),
         }
@@ -61,8 +52,9 @@ impl<'gl> Torus<'gl> {
         gl: &'gl glow::Context,
         position: Point3<f32>,
         name_repo: Rc<RefCell<dyn NameRepository>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
     ) -> Torus<'gl> {
-        let mut torus = Torus::new(gl, name_repo);
+        let mut torus = Torus::new(gl, name_repo, shader_manager);
         torus.linear_transform.translation.translation = position.coords;
         torus
     }
@@ -98,18 +90,19 @@ impl<'gl> Entity for Torus<'gl> {
 }
 
 impl<'gl> Drawable for Torus<'gl> {
-    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, _draw_type: DrawType) {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         let model_transform = self.model_transform();
 
-        self.gl_program.enable();
-        self.gl_program
+        let program = self.shader_manager.program("torus");
+        program.enable();
+        program
             .uniform_matrix_4_f32_slice("model_transform", (premul * model_transform).as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
-        self.gl_program.uniform_matrix_4_f32_slice(
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
             "projection_transform",
             camera.projection_transform().as_slice(),
         );
+        program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
         self.mesh.draw();
     }
 }

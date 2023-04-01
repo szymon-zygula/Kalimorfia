@@ -8,7 +8,8 @@ use super::{
 use crate::{
     camera::Camera,
     math::geometry::{self, curvable::Curvable},
-    render::{gl_drawable::GlDrawable, gl_program::GlProgram, mesh::LinesMesh},
+    primitives::color::Color,
+    render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
     repositories::NameRepository,
     ui::ordered_selector::ordered_selelector,
 };
@@ -16,7 +17,6 @@ use nalgebra::{Matrix4, Point3, Vector2};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
-    path::Path,
     rc::Rc,
 };
 
@@ -26,7 +26,7 @@ pub struct CubicSplineC0<'gl> {
     polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
     draw_polygon: bool,
     points: Vec<usize>,
-    gl_program: GlProgram<'gl>,
+    shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
     last_camera: RefCell<Option<Camera>>,
 }
@@ -35,29 +35,16 @@ impl<'gl> CubicSplineC0<'gl> {
     pub fn through_points(
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
         point_ids: Vec<usize>,
     ) -> CubicSplineC0<'gl> {
-        let gl_program = GlProgram::with_shader_paths(
-            gl,
-            vec![
-                (
-                    Path::new("shaders/perspective_vertex.glsl"),
-                    glow::VERTEX_SHADER,
-                ),
-                (
-                    Path::new("shaders/simple_fragment.glsl"),
-                    glow::FRAGMENT_SHADER,
-                ),
-            ],
-        );
-
         Self {
             gl,
             points: point_ids,
             mesh: RefCell::new(None),
             polygon_mesh: RefCell::new(None),
             draw_polygon: false,
-            gl_program,
+            shader_manager,
             name: ChangeableName::new("Cubic Spline C0", name_repo),
             last_camera: RefCell::new(None),
         }
@@ -67,7 +54,6 @@ impl<'gl> CubicSplineC0<'gl> {
         point_ids: &Vec<usize>,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         samples: u32,
-        camera: &Camera,
     ) -> (Vec<Point3<f32>>, Vec<u32>) {
         let mut points = Vec::with_capacity(point_ids.len());
 
@@ -113,7 +99,6 @@ impl<'gl> CubicSplineC0<'gl> {
                 &self.points,
                 entities,
                 (self.polygon_pixel_length(entities, camera) * 0.5).round() as u32,
-                camera,
             );
 
             if vertices.is_empty() || indices.is_empty() {
@@ -264,7 +249,7 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         camera: &Camera,
         premul: &Matrix4<f32>,
-        _draw_type: DrawType,
+        draw_type: DrawType,
     ) {
         if !self.last_camera.borrow().as_ref().eq(&Some(camera)) {
             self.invalidate_mesh();
@@ -275,15 +260,15 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {
             self.recalculate_mesh(entities, camera);
         }
 
-        self.gl_program.enable();
-        self.gl_program
-            .uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
-        self.gl_program
-            .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
-        self.gl_program.uniform_matrix_4_f32_slice(
+        let program = self.shader_manager.program("spline");
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
             "projection_transform",
             camera.projection_transform().as_slice(),
         );
+        program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
 
         if let Some((mesh, polygon_mesh)) = self
             .mesh

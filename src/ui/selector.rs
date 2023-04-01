@@ -101,8 +101,8 @@ impl<'a> Selector<'a> {
             .collect()
     }
 
-    pub fn selectables(&self) -> HashSet<usize> {
-        self.selectables.keys().copied().collect()
+    pub fn selectables(&self) -> &BTreeMap<usize, bool> {
+        &self.selectables
     }
 
     pub fn select(&mut self, id: usize) {

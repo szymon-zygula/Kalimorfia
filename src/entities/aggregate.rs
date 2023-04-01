@@ -12,12 +12,14 @@ use crate::{
         affine::transforms,
         decompositions::{axis_angle::AxisAngleDecomposition, trss::TRSSDecomposition},
     },
+    render::shader_manager::ShaderManager,
     repositories::NameRepository,
 };
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
+    rc::Rc,
 };
 
 pub struct Aggregate<'gl> {
@@ -30,9 +32,13 @@ pub struct Aggregate<'gl> {
 
 impl<'gl> Aggregate<'gl> {
     const CURSOR_SCALE: f32 = 1.0;
-    pub fn new(gl: &'gl glow::Context, name_repo: &mut dyn NameRepository) -> Aggregate<'gl> {
+    pub fn new(
+        gl: &'gl glow::Context,
+        name_repo: &mut dyn NameRepository,
+        shader_manager: Rc<ShaderManager<'gl>>,
+    ) -> Aggregate<'gl> {
         Aggregate {
-            cursor: Cursor::new(gl, Self::CURSOR_SCALE),
+            cursor: Cursor::new(gl, shader_manager, Self::CURSOR_SCALE),
             linear_transform: LinearTransformEntity::new(),
             entities: HashSet::new(),
             name: name_repo.generate_name("Entity selection"),

@@ -7,18 +7,28 @@ use kalimorfia::{
         point::Point,
         torus::Torus,
     },
+    render::shader_manager::ShaderManager,
     ui::selector::Selector,
 };
 use std::{cell::RefCell, rc::Rc};
 
 pub struct MainControl<'gl, 'a> {
     entity_manager: &'a RefCell<EntityManager<'gl>>,
+    shader_manager: Rc<ShaderManager<'gl>>,
     gl: &'gl glow::Context,
 }
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
-    pub fn new(entity_manager: &'a RefCell<EntityManager<'gl>>, gl: &'gl glow::Context) -> Self {
-        Self { entity_manager, gl }
+    pub fn new(
+        shader_manager: Rc<ShaderManager<'gl>>,
+        entity_manager: &'a RefCell<EntityManager<'gl>>,
+        gl: &'gl glow::Context,
+    ) -> Self {
+        Self {
+            entity_manager,
+            gl,
+            shader_manager,
+        }
     }
 
     pub fn build_ui(&self, ui: &mut imgui::Ui, state: &mut State<'gl, '_>) {
@@ -85,6 +95,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             self.gl,
             state.cursor.location().unwrap(),
             Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
         ));
 
         let id = self.entity_manager.borrow_mut().add_entity(point);
@@ -108,6 +119,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 self.gl,
                 state.cursor.location().unwrap(),
                 Rc::clone(&state.name_repo),
+                Rc::clone(&self.shader_manager),
             )));
         state.selector.add_selectable(id);
     }
@@ -117,6 +129,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         let spline = Box::new(CubicSplineC0::through_points(
             self.gl,
             Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
             selected_points.clone(),
         ));
 
