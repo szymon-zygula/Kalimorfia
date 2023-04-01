@@ -244,10 +244,13 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
     fn unsubscribe(
         &mut self,
         subscribee: usize,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         self.entities.remove(&subscribee);
         self.original_transforms.remove(&subscribee);
+
+        self.reset_transforms(entities);
+        self.update_cursor_position(entities);
     }
 }
 
