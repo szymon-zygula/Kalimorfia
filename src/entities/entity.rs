@@ -78,15 +78,17 @@ impl<'gl, T: Entity> ReferentialEntity<'gl> for T {
 
 #[derive(Clone, Copy, Debug)]
 pub enum DrawType {
-    Normal,
+    Regular,
     Selected,
+    Virtual,
+    SelectedVirtual,
 }
 
 pub trait Drawable {
     fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType);
 
-    fn draw_normal(&self, camera: &Camera) {
-        self.draw(camera, &Matrix4::identity(), DrawType::Normal);
+    fn draw_regular(&self, camera: &Camera) {
+        self.draw(camera, &Matrix4::identity(), DrawType::Regular);
     }
 }
 
