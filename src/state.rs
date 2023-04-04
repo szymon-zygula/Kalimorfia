@@ -4,7 +4,6 @@ use kalimorfia::{
     render::shader_manager::ShaderManager,
     repositories::{ExactNameRepository, NameRepository, UniqueNameRepository},
     ui::selector::Selector,
-    window::Window,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -19,7 +18,6 @@ pub struct State<'gl, 'a> {
 impl<'gl, 'a> State<'gl, 'a> {
     pub fn new(
         gl: &'gl glow::Context,
-        window: &Window,
         entity_manager: &'a RefCell<EntityManager<'gl>>,
         shader_manager: Rc<ShaderManager<'gl>>,
     ) -> Self {
@@ -34,7 +32,7 @@ impl<'gl, 'a> State<'gl, 'a> {
 
         State {
             camera: Camera::new(),
-            cursor: ScreenCursor::new(gl, Camera::new(), Rc::clone(&shader_manager), window.size()),
+            cursor: ScreenCursor::new(gl, Camera::new(), Rc::clone(&shader_manager)),
             name_repo: Rc::new(RefCell::new(UniqueNameRepository::new())),
             selector: Selector::new(
                 move |id| {

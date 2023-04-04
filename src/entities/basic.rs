@@ -1,6 +1,6 @@
 use super::entity::Entity;
-use crate::math::affine::transforms;
-use nalgebra::{Matrix4, Vector3};
+use crate::{camera::Camera, math::affine::transforms};
+use nalgebra::{Matrix4, Point2, Point3, Vector3};
 
 pub struct Orientation {
     pub angle: f32,
@@ -94,6 +94,12 @@ impl Translation {
 
     pub fn reset(&mut self) {
         self.translation = Vector3::zeros();
+    }
+
+    pub fn set_ndc(&mut self, ndc: &Point2<f32>, camera: &Camera) {
+        self.translation = camera
+            .move_world_to_ndc(&Point3::from(self.translation), ndc)
+            .coords;
     }
 }
 

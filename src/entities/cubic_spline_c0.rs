@@ -139,8 +139,8 @@ impl<'gl> CubicSplineC0<'gl> {
             let clamped_point = Vector2::new(diff.x.clamp(-1.0, 1.0), diff.y.clamp(-1.0, 1.0));
             sum += clamped_point
                 .component_mul(&Vector2::new(
-                    0.5 * camera.window_size.width as f32,
-                    0.5 * camera.window_size.height as f32,
+                    0.5 * camera.resolution.width as f32,
+                    0.5 * camera.resolution.height as f32,
                 ))
                 .norm();
         }

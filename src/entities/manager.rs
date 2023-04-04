@@ -1,6 +1,6 @@
 use super::entity::{DrawType, ReferentialSceneEntity};
 use crate::camera::Camera;
-use nalgebra::Matrix4;
+use nalgebra::{Matrix4, Point2};
 use std::{
     cell::{Ref, RefCell},
     collections::{BTreeMap, HashMap, HashSet},
@@ -23,8 +23,16 @@ impl<'gl> EntityManager<'gl> {
             .borrow_mut()
             .control_referential_ui(ui, controller_id, &self.entities, &mut self.subscriptions);
 
-        for (id, entity) in self.entities.iter().filter(|(&id, _)| id != controller_id) {
-            let intersection: HashSet<usize> = result
+        self.notify_about_modifications(Some(controller_id), &result);
+    }
+
+    fn notify_about_modifications(&self, modifier_id: Option<usize>, changes: &HashSet<usize>) {
+        for (id, entity) in self.entities.iter().filter(|(&id, _)| {
+            modifier_id
+                .map(|modifier_id| modifier_id != id)
+                .unwrap_or(true)
+        }) {
+            let intersection: HashSet<usize> = changes
                 .intersection(&self.subscriptions[id])
                 .copied()
                 .collect();
@@ -66,7 +74,7 @@ impl<'gl> EntityManager<'gl> {
         id
     }
 
-    pub fn get_entity_mut(&mut self, id: usize) -> &dyn ReferentialSceneEntity<'gl> {
+    pub fn get_entity_mut(&mut self, id: usize) -> &mut dyn ReferentialSceneEntity<'gl> {
         self.entities.get_mut(&id).unwrap().get_mut().as_mut()
     }
 
@@ -84,6 +92,11 @@ impl<'gl> EntityManager<'gl> {
         &self,
     ) -> &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
         &self.entities
+    }
+
+    pub fn set_ndc(&self, id: usize, position: &Point2<f32>, camera: &Camera) {
+        self.entities[&id].borrow_mut().set_ndc(position, camera);
+        self.notify_about_modifications(None, &HashSet::from([id]));
     }
 
     pub fn subscribe(&mut self, subscriber: usize, subscribee: usize) {

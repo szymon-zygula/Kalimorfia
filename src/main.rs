@@ -15,20 +15,16 @@ use kalimorfia::{
     mouse::MouseState,
     window::Window,
 };
-use nalgebra::{Matrix4, Point2};
+use nalgebra::Matrix4;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
 fn select_clicked(
-    pixel: glutin::dpi::PhysicalPosition<f64>,
+    pixel: glutin::dpi::PhysicalPosition<u32>,
     state: &mut State,
     resolution: &glutin::dpi::PhysicalSize<u32>,
     entity_manager: &RefCell<EntityManager>,
-) {
-    let point = Point2::new(
-        2.0 * (pixel.x as f32 + 0.5) / resolution.width as f32 - 1.0,
-        -(2.0 * (pixel.y as f32 + 0.5) / resolution.height as f32 - 1.0),
-    );
-
+) -> bool {
+    let point = state.camera.screen_to_ndc(&pixel);
     let mut closest_id = None;
     let mut closest_dist = f32::INFINITY;
 
@@ -47,7 +43,9 @@ fn select_clicked(
     }
 
     if let Some(id) = closest_id {
-        state.selector.toggle(id);
+        state.selector.toggle(id)
+    } else {
+        false
     }
 }
 
@@ -58,8 +56,9 @@ fn main() {
     let grid = SceneGrid::new(&gl, 100, 50.0);
     let shader_manager = shaders::create_shader_manager(&gl);
     let entity_manager = RefCell::new(EntityManager::new());
-    let mut state = State::new(&gl, &window, &entity_manager, Rc::clone(&shader_manager));
+    let mut state = State::new(&gl, &entity_manager, Rc::clone(&shader_manager));
     let main_control = MainControl::new(Rc::clone(&shader_manager), &entity_manager, &gl);
+    let mut grabbing = false;
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
@@ -84,9 +83,27 @@ fn main() {
                 state.cursor.set_camera(&state.camera);
             }
 
-            if mouse.has_left_button_been_pressed() && !window.imgui_using_mouse() {
-                if let Some(position) = mouse.position() {
-                    select_clicked(position, &mut state, &window.size(), &entity_manager);
+            if !window.imgui_using_mouse() && mouse.has_left_button_been_pressed() {
+                if let Some(position) = mouse.integer_position() {
+                    if select_clicked(position, &mut state, &window.size(), &entity_manager) {
+                        grabbing = true;
+                    }
+                }
+            }
+
+            if !mouse.is_left_button_down() {
+                grabbing = false;
+            }
+
+            if grabbing {
+                if let Some(only_selected) = state.selector.only_selected() {
+                    if let Some(ref position) = mouse.integer_position() {
+                        entity_manager.borrow_mut().set_ndc(
+                            only_selected,
+                            &state.camera.screen_to_ndc(position),
+                            &state.camera,
+                        );
+                    }
                 }
             }
 
@@ -124,7 +141,7 @@ fn main() {
                 mouse.handle_window_event(event);
 
                 if let WindowEvent::Resized(resolution) = event {
-                    state.camera.window_size = *resolution;
+                    state.camera.resolution = *resolution;
                     state
                         .cursor
                         .set_camera_and_resolution(&state.camera, resolution);

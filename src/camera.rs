@@ -1,4 +1,8 @@
-use crate::{math::affine::transforms, mouse::MouseState, window::Window};
+use crate::{
+    math::affine::{screen::*, transforms},
+    mouse::MouseState,
+    window::Window,
+};
 use glutin::dpi::{PhysicalPosition, PhysicalSize};
 use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 
@@ -8,7 +12,7 @@ pub struct Camera {
     pub altitude: f32,
     pub log_distance: f32,
     pub center: Point3<f32>,
-    pub window_size: PhysicalSize<u32>,
+    pub resolution: PhysicalSize<u32>,
     pub near_plane: f32,
     pub far_plane: f32,
     pub fov: f32,
@@ -25,7 +29,7 @@ impl Camera {
             altitude: std::f32::consts::FRAC_PI_4,
             log_distance: 1.0,
             center: Point3::new(0.0, 0.0, 0.0),
-            window_size: PhysicalSize::new(0, 0),
+            resolution: PhysicalSize::new(0, 0),
             near_plane: 0.1,
             far_plane: 100.0,
             fov: std::f32::consts::FRAC_PI_2,
@@ -79,7 +83,7 @@ impl Camera {
     }
 
     fn update_angles(&mut self, mouse: &MouseState, mouse_delta: &PhysicalPosition<f64>) {
-        if mouse.is_left_button_down() {
+        if mouse.is_middle_button_down() {
             self.azimuth += mouse_delta.x as f32 * Self::ROTATION_SPEED;
             self.altitude += mouse_delta.y as f32 * Self::ROTATION_SPEED;
         }
@@ -116,7 +120,7 @@ impl Camera {
     }
 
     pub fn aspect_ratio(&self) -> f32 {
-        self.window_size.width as f32 / self.window_size.height as f32
+        self.resolution.width as f32 / self.resolution.height as f32
     }
 
     pub fn projection_transform(&self) -> Matrix4<f32> {
@@ -137,7 +141,7 @@ impl Camera {
         )
     }
 
-    pub fn project_ray(&self, pixel: Point2<f32>) -> Vector3<f32> {
+    pub fn ray(&self, pixel: Point2<f32>) -> Vector3<f32> {
         let screen_point = Point4::new(pixel.x, pixel.y, -0.5, 1.0);
 
         Point3::from_homogeneous(
@@ -153,6 +157,36 @@ impl Camera {
         .unwrap()
         .coords
         .normalize()
+    }
+
+    pub fn world_to_ndc(&self, point: &Point3<f32>) -> Point3<f32> {
+        Point3::from_homogeneous(
+            self.projection_transform() * self.view_transform() * point.to_homogeneous(),
+        )
+        .unwrap_or(Point3::origin())
+    }
+
+    /// If `point` is behind the camera, the returned point will be in front of it (z' = |z| in
+    /// camera space)
+    pub fn ndc_to_world(&self, point: &Point3<f32>) -> Point3<f32> {
+        let mut deprojected = self.inverse_projection_transform() * point.to_homogeneous();
+        deprojected.z = -deprojected.z.abs();
+        deprojected.w = deprojected.w.abs();
+        Point3::from_homogeneous(self.inverse_view_transform() * deprojected)
+            .unwrap_or(Point3::origin())
+    }
+
+    pub fn move_world_to_ndc(&self, old_world: &Point3<f32>, ndc: &Point2<f32>) -> Point3<f32> {
+        let ndc_from_world = self.world_to_ndc(old_world);
+        self.ndc_to_world(&Point3::new(ndc.x, ndc.y, ndc_from_world.z))
+    }
+
+    pub fn screen_to_ndc(&self, position: &PhysicalPosition<u32>) -> Point2<f32> {
+        screen_to_ndc(&self.resolution, position)
+    }
+
+    pub fn ndc_to_screen(&self, position: &Point2<f32>) -> PhysicalPosition<u32> {
+        ndc_to_screen(&self.resolution, position)
     }
 }
 

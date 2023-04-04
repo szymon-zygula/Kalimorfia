@@ -115,11 +115,13 @@ impl<'a> Selector<'a> {
         *self.selectables.get_mut(&id).unwrap() = false;
     }
 
-    pub fn toggle(&mut self, id: usize) {
+    pub fn toggle(&mut self, id: usize) -> bool {
         if self.selectables[&id] {
             self.deselect(id);
+            false
         } else {
             self.select(id);
+            true
         }
     }
 }

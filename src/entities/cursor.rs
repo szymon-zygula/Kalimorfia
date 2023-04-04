@@ -101,43 +101,33 @@ impl<'gl> ScreenCursor<'gl> {
         gl: &'gl glow::Context,
         camera: Camera,
         shader_manager: Rc<ShaderManager<'gl>>,
-        resolution: glutin::dpi::PhysicalSize<u32>,
     ) -> Self {
         Self {
             cursor: Cursor::new(gl, shader_manager, 1.0),
-            screen_coordinates: ScreenCoordinates::new(resolution),
+            screen_coordinates: ScreenCoordinates::new(camera.resolution),
             camera,
         }
     }
 
-    fn screen_coords_from_world(&self) -> Point3<f32> {
-        Point3::from_homogeneous(
-            self.camera.projection_transform()
-                * self.camera.view_transform()
-                * Point3::from(self.cursor.position.as_ref().unwrap().translation).to_homogeneous(),
-        )
-        .unwrap_or(Point3::origin())
+    fn ndc_from_world(&self) -> Point3<f32> {
+        self.camera.world_to_ndc(&self.world_position())
     }
 
     fn update_coords_from_world(&mut self) {
-        let screen_coords = self.screen_coords_from_world();
-
-        self.screen_coordinates.set_ndc_coords(screen_coords.xy());
+        let ndc_coords = self.ndc_from_world();
+        self.screen_coordinates.set_ndc(ndc_coords.xy());
     }
 
     fn update_world_from_coords(&mut self) {
-        let screen_projection = self.screen_coords_from_world();
-        let screen_ndc = self.screen_coordinates.get_ndc_coords();
-
-        let mut deprojected = self.camera.inverse_projection_transform()
-            * Point3::new(screen_ndc.x, screen_ndc.y, screen_projection.z).to_homogeneous();
-        deprojected.z = -deprojected.z.abs();
-        deprojected.w = deprojected.w.abs();
+        let old_world = self.world_position();
+        let ndc = self.screen_coordinates.get_ndc();
 
         self.cursor.position.as_mut().unwrap().translation =
-            Point3::from_homogeneous(self.camera.inverse_view_transform() * deprojected)
-                .unwrap()
-                .coords;
+            self.camera.move_world_to_ndc(&old_world, &ndc).coords;
+    }
+
+    fn world_position(&self) -> Point3<f32> {
+        Point3::from(self.cursor.position.as_ref().unwrap().translation)
     }
 
     pub fn set_camera(&mut self, camera: &Camera) {

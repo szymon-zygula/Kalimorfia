@@ -1,3 +1,5 @@
+use glutin::dpi::PhysicalPosition;
+
 type MousePosition = glutin::dpi::PhysicalPosition<f64>;
 
 #[derive(Debug, Copy, Clone)]
@@ -75,6 +77,11 @@ impl MouseState {
 
     pub fn position(&self) -> Option<MousePosition> {
         self.current_position
+    }
+
+    pub fn integer_position(&self) -> Option<PhysicalPosition<u32>> {
+        self.current_position
+            .map(|p| PhysicalPosition::new(p.x.abs().round() as u32, p.y.abs().round() as u32))
     }
 
     pub fn scroll_delta(&mut self) -> f32 {

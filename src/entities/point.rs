@@ -110,6 +110,10 @@ impl<'gl> SceneObject for Point<'gl> {
         Some(self.position.translation.into())
     }
 
+    fn set_ndc(&mut self, ndc: &Point2<f32>, camera: &Camera) {
+        self.position.set_ndc(ndc, camera);
+    }
+
     fn model_transform(&self) -> Matrix4<f32> {
         self.position.matrix()
     }

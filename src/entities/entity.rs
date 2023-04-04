@@ -133,6 +133,8 @@ pub trait SceneObject {
         None
     }
 
+    fn set_ndc(&mut self, _ndc: &Point2<f32>, _camera: &Camera) {}
+
     fn model_transform(&self) -> Matrix4<f32> {
         Matrix4::identity()
     }
