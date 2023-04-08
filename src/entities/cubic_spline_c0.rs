@@ -4,6 +4,7 @@ use super::{
         DrawType, NamedEntity, ReferentialDrawable, ReferentialEntity, ReferentialSceneEntity,
         SceneObject,
     },
+    utils,
 };
 use crate::{
     camera::Camera,
@@ -11,9 +12,9 @@ use crate::{
     primitives::color::Color,
     render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
     repositories::NameRepository,
-    ui::ordered_selector::ordered_selelector,
+    ui::ordered_selector,
 };
-use nalgebra::{Matrix4, Point3, Vector2};
+use nalgebra::{Matrix4, Point3};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
@@ -37,7 +38,7 @@ impl<'gl> CubicSplineC0<'gl> {
         name_repo: Rc<RefCell<dyn NameRepository>>,
         shader_manager: Rc<ShaderManager<'gl>>,
         point_ids: Vec<usize>,
-    ) -> CubicSplineC0<'gl> {
+    ) -> Self {
         Self {
             gl,
             points: point_ids,
@@ -62,29 +63,22 @@ impl<'gl> CubicSplineC0<'gl> {
             points.push(Point3::new(p.x as f64, p.y as f64, p.z as f64));
         }
 
-        let spline = geometry::bezier::CubicSplineC0::through_points(points);
-        let (vertices, indices) = spline.curve(samples as usize);
-
-        (vertices, indices)
+        let spline = geometry::bezier::BezierCubicSplineC0::through_points(points);
+        spline.curve(samples as usize)
     }
 
     fn polygon_mesh(
+        &self,
         point_ids: &Vec<usize>,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> (Vec<Point3<f32>>, Vec<u32>) {
+    ) -> LinesMesh<'gl> {
         let mut points = Vec::with_capacity(point_ids.len());
 
         for &id in point_ids {
             points.push(entities[&id].borrow().location().unwrap());
         }
 
-        let mut indices = Vec::with_capacity(points.len() * 2);
-        for i in 0..(points.len() as u32 - 1) {
-            indices.push(i);
-            indices.push(i + 1);
-        }
-
-        (points, indices)
+        LinesMesh::strip(self.gl, points)
     }
 
     fn recalculate_mesh(
@@ -94,58 +88,24 @@ impl<'gl> CubicSplineC0<'gl> {
     ) {
         if self.points.is_empty() {
             self.invalidate_mesh();
-        } else {
-            let (vertices, indices) = Self::spline_mesh(
-                &self.points,
-                entities,
-                (self.polygon_pixel_length(entities, camera) * 0.5).round() as u32,
-            );
-
-            if vertices.is_empty() || indices.is_empty() {
-                self.invalidate_mesh();
-                return;
-            }
-
-            self.mesh
-                .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
-            let (vertices, indices) = Self::polygon_mesh(&self.points, entities);
-            self.polygon_mesh
-                .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
-        }
-    }
-
-    fn polygon_pixel_length(
-        &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        camera: &Camera,
-    ) -> f32 {
-        let mut sum = 0.0;
-        for i in 1..self.points.len() {
-            let point1 = entities[&self.points[i - 1]].borrow().location().unwrap();
-            let point2 = entities[&self.points[i]].borrow().location().unwrap();
-
-            let point1 =
-                camera.projection_transform() * camera.view_transform() * point1.to_homogeneous();
-            let point2 =
-                camera.projection_transform() * camera.view_transform() * point2.to_homogeneous();
-
-            let diff = Point3::from_homogeneous(point1)
-                .unwrap_or(Point3::origin())
-                .xy()
-                - Point3::from_homogeneous(point2)
-                    .unwrap_or(Point3::origin())
-                    .xy();
-
-            let clamped_point = Vector2::new(diff.x.clamp(-1.0, 1.0), diff.y.clamp(-1.0, 1.0));
-            sum += clamped_point
-                .component_mul(&Vector2::new(
-                    0.5 * camera.resolution.width as f32,
-                    0.5 * camera.resolution.height as f32,
-                ))
-                .norm();
+            return;
         }
 
-        sum
+        let (vertices, indices) = Self::spline_mesh(
+            &self.points,
+            entities,
+            (utils::polygon_pixel_length(&self.points, entities, camera) * 0.5).round() as u32,
+        );
+
+        if vertices.is_empty() || indices.is_empty() {
+            self.invalidate_mesh();
+            return;
+        }
+
+        self.mesh
+            .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
+        let polygon_mesh = self.polygon_mesh(&self.points, entities);
+        self.polygon_mesh.replace(Some(polygon_mesh));
     }
 
     fn invalidate_mesh(&self) {
@@ -169,41 +129,14 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         self.name_control_ui(ui);
         ui.checkbox("Draw polygon", &mut self.draw_polygon);
 
-        let selected = self
-            .points
-            .iter()
-            .map(|id| (*id, entities[id].borrow().name(), true));
+        let points_names_selections = utils::segregate_points(entities, &self.points);
 
-        let not_selected = entities
-            .iter()
-            .filter(|(id, entity)| {
-                !self.points.contains(id)
-                    && entity
-                        .try_borrow()
-                        .map_or(false, |entity| entity.is_single_point())
-            })
-            .map(|(id, entity)| (*id, entity.borrow().name(), false));
-
-        let points_names_selections = selected.chain(not_selected).collect();
-
-        let new_selection = ordered_selelector(ui, points_names_selections);
-        let new_points: Vec<usize> = new_selection
-            .iter()
-            .filter(|(_, selected)| *selected)
-            .map(|(id, _)| *id)
-            .collect();
-
-        let changed = self.points.iter().ne(new_points.iter());
+        let new_selection = ordered_selector::ordered_selector(ui, points_names_selections);
+        let new_points = ordered_selector::selected_only(&new_selection);
+        let changed = ordered_selector::changed(&self.points, &new_points);
 
         if changed {
-            for (id, selected) in new_selection {
-                if selected {
-                    subscriptions.get_mut(&controller_id).unwrap().insert(id);
-                } else {
-                    subscriptions.get_mut(&controller_id).unwrap().remove(&id);
-                }
-            }
-
+            utils::update_point_subs(new_selection, controller_id, subscriptions);
             self.points = new_points;
             self.invalidate_mesh();
         }

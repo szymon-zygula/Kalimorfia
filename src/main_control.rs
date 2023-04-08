@@ -2,7 +2,8 @@ use crate::state::State;
 use kalimorfia::{
     entities::{
         cubic_spline_c0::CubicSplineC0,
-        entity::{Entity, SceneObject},
+        cubic_spline_c2::CubicSplineC2,
+        entity::{Entity, ReferentialSceneEntity, SceneObject},
         manager::EntityManager,
         point::Point,
         torus::Torus,
@@ -88,6 +89,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
 
         ui.next_column();
+        if ui.button("Cubic Spline C2") {
+            self.add_cubic_spline_c2(state);
+        }
+
+        ui.next_column();
+        ui.columns(1, "clear_columns", false);
     }
 
     fn add_point(&self, state: &mut State) {
@@ -126,16 +133,36 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
     fn add_cubic_spline_c0(&self, state: &mut State) {
         let selected_points = self.selected_points(&state.selector);
-        let spline = Box::new(CubicSplineC0::through_points(
+        self.add_spline(
+            state,
+            CubicSplineC0::through_points(
+                self.gl,
+                Rc::clone(&state.name_repo),
+                Rc::clone(&self.shader_manager),
+                selected_points.clone(),
+            ),
+        );
+    }
+
+    fn add_cubic_spline_c2(&self, state: &mut State) {
+        let selected_points = self.selected_points(&state.selector);
+        let spline = CubicSplineC2::through_points(
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
             selected_points.clone(),
-        ));
+            self.entity_manager.borrow().entities(),
+        );
 
-        let id = self.entity_manager.borrow_mut().add_entity(spline);
+        self.add_spline(state, spline);
+    }
 
-        for selected in selected_points {
+    fn add_spline<T: ReferentialSceneEntity<'gl> + 'gl>(&self, state: &mut State, spline: T) {
+        let boxed_spline = Box::new(spline);
+
+        let id = self.entity_manager.borrow_mut().add_entity(boxed_spline);
+
+        for selected in self.selected_points(&state.selector) {
             self.entity_manager.borrow_mut().subscribe(id, selected);
         }
 

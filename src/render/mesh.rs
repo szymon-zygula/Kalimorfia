@@ -39,6 +39,16 @@ impl<'gl> LinesMesh<'gl> {
         mesh
     }
 
+    pub fn strip(gl: &'gl glow::Context, vertices: Vec<Point3<f32>>) -> Self {
+        let mut indices = Vec::with_capacity(vertices.len() * 2);
+        for i in 0..(vertices.len() as u32 - 1) {
+            indices.push(i);
+            indices.push(i + 1);
+        }
+
+        Self::new(gl, vertices, indices)
+    }
+
     fn new_uninit(gl: &'gl glow::Context, index_count: u32) -> LinesMesh {
         let vertex_buffer = unsafe { gl.create_buffer() }.unwrap();
         let element_buffer = unsafe { gl.create_buffer() }.unwrap();

@@ -1,4 +1,4 @@
-pub fn ordered_selelector(
+pub fn ordered_selector(
     ui: &imgui::Ui,
     elements: Vec<(usize, String, bool)>,
 ) -> Vec<(usize, bool)> {
@@ -40,4 +40,16 @@ pub fn ordered_selelector(
     }
 
     new_selects
+}
+
+pub fn selected_only(new_selection: &Vec<(usize, bool)>) -> Vec<usize> {
+    new_selection
+        .iter()
+        .filter(|(_, selected)| *selected)
+        .map(|(id, _)| *id)
+        .collect()
+}
+
+pub fn changed(new_selected: &Vec<usize>, old_selected: &Vec<usize>) -> bool {
+    old_selected.iter().ne(new_selected.iter())
 }

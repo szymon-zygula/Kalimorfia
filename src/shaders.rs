@@ -5,11 +5,8 @@ const SHADERS_PATH: &str = "shaders/";
 const SHADERS_EXTENSION: &str = "glsl";
 
 pub fn create_shader_manager<'gl>(gl: &'gl glow::Context) -> Rc<ShaderManager<'gl>> {
-    let simple_fragment = shader(gl, "simple_fragment", glow::FRAGMENT_SHADER);
     let fragment_colored = shader(gl, "fragment_colored", glow::FRAGMENT_SHADER);
 
-    let simple_fragment = shader(gl, "simple_vertex", glow::VERTEX_SHADER);
-    let perspective_vertex = shader(gl, "perspective_vertex", glow::VERTEX_SHADER);
     let perspective_vertex_colored = shader(gl, "perspective_vertex_colored", glow::VERTEX_SHADER);
     let perspective_vertex_colored_uniform =
         shader(gl, "perspective_vertex_uniform_color", glow::VERTEX_SHADER);
