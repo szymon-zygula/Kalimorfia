@@ -97,8 +97,14 @@ impl<'gl> EntityManager<'gl> {
     }
 
     pub fn set_ndc(&self, id: usize, position: &Point2<f32>, camera: &Camera) {
-        self.entities[&id].borrow_mut().set_ndc(position, camera);
-        self.notify_about_modifications(&HashSet::new(), &HashSet::from([id]));
+        let mut result =
+            self.entities[&id]
+                .borrow_mut()
+                .set_ndc(position, camera, &self.entities, id);
+
+        result.notification_excluded.insert(id);
+
+        self.notify_about_modifications(&result.notification_excluded, &result.modified);
     }
 
     pub fn subscribe(&mut self, subscriber: usize, subscribee: usize) {

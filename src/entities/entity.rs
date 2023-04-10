@@ -1,4 +1,4 @@
-use super::basic::LinearTransformEntity;
+use super::{basic::LinearTransformEntity, point::Point};
 use crate::camera::Camera;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
@@ -85,7 +85,7 @@ impl<'gl, T: Entity> ReferentialEntity<'gl> for T {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DrawType {
     Regular,
     Selected,
@@ -155,6 +155,114 @@ pub trait SceneObject {
     fn is_single_point(&self) -> bool {
         false
     }
+
+    fn as_point(&self) -> Option<&Point> {
+        None
+    }
+}
+
+pub trait ReferentialSceneObject<'gl> {
+    fn set_ndc(
+        &mut self,
+        _ndc: &Point2<f32>,
+        _camera: &Camera,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _controller_id: usize,
+    ) -> ControlResult {
+        ControlResult::default()
+    }
+
+    fn is_at_point(
+        &mut self,
+        _point: Point2<f32>,
+        _projection_transform: &Matrix4<f32>,
+        _view_transform: &Matrix4<f32>,
+        _resolution: &glutin::dpi::PhysicalSize<u32>,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) -> (bool, f32) {
+        (false, 0.0)
+    }
+
+    fn ray_intersects(&self, _from: Point3<f32>, _ray: Vector3<f32>) -> bool {
+        false
+    }
+
+    fn location(&self) -> Option<Point3<f32>> {
+        None
+    }
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        Matrix4::identity()
+    }
+
+    fn set_model_transform(&mut self, _linear_transform: LinearTransformEntity) {
+        panic!("Entity not is not transformable with LinearTransformEntity");
+    }
+
+    fn is_single_point(&self) -> bool {
+        false
+    }
+
+    fn as_point(&self) -> Option<&Point> {
+        None
+    }
+}
+
+impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
+    fn set_ndc(
+        &mut self,
+        ndc: &Point2<f32>,
+        camera: &Camera,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        controller_id: usize,
+    ) -> ControlResult {
+        self.set_ndc(ndc, camera);
+        ControlResult {
+            modified: HashSet::from([controller_id]),
+            ..Default::default()
+        }
+    }
+
+    fn is_at_point(
+        &mut self,
+        point: Point2<f32>,
+        projection_transform: &Matrix4<f32>,
+        view_transform: &Matrix4<f32>,
+        resolution: &glutin::dpi::PhysicalSize<u32>,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) -> (bool, f32) {
+        SceneObject::is_at_point(
+            self,
+            point,
+            projection_transform,
+            view_transform,
+            resolution,
+        )
+    }
+
+    fn ray_intersects(&self, from: Point3<f32>, ray: Vector3<f32>) -> bool {
+        self.ray_intersects(from, ray)
+    }
+
+    fn location(&self) -> Option<Point3<f32>> {
+        self.location()
+    }
+
+    fn model_transform(&self) -> Matrix4<f32> {
+        self.model_transform()
+    }
+
+    fn set_model_transform(&mut self, linear_transform: LinearTransformEntity) {
+        self.set_model_transform(linear_transform)
+    }
+
+    fn is_single_point(&self) -> bool {
+        self.is_single_point()
+    }
+
+    fn as_point(&self) -> Option<&Point> {
+        self.as_point()
+    }
 }
 
 pub trait NamedEntity {
@@ -166,11 +274,14 @@ pub trait SceneEntity: Entity + SceneObject + Drawable + NamedEntity {}
 impl<T: Entity + SceneObject + Drawable + NamedEntity> SceneEntity for T {}
 
 pub trait ReferentialSceneEntity<'gl>:
-    ReferentialEntity<'gl> + SceneObject + ReferentialDrawable<'gl> + NamedEntity
+    ReferentialEntity<'gl> + ReferentialSceneObject<'gl> + ReferentialDrawable<'gl> + NamedEntity
 {
 }
 
-impl<'gl, T: ReferentialEntity<'gl> + SceneObject + ReferentialDrawable<'gl> + NamedEntity>
-    ReferentialSceneEntity<'gl> for T
+impl<'gl, T> ReferentialSceneEntity<'gl> for T where
+    T: ReferentialEntity<'gl>
+        + ReferentialSceneObject<'gl>
+        + ReferentialDrawable<'gl>
+        + NamedEntity
 {
 }

@@ -40,6 +40,10 @@ impl<'gl> Point<'gl> {
             name: ChangeableName::new("Point", name_repo),
         }
     }
+
+    pub fn size(&self) -> f32 {
+        self.size
+    }
 }
 
 impl<'gl> Entity for Point<'gl> {
@@ -110,7 +114,7 @@ impl<'gl> SceneObject for Point<'gl> {
         Some(self.position.translation.into())
     }
 
-    fn set_ndc(&mut self, ndc: &Point2<f32>, camera: &Camera) {
+    fn set_ndc<'a>(&mut self, ndc: &Point2<f32>, camera: &Camera) {
         self.position.set_ndc(ndc, camera);
     }
 
@@ -124,6 +128,10 @@ impl<'gl> SceneObject for Point<'gl> {
 
     fn is_single_point(&self) -> bool {
         true
+    }
+
+    fn as_point(&self) -> Option<&Point> {
+        Some(self)
     }
 }
 

@@ -78,7 +78,9 @@ impl<'gl> CubicSplineC0<'gl> {
             points.push(entities[&id].borrow().location().unwrap());
         }
 
-        LinesMesh::strip(self.gl, points)
+        let mut mesh = LinesMesh::strip(self.gl, points);
+        mesh.thickness(2.0);
+        mesh
     }
 
     fn recalculate_mesh(
@@ -102,8 +104,9 @@ impl<'gl> CubicSplineC0<'gl> {
             return;
         }
 
-        self.mesh
-            .replace(Some(LinesMesh::new(self.gl, vertices, indices)));
+        let mut mesh = LinesMesh::new(self.gl, vertices, indices);
+        mesh.thickness(3.0);
+        self.mesh.replace(Some(mesh));
         let polygon_mesh = self.polygon_mesh(&self.points, entities);
         self.polygon_mesh.replace(Some(polygon_mesh));
     }

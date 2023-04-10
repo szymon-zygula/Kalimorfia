@@ -18,22 +18,30 @@ use kalimorfia::{
 use nalgebra::Matrix4;
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+#[derive(PartialEq)]
+enum SelectResult {
+    Select,
+    Unselect,
+    Nothing,
+}
+
 fn select_clicked(
     pixel: glutin::dpi::PhysicalPosition<u32>,
     state: &mut State,
     resolution: &glutin::dpi::PhysicalSize<u32>,
     entity_manager: &RefCell<EntityManager>,
-) -> bool {
+) -> SelectResult {
     let point = state.camera.screen_to_ndc(&pixel);
     let mut closest_id = None;
     let mut closest_dist = f32::INFINITY;
 
     for (&id, entity) in entity_manager.borrow().entities() {
-        let (is_at_point, camera_distance) = entity.borrow().is_at_point(
+        let (is_at_point, camera_distance) = entity.borrow_mut().is_at_point(
             point,
             &state.camera.projection_transform(),
             &state.camera.view_transform(),
             resolution,
+            entity_manager.borrow().entities(),
         );
 
         if is_at_point && camera_distance < closest_dist {
@@ -43,9 +51,13 @@ fn select_clicked(
     }
 
     if let Some(id) = closest_id {
-        state.selector.toggle(id)
+        if state.selector.toggle(id) {
+            SelectResult::Select
+        } else {
+            SelectResult::Unselect
+        }
     } else {
-        false
+        SelectResult::Nothing
     }
 }
 
@@ -58,7 +70,7 @@ fn main() {
     let entity_manager = RefCell::new(EntityManager::new());
     let mut state = State::new(&gl, &entity_manager, Rc::clone(&shader_manager));
     let main_control = MainControl::new(Rc::clone(&shader_manager), &entity_manager, &gl);
-    let mut grabbing = false;
+    let mut prevent_grab = false;
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
@@ -85,17 +97,19 @@ fn main() {
 
             if !window.imgui_using_mouse() && mouse.has_left_button_been_pressed() {
                 if let Some(position) = mouse.integer_position() {
-                    if select_clicked(position, &mut state, &window.size(), &entity_manager) {
-                        grabbing = true;
+                    if select_clicked(position, &mut state, &window.size(), &entity_manager)
+                        == SelectResult::Unselect
+                    {
+                        prevent_grab = true;
                     }
                 }
             }
 
             if !mouse.is_left_button_down() {
-                grabbing = false;
+                prevent_grab = false;
             }
 
-            if grabbing {
+            if !window.imgui_using_mouse() && mouse.is_left_button_down() && !prevent_grab {
                 if let Some(only_selected) = state.selector.only_selected() {
                     if let Some(ref position) = mouse.integer_position() {
                         entity_manager.borrow_mut().set_ndc(

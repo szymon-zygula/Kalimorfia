@@ -31,7 +31,7 @@ impl CubicBSpline {
             bernsteins[i].coeffs[3] = (bernsteins[i].coeffs[2] + bernsteins[i + 1].coeffs[1]) * 0.5;
         }
 
-        bernsteins.leak()[1..deboor_points.len() - 2].to_vec()
+        bernsteins[1..deboor_points.len() - 2].to_vec()
     }
 
     pub fn value(&self, t: f64) -> f64 {
@@ -46,23 +46,22 @@ impl CubicBSpline {
     }
 
     pub fn modify_bernstein(&self, point_idx: usize, val: f64) -> Self {
-        let segment_idx = point_idx / 4;
-        let knot_idx = point_idx % 4;
-        match knot_idx {
-            0 | 3 => self.modify_fringe_bernstein(segment_idx, knot_idx, val),
-            1 | 2 => self.modify_middle_bernstein(segment_idx, knot_idx, val),
-            _ => panic!("Invalid Bernstein knot index"),
-        }
-    }
+        let (segment_idx, knot_idx) = if point_idx == 0 {
+            (0, 0)
+        } else {
+            ((point_idx - 1) / 3, (point_idx - 1) % 3 + 1)
+        };
 
-    pub fn modify_fringe_bernstein(&self, segment_idx: usize, knot_idx: usize, val: f64) -> Self {
-        // TODO
-        self.clone()
-    }
+        let mut bern = self.bernsteins[segment_idx].coeffs.clone();
+        bern[knot_idx] = val;
 
-    pub fn modify_middle_bernstein(&self, segment_idx: usize, knot_idx: usize, val: f64) -> Self {
-        // TODO
-        self.clone()
+        let mut new_deboor = self.deboor_points.clone();
+        new_deboor[segment_idx] = 6.0 * bern[0] - 7.0 * bern[1] + 2.0 * bern[2];
+        new_deboor[segment_idx + 1] = 2.0 * bern[1] - 1.0 * bern[2];
+        new_deboor[segment_idx + 2] = -1.0 * bern[1] + 2.0 * bern[2];
+        new_deboor[segment_idx + 3] = 2.0 * bern[1] - 7.0 * bern[2] + 6.0 * bern[3];
+
+        Self::with_coefficients(new_deboor)
     }
 
     pub fn bernstein_values(&self) -> Vec<f64> {
