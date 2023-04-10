@@ -52,6 +52,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     }
 
     fn selection_window(&self, ui: &imgui::Ui, state: &mut State) {
+        let _token = ui.push_id("selection_window");
         ui.window("Selection")
             .size([500.0, 500.0], imgui::Condition::FirstUseEver)
             .position([0.0, 300.0], imgui::Condition::FirstUseEver)
@@ -139,7 +140,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 self.gl,
                 Rc::clone(&state.name_repo),
                 Rc::clone(&self.shader_manager),
-                selected_points.clone(),
+                selected_points,
             ),
         );
     }
@@ -150,7 +151,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
-            selected_points.clone(),
+            selected_points,
             self.entity_manager.borrow().entities(),
         );
 

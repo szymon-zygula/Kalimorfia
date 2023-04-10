@@ -19,19 +19,21 @@ impl<'gl> EntityManager<'gl> {
     }
 
     pub fn control_referential_ui(&mut self, controller_id: usize, ui: &imgui::Ui) {
-        let result = self.entities[&controller_id]
+        let mut result = self.entities[&controller_id]
             .borrow_mut()
             .control_referential_ui(ui, controller_id, &self.entities, &mut self.subscriptions);
 
-        self.notify_about_modifications(Some(controller_id), &result);
+        result.notification_excluded.insert(controller_id);
+
+        self.notify_about_modifications(&result.notification_excluded, &result.modified);
     }
 
-    fn notify_about_modifications(&self, modifier_id: Option<usize>, changes: &HashSet<usize>) {
-        for (id, entity) in self.entities.iter().filter(|(&id, _)| {
-            modifier_id
-                .map(|modifier_id| modifier_id != id)
-                .unwrap_or(true)
-        }) {
+    fn notify_about_modifications(&self, exclude: &HashSet<usize>, changes: &HashSet<usize>) {
+        for (id, entity) in self
+            .entities
+            .iter()
+            .filter(|(&id, _)| !exclude.contains(&id))
+        {
             let intersection: HashSet<usize> = changes
                 .intersection(&self.subscriptions[id])
                 .copied()
@@ -96,7 +98,7 @@ impl<'gl> EntityManager<'gl> {
 
     pub fn set_ndc(&self, id: usize, position: &Point2<f32>, camera: &Camera) {
         self.entities[&id].borrow_mut().set_ndc(position, camera);
-        self.notify_about_modifications(None, &HashSet::from([id]));
+        self.notify_about_modifications(&HashSet::new(), &HashSet::from([id]));
     }
 
     pub fn subscribe(&mut self, subscriber: usize, subscribee: usize) {

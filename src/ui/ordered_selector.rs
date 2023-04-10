@@ -42,7 +42,7 @@ pub fn ordered_selector(
     new_selects
 }
 
-pub fn selected_only(new_selection: &Vec<(usize, bool)>) -> Vec<usize> {
+pub fn selected_only(new_selection: &[(usize, bool)]) -> Vec<usize> {
     new_selection
         .iter()
         .filter(|(_, selected)| *selected)
@@ -50,6 +50,6 @@ pub fn selected_only(new_selection: &Vec<(usize, bool)>) -> Vec<usize> {
         .collect()
 }
 
-pub fn changed(new_selected: &Vec<usize>, old_selected: &Vec<usize>) -> bool {
+pub fn changed(new_selected: &[usize], old_selected: &[usize]) -> bool {
     old_selected.iter().ne(new_selected.iter())
 }

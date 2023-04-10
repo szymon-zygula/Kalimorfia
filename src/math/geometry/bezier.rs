@@ -134,9 +134,9 @@ impl BezierBSpline {
         deboor
     }
 
-    fn points_f32(points: &Vec<Point3<f64>>) -> Vec<Point3<f32>> {
+    fn points_f32(points: &[Point3<f64>]) -> Vec<Point3<f32>> {
         points
-            .into_iter()
+            .iter()
             .map(|p| Point3::new(p.x as f32, p.y as f32, p.z as f32))
             .collect()
     }

@@ -1,11 +1,15 @@
 use std::collections::{HashMap, HashSet};
 
+pub enum NameError {
+    NameTaken,
+}
+
 pub trait NameRepository {
     fn generate_name(&mut self, name: &str) -> String;
-    fn take_name(&mut self, name: &str) -> Result<String, ()>;
+    fn take_name(&mut self, name: &str) -> Result<String, NameError>;
     fn return_name(&mut self, name: &str);
 
-    fn swap_name(&mut self, old_name: &str, new_name: &str) -> Result<String, ()> {
+    fn swap_name(&mut self, old_name: &str, new_name: &str) -> Result<String, NameError> {
         self.return_name(old_name);
         self.take_name(new_name)
     }
@@ -45,12 +49,12 @@ impl NameRepository for UniqueNameRepository {
         entity_name
     }
 
-    fn take_name(&mut self, name: &str) -> Result<String, ()> {
+    fn take_name(&mut self, name: &str) -> Result<String, NameError> {
         let name = String::from(name);
         if self.names.insert(name.clone()) {
             Ok(name)
         } else {
-            Err(())
+            Err(NameError::NameTaken)
         }
     }
 
@@ -73,7 +77,7 @@ impl NameRepository for ExactNameRepository {
         String::from(name)
     }
 
-    fn take_name(&mut self, name: &str) -> Result<String, ()> {
+    fn take_name(&mut self, name: &str) -> Result<String, NameError> {
         Ok(String::from(name))
     }
 

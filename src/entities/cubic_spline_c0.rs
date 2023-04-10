@@ -1,8 +1,8 @@
 use super::{
     changeable_name::ChangeableName,
     entity::{
-        DrawType, NamedEntity, ReferentialDrawable, ReferentialEntity, ReferentialSceneEntity,
-        SceneObject,
+        ControlResult, DrawType, NamedEntity, ReferentialDrawable, ReferentialEntity,
+        ReferentialSceneEntity, SceneObject,
     },
     utils,
 };
@@ -125,7 +125,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         controller_id: usize,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
-    ) -> HashSet<usize> {
+    ) -> ControlResult {
         self.name_control_ui(ui);
         ui.checkbox("Draw polygon", &mut self.draw_polygon);
 
@@ -142,9 +142,12 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         }
 
         if changed {
-            HashSet::from([controller_id])
+            ControlResult {
+                modified: HashSet::from([controller_id]),
+                ..Default::default()
+            }
         } else {
-            HashSet::new()
+            ControlResult::default()
         }
     }
 

@@ -10,6 +10,12 @@ pub trait Entity {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool;
 }
 
+#[derive(Clone, Default)]
+pub struct ControlResult {
+    pub modified: HashSet<usize>,
+    pub notification_excluded: HashSet<usize>,
+}
+
 pub trait ReferentialEntity<'gl> {
     /// In contrast to a regular `Entity`, a `ReferentialEntity` can also control any other
     /// entities passed to its `control_ui`.
@@ -21,7 +27,7 @@ pub trait ReferentialEntity<'gl> {
         id: usize,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
-    ) -> HashSet<usize>;
+    ) -> ControlResult;
 
     fn notify_about_modification(
         &mut self,
@@ -67,11 +73,14 @@ impl<'gl, T: Entity> ReferentialEntity<'gl> for T {
         controller_id: usize,
         _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         _subscriptions: &mut HashMap<usize, HashSet<usize>>,
-    ) -> HashSet<usize> {
+    ) -> ControlResult {
         if self.control_ui(ui) {
-            HashSet::from([controller_id])
+            ControlResult {
+                modified: HashSet::from([controller_id]),
+                ..Default::default()
+            }
         } else {
-            HashSet::new()
+            ControlResult::default()
         }
     }
 }

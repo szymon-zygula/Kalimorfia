@@ -8,7 +8,7 @@ use std::{
 
 pub fn segregate_points<'gl>(
     entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    selected: &Vec<usize>,
+    selected: &[usize],
 ) -> Vec<(usize, String, bool)> {
     let selected_name_selection = selected
         .iter()

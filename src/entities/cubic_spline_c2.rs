@@ -1,8 +1,9 @@
 use super::{
+    basic::LinearTransformEntity,
     changeable_name::ChangeableName,
     entity::{
-        DrawType, Drawable, NamedEntity, ReferentialDrawable, ReferentialEntity,
-        ReferentialSceneEntity, SceneObject,
+        ControlResult, DrawType, Drawable, Entity, NamedEntity, ReferentialDrawable,
+        ReferentialEntity, ReferentialSceneEntity, SceneObject,
     },
     point::Point,
     utils,
@@ -13,9 +14,9 @@ use crate::{
     primitives::color::Color,
     render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
     repositories::{NameRepository, UniqueNameRepository},
-    ui::ordered_selector,
+    ui::{ordered_selector, single_selector},
 };
-use nalgebra::{Matrix4, Point3};
+use nalgebra::{Matrix4, Point3, Vector3};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet},
@@ -30,6 +31,7 @@ pub struct CubicSplineC2<'gl> {
     draw_deboor_polygon: bool,
     draw_bernstein_polygon: bool,
     show_bernstein_basis: bool,
+    selected_bernstein_point: Option<usize>,
     points: Vec<usize>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
@@ -55,6 +57,7 @@ impl<'gl> CubicSplineC2<'gl> {
             draw_deboor_polygon: false,
             draw_bernstein_polygon: false,
             show_bernstein_basis: false,
+            selected_bernstein_point: None,
             name: ChangeableName::new("Cubic Spline C2", name_repo),
             last_camera: RefCell::new(None),
             bernstein_points: None,
@@ -67,7 +70,7 @@ impl<'gl> CubicSplineC2<'gl> {
     }
 
     fn bspline(
-        point_ids: &Vec<usize>,
+        point_ids: &[usize],
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) -> BezierBSpline {
         BezierBSpline::through_points(
@@ -106,7 +109,11 @@ impl<'gl> CubicSplineC2<'gl> {
         &mut self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
+        println!("Recalculating bspline");
+        self.selected_bernstein_point = None;
         if self.points.len() < 4 {
+            self.bernstein_points = None;
+            self.bspline = None;
             return;
         }
 
@@ -119,12 +126,39 @@ impl<'gl> CubicSplineC2<'gl> {
         self.bspline = Some(bspline);
     }
 
+    fn set_new_bspline(
+        &mut self,
+        bspline: BezierBSpline,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    ) {
+        for (idx, deboor) in bspline.deboor_points().iter().enumerate() {
+            let mut transform = LinearTransformEntity::new();
+            transform.translation.translation =
+                Vector3::new(deboor.x as f32, deboor.y as f32, deboor.z as f32);
+
+            entities[&self.points[idx]]
+                .borrow_mut()
+                .set_model_transform(transform);
+        }
+
+        for (idx, bernstein) in bspline.bernstein_points().iter().enumerate() {
+            let mut transform = LinearTransformEntity::new();
+            transform.translation.translation =
+                Vector3::new(bernstein.x as f32, bernstein.y as f32, bernstein.z as f32);
+
+            self.bernstein_points.as_mut().unwrap()[idx].set_model_transform(transform);
+        }
+
+        self.bspline = Some(bspline);
+        self.invalidate_mesh();
+    }
+
     fn recalculate_mesh(
         &self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         camera: &Camera,
     ) {
-        if let Some(ref bspline) = self.bspline {
+        if let Some(bspline) = &self.bspline {
             let samples = (utils::polygon_pixel_length(&self.points, entities, camera) * 0.5)
                 .round() as usize;
             let (vertices, indices) = bspline.curve(samples);
@@ -169,7 +203,8 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
         controller_id: usize,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
-    ) -> HashSet<usize> {
+    ) -> ControlResult {
+        let _token = ui.push_id("c2_spline");
         self.name_control_ui(ui);
         ui.checkbox("Draw de Boor polygon", &mut self.draw_deboor_polygon);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
@@ -179,19 +214,63 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
 
         let new_selection = ordered_selector::ordered_selector(ui, points_names_selections);
         let new_points = ordered_selector::selected_only(&new_selection);
-        let changed = ordered_selector::changed(&self.points, &new_points);
 
-        if changed {
+        if self.show_bernstein_basis {
+            let _token = ui.push_id("c2_bernstein_control");
+            ui.separator();
+            ui.text("Bernstein basis points");
+            if let Some(bernstein_points) = &self.bernstein_points {
+                let point_names: Vec<(usize, String)> = bernstein_points
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, point)| (idx, point.name()))
+                    .collect();
+
+                self.selected_bernstein_point = single_selector::single_selector(
+                    ui,
+                    &point_names,
+                    self.selected_bernstein_point,
+                );
+            }
+
+            let bernstein_changed = self
+                .selected_bernstein_point
+                .zip(self.bernstein_points.as_mut())
+                .map_or(false, |(id, points)| points[id].control_ui(ui));
+
+            if bernstein_changed {
+                let idx = self.selected_bernstein_point.unwrap();
+                let point_f64 = self.bernstein_points.as_ref().unwrap()[idx]
+                    .location()
+                    .unwrap();
+
+                let new_bspline = self.bspline.as_ref().unwrap().modify_bernstein(
+                    idx,
+                    Point3::new(point_f64.x as f64, point_f64.y as f64, point_f64.z as f64),
+                );
+
+                self.set_new_bspline(new_bspline, entities);
+
+                let mut modified: HashSet<usize> = self.points.iter().copied().collect();
+                modified.insert(controller_id);
+                return ControlResult {
+                    modified,
+                    ..Default::default()
+                };
+            }
+        }
+
+        if ordered_selector::changed(&self.points, &new_points) {
             utils::update_point_subs(new_selection, controller_id, subscriptions);
             self.points = new_points;
             self.recalculate_bspline(entities);
             self.invalidate_mesh();
-        }
-
-        if changed {
-            HashSet::from([controller_id])
+            ControlResult {
+                modified: HashSet::from([controller_id]),
+                ..Default::default()
+            }
         } else {
-            HashSet::new()
+            ControlResult::default()
         }
     }
 
@@ -272,8 +351,14 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
 
             if self.show_bernstein_basis {
                 if let Some(ref points) = self.bernstein_points {
-                    for point in points {
-                        point.draw(camera, &Matrix4::identity(), DrawType::Virtual);
+                    for (idx, point) in points.iter().enumerate() {
+                        let draw_type = if self.selected_bernstein_point.eq(&Some(idx)) {
+                            DrawType::SelectedVirtual
+                        } else {
+                            DrawType::Virtual
+                        };
+
+                        point.draw(camera, &Matrix4::identity(), draw_type);
                     }
                 }
             }

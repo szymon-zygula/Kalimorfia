@@ -4,7 +4,7 @@ use std::{path::Path, rc::Rc};
 const SHADERS_PATH: &str = "shaders/";
 const SHADERS_EXTENSION: &str = "glsl";
 
-pub fn create_shader_manager<'gl>(gl: &'gl glow::Context) -> Rc<ShaderManager<'gl>> {
+pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let fragment_colored = shader(gl, "fragment_colored", glow::FRAGMENT_SHADER);
 
     let perspective_vertex_colored = shader(gl, "perspective_vertex_colored", glow::VERTEX_SHADER);

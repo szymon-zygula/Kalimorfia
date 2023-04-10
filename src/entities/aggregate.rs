@@ -4,8 +4,8 @@ use crate::{
         basic::LinearTransformEntity,
         cursor::Cursor,
         entity::{
-            DrawType, Drawable, Entity, NamedEntity, ReferentialDrawable, ReferentialEntity,
-            ReferentialSceneEntity, SceneObject,
+            ControlResult, DrawType, Drawable, Entity, NamedEntity, ReferentialDrawable,
+            ReferentialEntity, ReferentialSceneEntity, SceneObject,
         },
     },
     math::{
@@ -179,14 +179,19 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         controller_id: usize,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
-    ) -> HashSet<usize> {
-        let changes = match self.entities.len() {
-            0 => HashSet::new(),
+    ) -> ControlResult {
+        match self.entities.len() {
+            0 => ControlResult::default(),
             1 => {
                 let id = self.entities.iter().next().unwrap();
-                entities[id]
-                    .borrow_mut()
-                    .control_referential_ui(ui, *id, entities, subscriptions)
+                let mut result = entities[id].borrow_mut().control_referential_ui(
+                    ui,
+                    *id,
+                    entities,
+                    subscriptions,
+                );
+                result.notification_excluded.insert(*id);
+                result
             }
             n => {
                 ui.text(format!("Control of {} entities", n));
@@ -201,16 +206,17 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
                         }
                     }
 
-                    let mut changes = self.entities.clone();
-                    changes.insert(controller_id);
-                    changes
+                    let mut modified = self.entities.clone();
+                    modified.insert(controller_id);
+                    ControlResult {
+                        modified,
+                        ..Default::default()
+                    }
                 } else {
-                    HashSet::new()
+                    ControlResult::default()
                 }
             }
-        };
-
-        changes
+        }
     }
 
     fn notify_about_modification(
