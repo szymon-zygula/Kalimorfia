@@ -46,20 +46,21 @@ impl CubicBSpline {
     }
 
     pub fn modify_bernstein(&self, point_idx: usize, val: f64) -> Self {
+        let mut new_deboor = self.deboor_points.clone();
+
         let (segment_idx, knot_idx) = if point_idx == 0 {
             (0, 0)
         } else {
             ((point_idx - 1) / 3, (point_idx - 1) % 3 + 1)
         };
 
-        let mut bern = self.bernsteins[segment_idx].coeffs.clone();
-        bern[knot_idx] = val;
-
-        let mut new_deboor = self.deboor_points.clone();
-        new_deboor[segment_idx] = 6.0 * bern[0] - 7.0 * bern[1] + 2.0 * bern[2];
-        new_deboor[segment_idx + 1] = 2.0 * bern[1] - 1.0 * bern[2];
-        new_deboor[segment_idx + 2] = -1.0 * bern[1] + 2.0 * bern[2];
-        new_deboor[segment_idx + 3] = 2.0 * bern[1] - 7.0 * bern[2] + 6.0 * bern[3];
+        if point_idx % 3 == 0 {
+            new_deboor[point_idx / 3 + 1] +=
+                1.5 * (val - self.bernsteins[segment_idx].coeffs[knot_idx]);
+        } else {
+            new_deboor[segment_idx + 1] += val - self.bernsteins[segment_idx].coeffs[knot_idx];
+            new_deboor[segment_idx + 2] += val - self.bernsteins[segment_idx].coeffs[knot_idx];
+        }
 
         Self::with_coefficients(new_deboor)
     }
