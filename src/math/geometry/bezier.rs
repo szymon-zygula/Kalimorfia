@@ -17,6 +17,16 @@ impl BezierCurve {
             z_t: BernsteinPolynomial::with_coefficients(points.iter().map(|p| p.z).collect()),
         }
     }
+
+    pub fn points(&self) -> Vec<Point3<f64>> {
+        self.x_t
+            .coeffs
+            .iter()
+            .zip(self.y_t.coeffs.iter())
+            .zip(self.z_t.coeffs.iter())
+            .map(|((&x, &y), &z)| Point3::new(x, y, z))
+            .collect()
+    }
 }
 
 impl ParametricForm<1, 3> for BezierCurve {
@@ -64,6 +74,10 @@ impl BezierCubicSplineC0 {
         });
 
         Self { curves }
+    }
+
+    pub fn segments(&self) -> &[BezierCurve] {
+        &self.curves
     }
 }
 

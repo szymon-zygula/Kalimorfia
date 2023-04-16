@@ -8,9 +8,12 @@ use super::{
 };
 use crate::{
     camera::Camera,
-    math::geometry::{self, curvable::Curvable},
+    math::geometry,
     primitives::color::Color,
-    render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
+    render::{
+        bezier_mesh::BezierMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
+        shader_manager::ShaderManager,
+    },
     repositories::NameRepository,
     ui::ordered_selector,
 };
@@ -23,16 +26,17 @@ use std::{
 
 pub struct CubicSplineC0<'gl> {
     gl: &'gl glow::Context,
-    mesh: RefCell<Option<LinesMesh<'gl>>>,
+    mesh: RefCell<Option<BezierMesh<'gl>>>,
     polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
     draw_polygon: bool,
     points: Vec<usize>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
-    last_camera: RefCell<Option<Camera>>,
 }
 
 impl<'gl> CubicSplineC0<'gl> {
+    const GEOMETRY_SHADER_VERTEX_COUNT: usize = 128;
+
     pub fn through_points(
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
@@ -47,24 +51,7 @@ impl<'gl> CubicSplineC0<'gl> {
             draw_polygon: false,
             shader_manager,
             name: ChangeableName::new("Cubic Spline C0", name_repo),
-            last_camera: RefCell::new(None),
         }
-    }
-
-    fn spline_mesh(
-        point_ids: &Vec<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        samples: u32,
-    ) -> (Vec<Point3<f32>>, Vec<u32>) {
-        let mut points = Vec::with_capacity(point_ids.len());
-
-        for &id in point_ids {
-            let p = entities[&id].borrow().location().unwrap();
-            points.push(Point3::new(p.x as f64, p.y as f64, p.z as f64));
-        }
-
-        let spline = geometry::bezier::BezierCubicSplineC0::through_points(points);
-        spline.curve(samples as usize)
     }
 
     fn polygon_mesh(
@@ -86,27 +73,26 @@ impl<'gl> CubicSplineC0<'gl> {
     fn recalculate_mesh(
         &self,
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        camera: &Camera,
     ) {
         if self.points.is_empty() {
             self.invalidate_mesh();
             return;
         }
 
-        let (vertices, indices) = Self::spline_mesh(
-            &self.points,
-            entities,
-            (utils::polygon_pixel_length(&self.points, entities, camera) * 0.5).round() as u32,
-        );
+        let points = self
+            .points
+            .iter()
+            .map(|id| {
+                let p = entities[id].borrow().location().unwrap();
+                Point3::new(p.x as f64, p.y as f64, p.z as f64)
+            })
+            .collect();
 
-        if vertices.is_empty() || indices.is_empty() {
-            self.invalidate_mesh();
-            return;
-        }
-
-        let mut mesh = LinesMesh::new(self.gl, vertices, indices);
+        let spline = geometry::bezier::BezierCubicSplineC0::through_points(points);
+        let mut mesh = BezierMesh::new(self.gl, spline);
         mesh.thickness(3.0);
         self.mesh.replace(Some(mesh));
+
         let polygon_mesh = self.polygon_mesh(&self.points, entities);
         self.polygon_mesh.replace(Some(polygon_mesh));
     }
@@ -118,6 +104,59 @@ impl<'gl> CubicSplineC0<'gl> {
 
     fn is_mesh_valid(&self) -> bool {
         self.mesh.borrow().is_some() && self.polygon_mesh.borrow().is_some()
+    }
+
+    fn draw_polygon(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+        let mesh_borrow = self.polygon_mesh.borrow();
+        let Some(polygon_mesh) = mesh_borrow.as_ref() else {
+            return;
+        };
+
+        let program = self.shader_manager.program("spline");
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
+        program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
+        polygon_mesh.draw();
+    }
+
+    fn draw_curve(
+        &self,
+        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        camera: &Camera,
+        premul: &Matrix4<f32>,
+        draw_type: DrawType,
+    ) {
+        let mesh_borrow = self.mesh.borrow();
+        let Some(mesh) = mesh_borrow.as_ref() else {
+            return;
+        };
+
+        let program = self.shader_manager.program("bezier");
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
+        program.uniform_color("curve_color", &Color::for_draw_type(&draw_type));
+
+        let polygon_pixel_length = utils::polygon_pixel_length(&self.points, entities, camera);
+        // This is not quite right when one of the segments is just a single point, but it's good
+        // enough
+        let pass_count = polygon_pixel_length as usize
+            / (self.points.len() / 3 + 1)
+            / Self::GEOMETRY_SHADER_VERTEX_COUNT
+            * 4
+            + 1;
+
+        for i in 0..pass_count {
+            program.uniform_f32("start", i as f32 / pass_count as f32);
+            program.uniform_f32("end", (i + 1) as f32 / pass_count as f32);
+            mesh.draw();
+        }
     }
 }
 
@@ -190,36 +229,14 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {
         premul: &Matrix4<f32>,
         draw_type: DrawType,
     ) {
-        if !self.last_camera.borrow().as_ref().eq(&Some(camera)) {
-            self.invalidate_mesh();
-            self.last_camera.replace(Some(camera.clone()));
-        }
-
         if !self.is_mesh_valid() {
-            self.recalculate_mesh(entities, camera);
+            self.recalculate_mesh(entities);
         }
 
-        let program = self.shader_manager.program("spline");
-        program.enable();
-        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
-        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
-        program.uniform_matrix_4_f32_slice(
-            "projection_transform",
-            camera.projection_transform().as_slice(),
-        );
-        program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
+        self.draw_curve(entities, camera, premul, draw_type);
 
-        if let Some((mesh, polygon_mesh)) = self
-            .mesh
-            .borrow()
-            .as_ref()
-            .zip(self.polygon_mesh.borrow().as_ref())
-        {
-            mesh.draw();
-
-            if self.draw_polygon {
-                polygon_mesh.draw();
-            }
+        if self.draw_polygon {
+            self.draw_polygon(camera, premul, draw_type);
         }
     }
 }

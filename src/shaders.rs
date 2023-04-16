@@ -11,6 +11,9 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let perspective_vertex_colored_uniform =
         shader(gl, "perspective_vertex_uniform_color", glow::VERTEX_SHADER);
     let point_cloud_vertex = shader(gl, "point_cloud_vertex", glow::VERTEX_SHADER);
+    let vertex_bezier = shader(gl, "vertex_bezier", glow::VERTEX_SHADER);
+
+    let geometry_bezier = shader(gl, "geometry_bezier", glow::GEOMETRY_SHADER);
 
     Rc::new(ShaderManager::new(vec![
         (
@@ -33,6 +36,13 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
             GlProgram::with_shaders(
                 gl,
                 &[&perspective_vertex_colored_uniform, &fragment_colored],
+            ),
+        ),
+        (
+            "bezier",
+            GlProgram::with_shaders(
+                gl,
+                &[&vertex_bezier, &geometry_bezier, &fragment_colored],
             ),
         ),
     ]))
