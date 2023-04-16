@@ -35,8 +35,6 @@ pub struct CubicSplineC0<'gl> {
 }
 
 impl<'gl> CubicSplineC0<'gl> {
-    const GEOMETRY_SHADER_VERTEX_COUNT: usize = 128;
-
     pub fn through_points(
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
@@ -132,31 +130,20 @@ impl<'gl> CubicSplineC0<'gl> {
         draw_type: DrawType,
     ) {
         let mesh_borrow = self.mesh.borrow();
-        let Some(mesh) = mesh_borrow.as_ref() else {
-            return;
-        };
+        let Some(mesh) = mesh_borrow.as_ref() else { return };
 
         let program = self.shader_manager.program("bezier");
-        program.enable();
-        program.uniform_matrix_4_f32_slice("model", premul.as_slice());
-        program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
-        program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
-        program.uniform_color("curve_color", &Color::for_draw_type(&draw_type));
-
         let polygon_pixel_length = utils::polygon_pixel_length(&self.points, entities, camera);
         // This is not quite right when one of the segments is just a single point, but it's good
         // enough
-        let pass_count = polygon_pixel_length as usize
-            / (self.points.len() / 3 + 1)
-            / Self::GEOMETRY_SHADER_VERTEX_COUNT
-            * 4
-            + 1;
-
-        for i in 0..pass_count {
-            program.uniform_f32("start", i as f32 / pass_count as f32);
-            program.uniform_f32("end", (i + 1) as f32 / pass_count as f32);
-            mesh.draw();
-        }
+        let segment_pixel_count = polygon_pixel_length / (self.points.len() / 3 + 1) as f32;
+        mesh.draw_with_program(
+            program,
+            camera,
+            segment_pixel_count,
+            premul,
+            &Color::for_draw_type(&draw_type),
+        )
     }
 }
 

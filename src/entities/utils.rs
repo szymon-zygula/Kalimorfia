@@ -43,20 +43,14 @@ pub fn update_point_subs(
     }
 }
 
-pub fn polygon_pixel_length<'gl>(
-    points: &[usize],
-    entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    camera: &Camera,
-) -> f32 {
+pub fn polygon_pixel_length_direct<'gl>(points: &[Point3<f32>], camera: &Camera) -> f32 {
     let mut sum = 0.0;
     for i in 1..points.len() {
-        let point1 = entities[&points[i - 1]].borrow().location().unwrap();
-        let point2 = entities[&points[i]].borrow().location().unwrap();
-
-        let point1 =
-            camera.projection_transform() * camera.view_transform() * point1.to_homogeneous();
+        let point1 = camera.projection_transform()
+            * camera.view_transform()
+            * points[i - 1].to_homogeneous();
         let point2 =
-            camera.projection_transform() * camera.view_transform() * point2.to_homogeneous();
+            camera.projection_transform() * camera.view_transform() * points[i].to_homogeneous();
 
         let diff = Point3::from_homogeneous(point1)
             .unwrap_or(Point3::origin())
@@ -75,4 +69,18 @@ pub fn polygon_pixel_length<'gl>(
     }
 
     sum
+}
+
+pub fn polygon_pixel_length<'gl>(
+    points: &[usize],
+    entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    camera: &Camera,
+) -> f32 {
+    polygon_pixel_length_direct(
+        &points
+            .iter()
+            .map(|id| entities[id].borrow().location().unwrap())
+            .collect::<Vec<Point3<f32>>>(),
+        camera,
+    )
 }

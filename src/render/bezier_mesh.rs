@@ -1,7 +1,10 @@
 use super::gl_drawable::GlDrawable;
-use crate::{math::geometry::bezier::BezierCubicSplineC0, render::opengl, utils};
+use crate::{
+    camera::Camera, math::geometry::bezier::BezierCubicSplineC0, primitives::color::Color,
+    render::gl_program::GlProgram, render::opengl, utils,
+};
 use glow::HasContext;
-use nalgebra::Point3;
+use nalgebra::{Matrix4, Point3};
 
 #[repr(C)]
 struct BezierSegmentInput {
@@ -18,6 +21,8 @@ pub struct BezierMesh<'gl> {
 }
 
 impl<'gl> BezierMesh<'gl> {
+    const GEOMETRY_SHADER_VERTEX_COUNT: usize = 128;
+
     pub fn new(gl: &'gl glow::Context, curve: BezierCubicSplineC0) -> Self {
         let input: Vec<BezierSegmentInput> = curve
             .segments()
@@ -88,6 +93,29 @@ impl<'gl> BezierMesh<'gl> {
 
     pub fn thickness(&mut self, thickness: f32) {
         self.thickness = thickness;
+    }
+
+    pub fn draw_with_program(
+        &self,
+        program: &GlProgram,
+        camera: &Camera,
+        segment_pixel_length: f32,
+        premul: &Matrix4<f32>,
+        color: &Color,
+    ) {
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
+        program.uniform_color("curve_color", color);
+
+        let pass_count = segment_pixel_length as usize / Self::GEOMETRY_SHADER_VERTEX_COUNT * 4 + 1;
+
+        for i in 0..pass_count {
+            program.uniform_f32("start", i as f32 / pass_count as f32);
+            program.uniform_f32("end", (i + 1) as f32 / pass_count as f32);
+            self.draw();
+        }
     }
 }
 

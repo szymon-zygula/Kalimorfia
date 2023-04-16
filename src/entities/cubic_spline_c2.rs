@@ -10,9 +10,12 @@ use super::{
 };
 use crate::{
     camera::Camera,
-    math::geometry::{bezier::BezierBSpline, curvable::Curvable},
+    math::geometry::bezier::{BezierBSpline, BezierCubicSplineC0},
     primitives::color::Color,
-    render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
+    render::{
+        bezier_mesh::BezierMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
+        shader_manager::ShaderManager,
+    },
     repositories::{NameRepository, UniqueNameRepository},
     ui::{ordered_selector, single_selector},
 };
@@ -25,7 +28,7 @@ use std::{
 
 pub struct CubicSplineC2<'gl> {
     gl: &'gl glow::Context,
-    mesh: RefCell<Option<LinesMesh<'gl>>>,
+    mesh: RefCell<Option<BezierMesh<'gl>>>,
     deboor_polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
     bernstein_polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
     draw_deboor_polygon: bool,
@@ -35,7 +38,6 @@ pub struct CubicSplineC2<'gl> {
     points: Vec<usize>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
-    last_camera: RefCell<Option<Camera>>,
     bernstein_points: Option<Vec<Point<'gl>>>,
     bspline: Option<BezierBSpline>,
 }
@@ -59,7 +61,6 @@ impl<'gl> CubicSplineC2<'gl> {
             show_bernstein_basis: false,
             selected_bernstein_point: None,
             name: ChangeableName::new("Cubic Spline C2", name_repo),
-            last_camera: RefCell::new(None),
             bernstein_points: None,
             shader_manager,
             bspline: None,
@@ -155,22 +156,12 @@ impl<'gl> CubicSplineC2<'gl> {
         self.invalidate_mesh();
     }
 
-    fn recalculate_mesh(
-        &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-        camera: &Camera,
-    ) {
+    fn recalculate_mesh(&self) {
         if let Some(bspline) = &self.bspline {
-            let samples = (utils::polygon_pixel_length(&self.points, entities, camera) * 0.5)
-                .round() as usize;
-            let (vertices, indices) = bspline.curve(samples);
-
-            if vertices.is_empty() || indices.is_empty() {
-                self.invalidate_mesh();
-                return;
-            }
-
-            let mut mesh = LinesMesh::new(self.gl, vertices, indices);
+            let mut mesh = BezierMesh::new(
+                self.gl,
+                BezierCubicSplineC0::through_points(bspline.bernstein_points()),
+            );
             mesh.thickness(3.0);
             self.mesh.replace(Some(mesh));
 
@@ -212,6 +203,48 @@ impl<'gl> CubicSplineC2<'gl> {
         );
 
         self.set_new_bspline(new_bspline, entities);
+    }
+
+    fn draw_bernstein_points(&self, camera: &Camera, draw_type: DrawType) {
+        let Some(points) = &self.bernstein_points else { return };
+
+        for (idx, point) in points.iter().enumerate() {
+            let draw_type = if self.selected_bernstein_point.eq(&Some(idx))
+                && draw_type == DrawType::Selected
+            {
+                DrawType::SelectedVirtual
+            } else {
+                DrawType::Virtual
+            };
+
+            point.draw(camera, &Matrix4::identity(), draw_type);
+        }
+    }
+
+    fn draw_curve(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
+        let mesh_borrow = self.mesh.borrow();
+        let Some(mesh) = mesh_borrow.as_ref() else { return };
+        let Some(bernstein_points) = self.bernstein_points.as_ref() else { return };
+
+        let program = self.shader_manager.program("bezier");
+        let polygon_pixel_length = utils::polygon_pixel_length_direct(
+            &bernstein_points
+                .iter()
+                .map(|p| ReferentialSceneObject::location(p).unwrap())
+                .collect::<Vec<Point3<f32>>>(),
+            camera,
+        );
+
+        let segment_pixel_count = polygon_pixel_length / (self.points.len() / 3 + 1) as f32;
+        mesh.draw_with_program(
+            program,
+            camera,
+            segment_pixel_count,
+            premul,
+            &Color::for_draw_type(&draw_type),
+        );
+
+        mesh.draw();
     }
 }
 
@@ -318,19 +351,16 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
 impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
     fn draw_referential(
         &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,
     ) {
-        if !self.last_camera.borrow().as_ref().eq(&Some(camera)) {
-            self.invalidate_mesh();
-            self.last_camera.replace(Some(camera.clone()));
+        if !self.is_mesh_valid() {
+            self.recalculate_mesh();
         }
 
-        if !self.is_mesh_valid() {
-            self.recalculate_mesh(entities, camera);
-        }
+        self.draw_curve(camera, premul, draw_type);
 
         let program = self.shader_manager.program("spline");
         program.enable();
@@ -342,15 +372,12 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
         );
         program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
 
-        if let Some(((mesh, deboor_polygon_mesh), bernstein_polygon_mesh)) = self
-            .mesh
+        if let Some((deboor_polygon_mesh, bernstein_polygon_mesh)) = self
+            .deboor_polygon_mesh
             .borrow()
             .as_ref()
-            .zip(self.deboor_polygon_mesh.borrow().as_ref())
             .zip(self.bernstein_polygon_mesh.borrow().as_ref())
         {
-            mesh.draw();
-
             if self.draw_deboor_polygon {
                 deboor_polygon_mesh.draw();
             }
@@ -360,19 +387,7 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
             }
 
             if self.show_bernstein_basis {
-                if let Some(ref points) = self.bernstein_points {
-                    for (idx, point) in points.iter().enumerate() {
-                        let draw_type = if self.selected_bernstein_point.eq(&Some(idx))
-                            && draw_type == DrawType::Selected
-                        {
-                            DrawType::SelectedVirtual
-                        } else {
-                            DrawType::Virtual
-                        };
-
-                        point.draw(camera, &Matrix4::identity(), draw_type);
-                    }
-                }
+                self.draw_bernstein_points(camera, draw_type);
             }
         }
     }
