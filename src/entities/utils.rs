@@ -1,13 +1,10 @@
-use super::entity::ReferentialSceneEntity;
+use super::entity::EntityCollection;
 use crate::camera::Camera;
 use nalgebra::{Point3, Vector2};
-use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 
-pub fn segregate_points<'gl>(
-    entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+pub fn segregate_points(
+    entities: &EntityCollection,
     selected: &[usize],
 ) -> Vec<(usize, String, bool)> {
     let selected_name_selection = selected
@@ -71,11 +68,7 @@ pub fn polygon_pixel_length_direct<'gl>(points: &[Point3<f32>], camera: &Camera)
     sum
 }
 
-pub fn polygon_pixel_length<'gl>(
-    points: &[usize],
-    entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    camera: &Camera,
-) -> f32 {
+pub fn polygon_pixel_length(points: &[usize], entities: &EntityCollection, camera: &Camera) -> f32 {
     polygon_pixel_length_direct(
         &points
             .iter()

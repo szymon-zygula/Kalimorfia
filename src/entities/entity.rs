@@ -25,43 +25,29 @@ pub trait ReferentialEntity<'gl> {
         &mut self,
         ui: &imgui::Ui,
         id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult;
 
     fn notify_about_modification(
         &mut self,
         _modified: &HashSet<usize>,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
     ) {
     }
 
     fn notify_about_deletion(
         &mut self,
         _deleted: &HashSet<usize>,
-        _remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _remaining: &EntityCollection<'gl>,
     ) {
     }
 
-    fn subscribe(
-        &mut self,
-        _subscribees: usize,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
-    }
+    fn subscribe(&mut self, _subscribees: usize, _entities: &EntityCollection<'gl>) {}
 
-    fn unsubscribe(
-        &mut self,
-        _subscribees: usize,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
-    }
+    fn unsubscribe(&mut self, _subscribees: usize, _entities: &EntityCollection<'gl>) {}
 
-    fn add_point(
-        &mut self,
-        _id: usize,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> bool {
+    fn add_point(&mut self, _id: usize, _entities: &EntityCollection<'gl>) -> bool {
         false
     }
 }
@@ -71,7 +57,7 @@ impl<'gl, T: Entity> ReferentialEntity<'gl> for T {
         &mut self,
         ui: &imgui::Ui,
         controller_id: usize,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
         _subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
         if self.control_ui(ui) {
@@ -104,7 +90,7 @@ pub trait Drawable {
 pub trait ReferentialDrawable<'gl> {
     fn draw_referential(
         &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,
@@ -114,7 +100,7 @@ pub trait ReferentialDrawable<'gl> {
 impl<'gl, T: Drawable> ReferentialDrawable<'gl> for T {
     fn draw_referential(
         &self,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,
@@ -166,7 +152,7 @@ pub trait ReferentialSceneObject<'gl> {
         &mut self,
         _ndc: &Point2<f32>,
         _camera: &Camera,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
         _controller_id: usize,
     ) -> ControlResult {
         ControlResult::default()
@@ -178,7 +164,7 @@ pub trait ReferentialSceneObject<'gl> {
         _projection_transform: &Matrix4<f32>,
         _view_transform: &Matrix4<f32>,
         _resolution: &glutin::dpi::PhysicalSize<u32>,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
     ) -> (bool, f32) {
         (false, 0.0)
     }
@@ -213,7 +199,7 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
         &mut self,
         ndc: &Point2<f32>,
         camera: &Camera,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
         controller_id: usize,
     ) -> ControlResult {
         self.set_ndc(ndc, camera);
@@ -229,7 +215,7 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
         projection_transform: &Matrix4<f32>,
         view_transform: &Matrix4<f32>,
         resolution: &glutin::dpi::PhysicalSize<u32>,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
     ) -> (bool, f32) {
         SceneObject::is_at_point(
             self,
@@ -285,3 +271,6 @@ impl<'gl, T> ReferentialSceneEntity<'gl> for T where
         + NamedEntity
 {
 }
+
+pub type EntityCollection<'gl> =
+    BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>;

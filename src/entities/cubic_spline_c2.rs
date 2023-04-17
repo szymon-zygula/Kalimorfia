@@ -2,8 +2,8 @@ use super::{
     basic::LinearTransformEntity,
     changeable_name::ChangeableName,
     entity::{
-        ControlResult, DrawType, Drawable, Entity, NamedEntity, ReferentialDrawable,
-        ReferentialEntity, ReferentialSceneEntity, ReferentialSceneObject, SceneObject,
+        ControlResult, DrawType, Drawable, Entity, EntityCollection, NamedEntity,
+        ReferentialDrawable, ReferentialEntity, ReferentialSceneObject, SceneObject,
     },
     point::Point,
     utils,
@@ -22,7 +22,7 @@ use crate::{
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     rc::Rc,
 };
 
@@ -48,7 +48,7 @@ impl<'gl> CubicSplineC2<'gl> {
         name_repo: Rc<RefCell<dyn NameRepository>>,
         shader_manager: Rc<ShaderManager<'gl>>,
         point_ids: Vec<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) -> Self {
         let mut created = Self {
             gl,
@@ -71,10 +71,7 @@ impl<'gl> CubicSplineC2<'gl> {
         created
     }
 
-    fn bspline(
-        point_ids: &[usize],
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> BezierBSpline {
+    fn bspline(point_ids: &[usize], entities: &EntityCollection<'gl>) -> BezierBSpline {
         BezierBSpline::through_points(
             point_ids
                 .iter()
@@ -107,10 +104,7 @@ impl<'gl> CubicSplineC2<'gl> {
             .collect()
     }
 
-    fn recalculate_bspline(
-        &mut self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn recalculate_bspline(&mut self, entities: &EntityCollection<'gl>) {
         self.selected_bernstein_point = None;
         if self.points.len() < 4 {
             self.bernstein_points = None;
@@ -127,11 +121,7 @@ impl<'gl> CubicSplineC2<'gl> {
         self.bspline = Some(bspline);
     }
 
-    fn set_new_bspline(
-        &mut self,
-        bspline: BezierBSpline,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn set_new_bspline(&mut self, bspline: BezierBSpline, entities: &EntityCollection<'gl>) {
         for (idx, deboor) in bspline.deboor_points().iter().enumerate() {
             let mut transform = LinearTransformEntity::new();
             transform.translation.translation =
@@ -176,11 +166,7 @@ impl<'gl> CubicSplineC2<'gl> {
         }
     }
 
-    fn update_bernstein_from(
-        &mut self,
-        idx: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn update_bernstein_from(&mut self, idx: usize, entities: &EntityCollection<'gl>) {
         let point_f64 =
             SceneObject::location(&self.bernstein_points.as_ref().unwrap()[idx]).unwrap();
 
@@ -238,7 +224,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
         &mut self,
         ui: &imgui::Ui,
         controller_id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
         let _token = ui.push_id("c2_spline");
@@ -302,11 +288,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
         }
     }
 
-    fn add_point(
-        &mut self,
-        id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> bool {
+    fn add_point(&mut self, id: usize, entities: &EntityCollection<'gl>) -> bool {
         self.points.push(id);
         self.recalculate_bspline(entities);
         self.recalculate_mesh();
@@ -316,7 +298,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
     fn notify_about_modification(
         &mut self,
         _modified: &HashSet<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) {
         self.recalculate_bspline(entities);
         self.recalculate_mesh();
@@ -325,7 +307,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
     fn notify_about_deletion(
         &mut self,
         deleted: &HashSet<usize>,
-        remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        remaining: &EntityCollection<'gl>,
     ) {
         self.points.retain(|id| !deleted.contains(id));
         self.recalculate_bspline(remaining);
@@ -336,7 +318,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
 impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
     fn draw_referential(
         &self,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,
@@ -374,7 +356,7 @@ impl<'gl> ReferentialSceneObject<'gl> for CubicSplineC2<'gl> {
         projection_transform: &Matrix4<f32>,
         view_transform: &Matrix4<f32>,
         resolution: &glutin::dpi::PhysicalSize<u32>,
-        _entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        _entities: &EntityCollection<'gl>,
     ) -> (bool, f32) {
         if let Some(bernsteins) = &self.bernstein_points {
             for (idx, bernstein) in bernsteins.iter().enumerate() {
@@ -400,7 +382,7 @@ impl<'gl> ReferentialSceneObject<'gl> for CubicSplineC2<'gl> {
         &mut self,
         ndc: &Point2<f32>,
         camera: &Camera,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         controller_id: usize,
     ) -> ControlResult {
         if let Some(idx) = self.selected_bernstein_point {

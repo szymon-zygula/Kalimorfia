@@ -1,15 +1,15 @@
-use super::entity::{DrawType, ReferentialSceneEntity};
+use super::entity::{DrawType, EntityCollection, ReferentialSceneEntity};
 use crate::camera::Camera;
 use nalgebra::{Matrix4, Point2};
 use std::{
     cell::{Ref, RefCell},
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
 };
 
 #[derive(Default)]
 pub struct EntityManager<'gl> {
     id_counter: usize,
-    entities: BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+    entities: EntityCollection<'gl>,
     subscriptions: HashMap<usize, HashSet<usize>>,
 }
 
@@ -84,15 +84,11 @@ impl<'gl> EntityManager<'gl> {
         self.entities[&id].borrow()
     }
 
-    pub fn entities_mut(
-        &mut self,
-    ) -> &mut BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
+    pub fn entities_mut(&mut self) -> &mut EntityCollection<'gl> {
         &mut self.entities
     }
 
-    pub fn entities(
-        &self,
-    ) -> &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>> {
+    pub fn entities(&self) -> &EntityCollection<'gl> {
         &self.entities
     }
 

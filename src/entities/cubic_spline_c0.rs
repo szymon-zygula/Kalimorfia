@@ -1,8 +1,8 @@
 use super::{
     changeable_name::ChangeableName,
     entity::{
-        ControlResult, DrawType, NamedEntity, ReferentialDrawable, ReferentialEntity,
-        ReferentialSceneEntity, SceneObject,
+        ControlResult, DrawType, EntityCollection, NamedEntity, ReferentialDrawable,
+        ReferentialEntity, SceneObject,
     },
     utils,
 };
@@ -20,7 +20,7 @@ use crate::{
 use nalgebra::{Matrix4, Point3};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     rc::Rc,
 };
 
@@ -40,7 +40,7 @@ impl<'gl> CubicSplineC0<'gl> {
         name_repo: Rc<RefCell<dyn NameRepository>>,
         shader_manager: Rc<ShaderManager<'gl>>,
         point_ids: Vec<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) -> Self {
         Self {
             gl,
@@ -56,7 +56,7 @@ impl<'gl> CubicSplineC0<'gl> {
     fn polygon_mesh(
         gl: &'gl glow::Context,
         point_ids: &[usize],
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) -> LinesMesh<'gl> {
         if point_ids.is_empty() {
             return LinesMesh::empty(gl);
@@ -76,7 +76,7 @@ impl<'gl> CubicSplineC0<'gl> {
     fn curve_mesh(
         gl: &'gl glow::Context,
         point_ids: &[usize],
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) -> BezierMesh<'gl> {
         if point_ids.is_empty() {
             return BezierMesh::empty(gl);
@@ -96,10 +96,7 @@ impl<'gl> CubicSplineC0<'gl> {
         mesh
     }
 
-    fn recalculate_mesh(
-        &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn recalculate_mesh(&self, entities: &EntityCollection<'gl>) {
         if self.points.is_empty() {
             return;
         }
@@ -127,7 +124,7 @@ impl<'gl> CubicSplineC0<'gl> {
 
     fn draw_curve(
         &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,
@@ -153,7 +150,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         &mut self,
         ui: &imgui::Ui,
         controller_id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
         self.name_control_ui(ui);
@@ -181,11 +178,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         }
     }
 
-    fn add_point(
-        &mut self,
-        id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) -> bool {
+    fn add_point(&mut self, id: usize, entities: &EntityCollection<'gl>) -> bool {
         self.points.push(id);
         self.recalculate_mesh(entities);
         true
@@ -194,7 +187,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
     fn notify_about_modification(
         &mut self,
         _modified: &HashSet<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) {
         self.recalculate_mesh(entities);
     }
@@ -202,7 +195,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
     fn notify_about_deletion(
         &mut self,
         deleted: &HashSet<usize>,
-        remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        remaining: &EntityCollection<'gl>,
     ) {
         self.points.retain(|id| !deleted.contains(id));
         self.recalculate_mesh(remaining);
@@ -212,7 +205,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
 impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {
     fn draw_referential(
         &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,

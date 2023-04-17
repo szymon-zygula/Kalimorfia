@@ -4,8 +4,8 @@ use crate::{
         basic::LinearTransformEntity,
         cursor::Cursor,
         entity::{
-            ControlResult, DrawType, Drawable, Entity, NamedEntity, ReferentialDrawable,
-            ReferentialEntity, ReferentialSceneEntity, SceneObject,
+            ControlResult, DrawType, Drawable, Entity, EntityCollection, NamedEntity,
+            ReferentialDrawable, ReferentialEntity, SceneObject,
         },
     },
     math::{
@@ -17,8 +17,7 @@ use crate::{
 };
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::{
-    cell::RefCell,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     rc::Rc,
 };
 
@@ -59,10 +58,7 @@ impl<'gl> Aggregate<'gl> {
         *id
     }
 
-    fn reset_transforms(
-        &mut self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn reset_transforms(&mut self, entities: &EntityCollection<'gl>) {
         self.linear_transform.reset();
         for (id, original_transform) in self
             .original_transforms
@@ -73,10 +69,7 @@ impl<'gl> Aggregate<'gl> {
         }
     }
 
-    fn update_cursor_position(
-        &mut self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn update_cursor_position(&mut self, entities: &EntityCollection<'gl>) {
         if self.entities.is_empty() {
             self.cursor.set_position(None);
             return;
@@ -144,7 +137,7 @@ impl<'gl> SceneObject for Aggregate<'gl> {
 impl<'gl> ReferentialDrawable<'gl> for Aggregate<'gl> {
     fn draw_referential(
         &self,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         camera: &Camera,
         premul: &Matrix4<f32>,
         draw_type: DrawType,
@@ -177,7 +170,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         &mut self,
         ui: &imgui::Ui,
         controller_id: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
         subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
         match self.entities.len() {
@@ -222,7 +215,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
     fn notify_about_modification(
         &mut self,
         _modified: &HashSet<usize>,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        entities: &EntityCollection<'gl>,
     ) {
         self.update_cursor_position(entities);
     }
@@ -230,7 +223,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
     fn notify_about_deletion(
         &mut self,
         deleted: &HashSet<usize>,
-        remaining: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
+        remaining: &EntityCollection<'gl>,
     ) {
         self.entities = self.entities.difference(deleted).copied().collect();
         self.original_transforms
@@ -238,11 +231,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         self.update_cursor_position(remaining);
     }
 
-    fn subscribe(
-        &mut self,
-        subscribee: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn subscribe(&mut self, subscribee: usize, entities: &EntityCollection<'gl>) {
         self.entities.insert(subscribee);
         if entities[&subscribee].borrow().location().is_some() {
             self.original_transforms
@@ -253,11 +242,7 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         self.update_cursor_position(entities);
     }
 
-    fn unsubscribe(
-        &mut self,
-        subscribee: usize,
-        entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
-    ) {
+    fn unsubscribe(&mut self, subscribee: usize, entities: &EntityCollection<'gl>) {
         self.entities.remove(&subscribee);
         self.original_transforms.remove(&subscribee);
 
