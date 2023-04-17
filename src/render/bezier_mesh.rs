@@ -23,8 +23,35 @@ pub struct BezierMesh<'gl> {
 impl<'gl> BezierMesh<'gl> {
     const GEOMETRY_SHADER_VERTEX_COUNT: usize = 128;
 
+    pub fn empty(gl: &'gl glow::Context) -> Self {
+        let (vertex_array, vertex_buffer) = Self::create_vao_vbo(gl, Vec::new());
+
+        Self {
+            gl,
+            vertex_buffer,
+            vertex_array,
+            thickness: 1.0,
+            segment_count: 0,
+        }
+    }
+
     pub fn new(gl: &'gl glow::Context, curve: BezierCubicSplineC0) -> Self {
-        let input: Vec<BezierSegmentInput> = curve
+        let input = Self::curve_segment_inputs(curve);
+        let segment_count = input.len() as i32;
+
+        let (vertex_array, vertex_buffer) = Self::create_vao_vbo(gl, input);
+
+        Self {
+            gl,
+            vertex_buffer,
+            vertex_array,
+            thickness: 1.0,
+            segment_count,
+        }
+    }
+
+    fn curve_segment_inputs(curve: BezierCubicSplineC0) -> Vec<BezierSegmentInput> {
+        curve
             .segments()
             .iter()
             .map(|segment| {
@@ -45,11 +72,13 @@ impl<'gl> BezierMesh<'gl> {
                     len: initial_len as u32,
                 }
             })
-            .collect();
+            .collect()
+    }
 
+    fn create_vao_vbo(gl: &'gl glow::Context, input: Vec<BezierSegmentInput>) -> (u32, u32) {
         let raw_input = utils::slice_as_raw(&input);
-
         let vertex_buffer = unsafe { gl.create_buffer() }.unwrap();
+
         let vertex_array = opengl::init_vao(gl, || unsafe {
             gl.bind_buffer(glow::ARRAY_BUFFER, Some(vertex_buffer));
             gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, raw_input, glow::STATIC_DRAW);
@@ -69,13 +98,7 @@ impl<'gl> BezierMesh<'gl> {
             Self::vertex_attrib_for_point(gl, 3);
         });
 
-        Self {
-            gl,
-            vertex_buffer,
-            vertex_array,
-            thickness: 1.0,
-            segment_count: curve.segments().len() as i32,
-        }
+        (vertex_array, vertex_buffer)
     }
 
     unsafe fn vertex_attrib_for_point(gl: &'gl glow::Context, idx: u32) {

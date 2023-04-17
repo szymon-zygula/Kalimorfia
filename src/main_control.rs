@@ -134,15 +134,15 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
     fn add_cubic_spline_c0(&self, state: &mut State) {
         let selected_points = self.selected_points(&state.selector);
-        self.add_spline(
-            state,
-            CubicSplineC0::through_points(
-                self.gl,
-                Rc::clone(&state.name_repo),
-                Rc::clone(&self.shader_manager),
-                selected_points,
-            ),
+        let spline = CubicSplineC0::through_points(
+            self.gl,
+            Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
+            selected_points,
+            self.entity_manager.borrow().entities(),
         );
+
+        self.add_spline(state, spline);
     }
 
     fn add_cubic_spline_c2(&self, state: &mut State) {

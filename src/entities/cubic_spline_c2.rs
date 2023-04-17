@@ -28,9 +28,9 @@ use std::{
 
 pub struct CubicSplineC2<'gl> {
     gl: &'gl glow::Context,
-    mesh: RefCell<Option<BezierMesh<'gl>>>,
-    deboor_polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
-    bernstein_polygon_mesh: RefCell<Option<LinesMesh<'gl>>>,
+    mesh: RefCell<BezierMesh<'gl>>,
+    deboor_polygon_mesh: RefCell<LinesMesh<'gl>>,
+    bernstein_polygon_mesh: RefCell<LinesMesh<'gl>>,
     draw_deboor_polygon: bool,
     draw_bernstein_polygon: bool,
     show_bernstein_basis: bool,
@@ -53,9 +53,9 @@ impl<'gl> CubicSplineC2<'gl> {
         let mut created = Self {
             gl,
             points: point_ids,
-            mesh: RefCell::new(None),
-            deboor_polygon_mesh: RefCell::new(None),
-            bernstein_polygon_mesh: RefCell::new(None),
+            mesh: RefCell::new(BezierMesh::empty(gl)),
+            deboor_polygon_mesh: RefCell::new(LinesMesh::empty(gl)),
+            bernstein_polygon_mesh: RefCell::new(LinesMesh::empty(gl)),
             draw_deboor_polygon: false,
             draw_bernstein_polygon: false,
             show_bernstein_basis: false,
@@ -67,6 +67,7 @@ impl<'gl> CubicSplineC2<'gl> {
         };
 
         created.recalculate_bspline(entities);
+        created.recalculate_mesh();
         created
     }
 
@@ -153,7 +154,7 @@ impl<'gl> CubicSplineC2<'gl> {
         }
 
         self.bspline = Some(bspline);
-        self.invalidate_mesh();
+        self.recalculate_mesh();
     }
 
     fn recalculate_mesh(&self) {
@@ -163,30 +164,16 @@ impl<'gl> CubicSplineC2<'gl> {
                 BezierCubicSplineC0::through_points(bspline.bernstein_points()),
             );
             mesh.thickness(3.0);
-            self.mesh.replace(Some(mesh));
+            self.mesh.replace(mesh);
 
             let mut bernstein_mesh = LinesMesh::strip(self.gl, bspline.bernstein_points_f32());
             bernstein_mesh.thickness(2.0);
-            self.bernstein_polygon_mesh.replace(Some(bernstein_mesh));
+            self.bernstein_polygon_mesh.replace(bernstein_mesh);
 
             let mut deboor_mesh = LinesMesh::strip(self.gl, bspline.deboor_points_f32());
             deboor_mesh.thickness(1.0);
-            self.deboor_polygon_mesh.replace(Some(deboor_mesh));
-        } else {
-            self.invalidate_mesh();
+            self.deboor_polygon_mesh.replace(deboor_mesh);
         }
-    }
-
-    fn invalidate_mesh(&self) {
-        self.mesh.replace(None);
-        self.deboor_polygon_mesh.replace(None);
-        self.bernstein_polygon_mesh.replace(None);
-    }
-
-    fn is_mesh_valid(&self) -> bool {
-        self.mesh.borrow().is_some()
-            && self.deboor_polygon_mesh.borrow().is_some()
-            && self.bernstein_polygon_mesh.borrow().is_some()
     }
 
     fn update_bernstein_from(
@@ -222,8 +209,6 @@ impl<'gl> CubicSplineC2<'gl> {
     }
 
     fn draw_curve(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
-        let mesh_borrow = self.mesh.borrow();
-        let Some(mesh) = mesh_borrow.as_ref() else { return };
         let Some(bernstein_points) = self.bernstein_points.as_ref() else { return };
 
         let program = self.shader_manager.program("bezier");
@@ -236,7 +221,7 @@ impl<'gl> CubicSplineC2<'gl> {
         );
 
         let segment_pixel_count = polygon_pixel_length / (self.points.len() / 3 + 1) as f32;
-        mesh.draw_with_program(
+        self.mesh.borrow().draw_with_program(
             program,
             camera,
             segment_pixel_count,
@@ -244,7 +229,7 @@ impl<'gl> CubicSplineC2<'gl> {
             &Color::for_draw_type(&draw_type),
         );
 
-        mesh.draw();
+        self.mesh.borrow().draw();
     }
 }
 
@@ -307,7 +292,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
             utils::update_point_subs(new_selection, controller_id, subscriptions);
             self.points = new_points;
             self.recalculate_bspline(entities);
-            self.invalidate_mesh();
+            self.recalculate_mesh();
             ControlResult {
                 modified: HashSet::from([controller_id]),
                 ..Default::default()
@@ -324,7 +309,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
     ) -> bool {
         self.points.push(id);
         self.recalculate_bspline(entities);
-        self.invalidate_mesh();
+        self.recalculate_mesh();
         true
     }
 
@@ -334,7 +319,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
         entities: &BTreeMap<usize, RefCell<Box<dyn ReferentialSceneEntity<'gl> + 'gl>>>,
     ) {
         self.recalculate_bspline(entities);
-        self.invalidate_mesh();
+        self.recalculate_mesh();
     }
 
     fn notify_about_deletion(
@@ -344,7 +329,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
     ) {
         self.points.retain(|id| !deleted.contains(id));
         self.recalculate_bspline(remaining);
-        self.invalidate_mesh();
+        self.recalculate_mesh();
     }
 }
 
@@ -356,10 +341,6 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
         premul: &Matrix4<f32>,
         draw_type: DrawType,
     ) {
-        if !self.is_mesh_valid() {
-            self.recalculate_mesh();
-        }
-
         self.draw_curve(camera, premul, draw_type);
 
         let program = self.shader_manager.program("spline");
@@ -372,23 +353,16 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
         );
         program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
 
-        if let Some((deboor_polygon_mesh, bernstein_polygon_mesh)) = self
-            .deboor_polygon_mesh
-            .borrow()
-            .as_ref()
-            .zip(self.bernstein_polygon_mesh.borrow().as_ref())
-        {
-            if self.draw_deboor_polygon {
-                deboor_polygon_mesh.draw();
-            }
+        if self.draw_deboor_polygon {
+            self.deboor_polygon_mesh.borrow().draw();
+        }
 
-            if self.draw_bernstein_polygon {
-                bernstein_polygon_mesh.draw();
-            }
+        if self.draw_bernstein_polygon {
+            self.bernstein_polygon_mesh.borrow().draw();
+        }
 
-            if self.show_bernstein_basis {
-                self.draw_bernstein_points(camera, draw_type);
-            }
+        if self.show_bernstein_basis {
+            self.draw_bernstein_points(camera, draw_type);
         }
     }
 }
