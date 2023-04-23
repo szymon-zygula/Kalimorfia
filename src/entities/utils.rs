@@ -26,7 +26,7 @@ pub fn segregate_points(
         .collect()
 }
 
-pub fn update_point_subs(
+pub fn update_point_subscriptions(
     selection: Vec<(usize, bool)>,
     controller_id: usize,
     subscriptions: &mut HashMap<usize, HashSet<usize>>,
@@ -40,7 +40,7 @@ pub fn update_point_subs(
     }
 }
 
-pub fn polygon_pixel_length_direct<'gl>(points: &[Point3<f32>], camera: &Camera) -> f32 {
+pub fn polygon_pixel_length_direct(points: &[Point3<f32>], camera: &Camera) -> f32 {
     let mut sum = 0.0;
     for i in 1..points.len() {
         let point1 = camera.projection_transform()

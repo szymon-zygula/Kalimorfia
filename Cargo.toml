@@ -14,3 +14,4 @@ glutin = "0.29.1"
 # Linear algebra
 nalgebra-glm = "0.18.0"
 nalgebra = "0.32.2"
+itertools = "0.10.5"

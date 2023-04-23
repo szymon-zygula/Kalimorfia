@@ -4,3 +4,4 @@ pub mod bernstein_polynomial;
 pub mod bspline;
 pub mod decompositions;
 pub mod geometry;
+pub mod utils;

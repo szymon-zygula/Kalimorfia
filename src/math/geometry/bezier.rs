@@ -10,7 +10,7 @@ pub struct BezierCurve {
 }
 
 impl BezierCurve {
-    pub fn through_points(points: Vec<Point3<f64>>) -> Self {
+    pub fn through_points(points: &[Point3<f64>]) -> Self {
         Self {
             x_t: BernsteinPolynomial::with_coefficients(points.iter().map(|p| p.x).collect()),
             y_t: BernsteinPolynomial::with_coefficients(points.iter().map(|p| p.y).collect()),
@@ -53,7 +53,7 @@ impl BezierCubicSplineC0 {
         let mut curves = Vec::with_capacity(curve_count);
 
         for i in 0..(curve_count - 1) {
-            curves.push(BezierCurve::through_points(vec![
+            curves.push(BezierCurve::through_points(&[
                 points[i * 3],
                 points[i * 3 + 1],
                 points[i * 3 + 2],
@@ -63,13 +63,12 @@ impl BezierCubicSplineC0 {
 
         let i = curve_count - 1;
         curves.push(match (points.len() - 1) % 3 {
-            0 => BezierCurve::through_points(vec![points[i * 3]]),
-            1 => BezierCurve::through_points(vec![points[i * 3], points[i * 3 + 1]]),
-            2 => BezierCurve::through_points(vec![
-                points[i * 3],
-                points[i * 3 + 1],
-                points[i * 3 + 2],
-            ]),
+            0 => BezierCurve::through_points(&[points[i * 3]]),
+            1 => BezierCurve::through_points(&[points[i * 3], points[i * 3 + 1]]),
+            2 => {
+                BezierCurve::through_points(&[points[i * 3], points[i * 3 + 1], points[i * 3 + 2]])
+            }
+
             _ => panic!("Invalid remainder"),
         });
 

@@ -49,7 +49,7 @@ impl<'gl> CubicSplineC0<'gl> {
             points: point_ids,
             draw_polygon: false,
             shader_manager,
-            name: ChangeableName::new("Cubic Spline C0", name_repo),
+            name: ChangeableName::new("Cubic spline C0", name_repo),
         }
     }
 
@@ -98,6 +98,8 @@ impl<'gl> CubicSplineC0<'gl> {
 
     fn recalculate_mesh(&self, entities: &EntityCollection<'gl>) {
         if self.points.is_empty() {
+            self.mesh.replace(BezierMesh::empty(self.gl));
+            self.polygon_mesh.replace(LinesMesh::empty(self.gl));
             return;
         }
 
@@ -163,7 +165,7 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         let changed = ordered_selector::changed(&self.points, &new_points);
 
         if changed {
-            utils::update_point_subs(new_selection, controller_id, subscriptions);
+            utils::update_point_subscriptions(new_selection, controller_id, subscriptions);
             self.points = new_points;
             self.recalculate_mesh(entities);
         }

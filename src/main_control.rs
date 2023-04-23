@@ -4,6 +4,7 @@ use kalimorfia::{
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
         entity::{Entity, ReferentialSceneEntity, SceneObject},
+        interpolating_spline::InterpolatingSpline,
         manager::EntityManager,
         point::Point,
         torus::Torus,
@@ -85,13 +86,18 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
 
         ui.next_column();
-        if ui.button("Cubic Spline C0") {
+        if ui.button("Cubic spline C0") {
             self.add_cubic_spline_c0(state);
         }
 
         ui.next_column();
-        if ui.button("Cubic Spline C2") {
+        if ui.button("Cubic spline C2") {
             self.add_cubic_spline_c2(state);
+        }
+
+        ui.next_column();
+        if ui.button("Interpolating spline") {
+            self.add_interpolating_spline(state);
         }
 
         ui.next_column();
@@ -148,6 +154,19 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     fn add_cubic_spline_c2(&self, state: &mut State) {
         let selected_points = self.selected_points(&state.selector);
         let spline = CubicSplineC2::through_points(
+            self.gl,
+            Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
+            selected_points,
+            self.entity_manager.borrow().entities(),
+        );
+
+        self.add_spline(state, spline);
+    }
+
+    fn add_interpolating_spline(&self, state: &mut State) {
+        let selected_points = self.selected_points(&state.selector);
+        let spline = InterpolatingSpline::through_points(
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
