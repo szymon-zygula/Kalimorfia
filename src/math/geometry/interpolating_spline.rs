@@ -7,9 +7,6 @@ type BernsteinTuple<T> = (Point3<T>, Point3<T>, Point3<T>, Point3<T>);
 pub fn interpolating_spline_c2<T: RealField + Copy>(
     points: &[Point3<T>],
 ) -> Vec<BernsteinTuple<T>> {
-    // Get rid of consecutive equal points so that we don't get any 0-length chords
-    let points: Vec<_> = points.iter().copied().dedup().collect();
-
     let n = points.len() - 1;
     assert!(n >= 2);
 

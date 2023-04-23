@@ -341,6 +341,10 @@ impl<'gl> ReferentialSceneObject<'gl> for CubicSplineC2<'gl> {
         resolution: &glutin::dpi::PhysicalSize<u32>,
         _entities: &EntityCollection<'gl>,
     ) -> (bool, f32) {
+        if !self.show_bernstein_basis {
+            return (false, 0.0);
+        }
+
         for (idx, bernstein) in self.bernstein_points.iter().enumerate() {
             if let (true, val) = SceneObject::is_at_point(
                 bernstein,
