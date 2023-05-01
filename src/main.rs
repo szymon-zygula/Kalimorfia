@@ -1,13 +1,13 @@
-mod constants;
 mod main_control;
 mod shaders;
 mod state;
 
-use crate::{constants::*, main_control::MainControl, state::State};
+use crate::{main_control::MainControl, state::State};
 use glow::HasContext;
 use glutin::platform::run_return::EventLoopExtRunReturn;
 use kalimorfia::{
     camera::Camera,
+    constants::*,
     entities::{
         entity::{DrawType, Drawable},
         manager::EntityManager,

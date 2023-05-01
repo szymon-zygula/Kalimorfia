@@ -9,7 +9,6 @@ use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Stereo {
     pub baseline: f32,
-    pub screen_distance: f32,
 }
 
 impl Default for Stereo {
@@ -20,10 +19,7 @@ impl Default for Stereo {
 
 impl Stereo {
     pub fn new() -> Self {
-        Self {
-            baseline: 0.5,
-            screen_distance: 5.0,
-        }
+        Self { baseline: 0.3 }
     }
 }
 
@@ -50,13 +46,13 @@ impl Camera {
         Camera {
             azimuth: -std::f32::consts::FRAC_PI_4,
             altitude: std::f32::consts::FRAC_PI_4,
-            log_distance: 1.0,
+            log_distance: 2.0,
             center: Point3::new(0.0, 0.0, 0.0),
             resolution: PhysicalSize::new(0, 0),
             near_plane: 0.1,
-            far_plane: 500.0,
+            far_plane: 10000.0,
             x_offset: 0.0,
-            screen_distance: 1.0,
+            screen_distance: 2.5,
             stereo: None,
         }
     }
@@ -217,9 +213,28 @@ impl Camera {
     }
 
     pub fn stereo_cameras(&self) -> Option<(Camera, Camera)> {
-        self.stereo
-            .as_ref()
-            .map(|stereo| (Self::new(), Self::new()))
+        self.stereo.as_ref().map(|stereo| {
+            let inverse_view = self.inverse_view_transform();
+            let view = self.view_transform();
+            let shift = Vector4::new(stereo.baseline / 2.0, 0.0, 0.0, 0.0);
+            let mut left = self.clone();
+            left.x_offset = -stereo.baseline / 2.0;
+            left.stereo = None;
+            left.center = Point3::from_homogeneous(
+                inverse_view * (view * self.center.to_homogeneous() + shift),
+            )
+            .unwrap();
+
+            let mut right = self.clone();
+            right.x_offset = stereo.baseline / 2.0;
+            right.stereo = None;
+            right.center = Point3::from_homogeneous(
+                inverse_view * (view * self.center.to_homogeneous() - shift),
+            )
+            .unwrap();
+
+            (left, right)
+        })
     }
 }
 
