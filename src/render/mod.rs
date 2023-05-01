@@ -6,3 +6,4 @@ pub mod opengl;
 pub mod point_cloud;
 pub mod shader;
 pub mod shader_manager;
+pub mod stereo;

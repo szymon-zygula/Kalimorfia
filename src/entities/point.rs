@@ -95,7 +95,7 @@ impl<'gl> SceneObject for Point<'gl> {
             let is_at_point = (projected.x - point.x).abs() * camera.resolution.width as f32
                 <= self.size
                 && (projected.y - point.y).abs() * camera.resolution.height as f32 <= self.size
-                && projected.z > 0.0;
+                && projected.z < 0.0;
 
             if !is_at_point {
                 return None;

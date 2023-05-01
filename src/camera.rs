@@ -36,7 +36,8 @@ pub struct Camera {
     pub resolution: PhysicalSize<u32>,
     pub near_plane: f32,
     pub far_plane: f32,
-    pub fov: f32,
+    pub screen_distance: f32,
+    pub x_offset: f32,
     pub stereo: Option<Stereo>,
 }
 
@@ -53,8 +54,9 @@ impl Camera {
             center: Point3::new(0.0, 0.0, 0.0),
             resolution: PhysicalSize::new(0, 0),
             near_plane: 0.1,
-            far_plane: 100.0,
-            fov: std::f32::consts::FRAC_PI_2,
+            far_plane: 500.0,
+            x_offset: 0.0,
+            screen_distance: 1.0,
             stereo: None,
         }
     }
@@ -147,20 +149,22 @@ impl Camera {
     }
 
     pub fn projection_transform(&self) -> Matrix4<f32> {
-        transforms::projection(
-            self.fov,
+        transforms::unsymmetric_projection(
             self.aspect_ratio(),
             self.near_plane,
             self.far_plane,
+            self.x_offset,
+            self.screen_distance,
         )
     }
 
     pub fn inverse_projection_transform(&self) -> Matrix4<f32> {
-        transforms::inverse_projection(
-            self.fov,
+        transforms::unsymmetric_projection_inverse(
             self.aspect_ratio(),
             self.near_plane,
             self.far_plane,
+            self.x_offset,
+            self.screen_distance,
         )
     }
 
@@ -210,6 +214,12 @@ impl Camera {
 
     pub fn ndc_to_screen(&self, position: &Point2<f32>) -> PhysicalPosition<u32> {
         ndc_to_screen(&self.resolution, position)
+    }
+
+    pub fn stereo_cameras(&self) -> Option<(Camera, Camera)> {
+        self.stereo
+            .as_ref()
+            .map(|stereo| (Self::new(), Self::new()))
     }
 }
 

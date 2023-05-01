@@ -119,6 +119,7 @@ pub fn projection<T: RealField + Copy>(
     projection_matrix
 }
 
+/// no assumptions about Left/Right handedness
 pub fn six_planes_projection<T: RealField + Copy>(
     near_plane: T,
     far_plane: T,
@@ -135,14 +136,85 @@ pub fn six_planes_projection<T: RealField + Copy>(
     projection_matrix[(1, 1)] = (two * near_plane) / (top_plane - bottom_plane);
     projection_matrix[(1, 2)] = (top_plane + bottom_plane) / (top_plane - bottom_plane);
     projection_matrix[(2, 2)] = (far_plane + near_plane) / (far_plane - near_plane);
-    projection_matrix[(2, 3)] = (-two * far_plane * near_plane) / (far_plane - near_plane);
-    projection_matrix[(3, 2)] = T::one();
+    projection_matrix[(2, 3)] = (two * far_plane * near_plane) / (far_plane - near_plane);
+    projection_matrix[(3, 2)] = -T::one();
 
     projection_matrix
 }
 
-pub fn stereo_projection<T: RealField + Copy>() -> (Matrix4<T>, Matrix4<T>) {
-    todo!()
+pub fn six_planes_projection_inverse<T: RealField + Copy>(
+    near_plane: T,
+    far_plane: T,
+    top_plane: T,
+    bottom_plane: T,
+    left_plane: T,
+    right_plane: T,
+) -> Matrix4<T> {
+    let mut projection_matrix = Matrix4::zeros();
+    let two = T::from_f64(2.0).unwrap();
+
+    projection_matrix[(0, 0)] = (right_plane - left_plane) / (two * near_plane);
+    projection_matrix[(0, 3)] = (right_plane + left_plane) / (two * near_plane);
+    projection_matrix[(1, 1)] = (top_plane - bottom_plane) / (two * near_plane);
+    projection_matrix[(1, 3)] = (top_plane + bottom_plane) / (two * near_plane);
+    projection_matrix[(2, 3)] = -T::one();
+    projection_matrix[(3, 2)] = (far_plane - near_plane) / (two * far_plane * near_plane);
+    projection_matrix[(3, 3)] = (far_plane + near_plane) / (two * far_plane * near_plane);
+
+    projection_matrix
+}
+
+fn unsymmetric_projection_impl<T: RealField + Copy>(
+    aspect_ratio: T,
+    near_plane: T,
+    far_plane: T,
+    x_offset: T,
+    screen_distance: T,
+    f: impl FnOnce(T, T, T, T, T, T) -> Matrix4<T>,
+) -> Matrix4<T> {
+    let half = T::from_f64(0.5).unwrap();
+    let top = half * near_plane / screen_distance;
+
+    // Plane positions from the point of view of the left eye
+    let left = (x_offset - aspect_ratio * half) / screen_distance * near_plane;
+    let right = (x_offset + aspect_ratio * half) / screen_distance * near_plane;
+
+    f(near_plane, far_plane, top, -top, left, right)
+}
+
+/// Creates RH projection matrices, near and far planes should be positive.
+pub fn unsymmetric_projection<T: RealField + Copy>(
+    aspect_ratio: T,
+    near_plane: T,
+    far_plane: T,
+    x_offset: T,
+    screen_distance: T,
+) -> Matrix4<T> {
+    unsymmetric_projection_impl(
+        aspect_ratio,
+        near_plane,
+        far_plane,
+        x_offset,
+        screen_distance,
+        six_planes_projection,
+    )
+}
+
+pub fn unsymmetric_projection_inverse<T: RealField + Copy>(
+    aspect_ratio: T,
+    near_plane: T,
+    far_plane: T,
+    x_offset: T,
+    screen_distance: T,
+) -> Matrix4<T> {
+    unsymmetric_projection_impl(
+        aspect_ratio,
+        near_plane,
+        far_plane,
+        x_offset,
+        screen_distance,
+        six_planes_projection_inverse,
+    )
 }
 
 pub fn inverse_projection<T: RealField + Copy>(
