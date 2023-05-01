@@ -88,14 +88,14 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             };
         }
 
+        ui.slider_config("Screen distance", 0.2, 5.0)
+            .flags(imgui::SliderFlags::NO_INPUT)
+            .build(&mut state.camera.screen_distance);
+
         if let Some(stereo) = &mut state.camera.stereo {
             ui.slider_config("Baseline", 0.01, 0.50)
                 .flags(imgui::SliderFlags::NO_INPUT)
                 .build(&mut stereo.baseline);
-
-            ui.slider_config("Screen distance", 0.2, 5.0)
-                .flags(imgui::SliderFlags::NO_INPUT)
-                .build(&mut state.camera.screen_distance);
         }
     }
 
