@@ -333,32 +333,24 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
 }
 
 impl<'gl> ReferentialSceneObject<'gl> for CubicSplineC2<'gl> {
-    fn is_at_point(
+    fn is_at_ndc(
         &mut self,
         point: Point2<f32>,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
-        resolution: &glutin::dpi::PhysicalSize<u32>,
+        camera: &Camera,
         _entities: &EntityCollection<'gl>,
-    ) -> (bool, f32) {
+    ) -> Option<f32> {
         if !self.show_bernstein_basis {
-            return (false, 0.0);
+            return None;
         }
 
         for (idx, bernstein) in self.bernstein_points.iter().enumerate() {
-            if let (true, val) = SceneObject::is_at_point(
-                bernstein,
-                point,
-                projection_transform,
-                view_transform,
-                resolution,
-            ) {
+            if let Some(val) = SceneObject::is_at_ndc(bernstein, point, camera) {
                 self.selected_bernstein_point = Some(idx);
-                return (true, val);
+                return Some(val);
             }
         }
 
-        (false, 0.0)
+        None
     }
 
     fn set_ndc<'a>(

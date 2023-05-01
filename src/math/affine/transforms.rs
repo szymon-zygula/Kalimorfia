@@ -119,6 +119,32 @@ pub fn projection<T: RealField + Copy>(
     projection_matrix
 }
 
+pub fn six_planes_projection<T: RealField + Copy>(
+    near_plane: T,
+    far_plane: T,
+    top_plane: T,
+    bottom_plane: T,
+    left_plane: T,
+    right_plane: T,
+) -> Matrix4<T> {
+    let mut projection_matrix = Matrix4::zeros();
+    let two = T::from_f64(2.0).unwrap();
+
+    projection_matrix[(0, 0)] = two * near_plane / (right_plane - left_plane);
+    projection_matrix[(0, 2)] = (right_plane + left_plane) / (right_plane - left_plane);
+    projection_matrix[(1, 1)] = (two * near_plane) / (top_plane - bottom_plane);
+    projection_matrix[(1, 2)] = (top_plane + bottom_plane) / (top_plane - bottom_plane);
+    projection_matrix[(2, 2)] = (far_plane + near_plane) / (far_plane - near_plane);
+    projection_matrix[(2, 3)] = (-two * far_plane * near_plane) / (far_plane - near_plane);
+    projection_matrix[(3, 2)] = T::one();
+
+    projection_matrix
+}
+
+pub fn stereo_projection<T: RealField + Copy>() -> (Matrix4<T>, Matrix4<T>) {
+    todo!()
+}
+
 pub fn inverse_projection<T: RealField + Copy>(
     fov: T,
     aspect_ratio: T,

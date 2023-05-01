@@ -1,5 +1,6 @@
 use crate::state::State;
 use kalimorfia::{
+    camera::Stereo,
     entities::{
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
@@ -46,6 +47,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 ui.separator();
                 self.cursor_control(ui, state);
                 ui.separator();
+                self.stereoscopy_control(ui, state);
+                ui.separator();
                 self.object_creation(ui, state);
                 ui.separator();
                 state.selector.control_ui(ui, self.entity_manager);
@@ -70,6 +73,29 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
         if ui.button("Center on cursor") {
             state.camera.center = state.cursor.location().unwrap();
+        }
+    }
+
+    fn stereoscopy_control(&self, ui: &imgui::Ui, state: &mut State) {
+        let _token = ui.push_id("stereoscopy");
+        let mut stereoscopy = state.camera.stereo.is_some();
+
+        if ui.checkbox("Stereoscopy", &mut stereoscopy) {
+            state.camera.stereo = if stereoscopy {
+                Some(Stereo::new())
+            } else {
+                None
+            };
+        }
+
+        if let Some(stereo) = &mut state.camera.stereo {
+            ui.slider_config("Baseline", 0.1, 0.5)
+                .flags(imgui::SliderFlags::NO_INPUT)
+                .build(&mut stereo.baseline);
+
+            ui.slider_config("Screen distance", 10.0, 1.0)
+                .flags(imgui::SliderFlags::NO_INPUT)
+                .build(&mut stereo.screen_distance);
         }
     }
 

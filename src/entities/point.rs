@@ -86,27 +86,26 @@ impl<'gl> SceneObject for Point<'gl> {
         to_point.dot(&ray).abs() <= 0.1 && (to_point + ray).norm() > 1.0
     }
 
-    fn is_at_point(
-        &self,
-        point: Point2<f32>,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
-        resolution: &glutin::dpi::PhysicalSize<u32>,
-    ) -> (bool, f32) {
-        let projected = projection_transform
-            * view_transform
+    fn is_at_ndc(&self, point: Point2<f32>, camera: &Camera) -> Option<f32> {
+        let projected = camera.projection_transform()
+            * camera.view_transform()
             * Point3::from(self.position.translation).to_homogeneous();
+
         if let Some(projected) = Point3::from_homogeneous(projected) {
-            let is_at_point = (projected.x - point.x).abs() * resolution.width as f32 <= self.size
-                && (projected.y - point.y).abs() * resolution.height as f32 <= self.size
+            let is_at_point = (projected.x - point.x).abs() * camera.resolution.width as f32
+                <= self.size
+                && (projected.y - point.y).abs() * camera.resolution.height as f32 <= self.size
                 && projected.z > 0.0;
 
-            let camera_distance =
-                (self.position.translation - view_transform.column(3).xyz()).norm();
+            if !is_at_point {
+                return None;
+            }
 
-            (is_at_point, camera_distance)
+            let camera_distance = (self.position.translation - camera.position().coords).norm();
+
+            Some(camera_distance)
         } else {
-            (false, 0.0)
+            None
         }
     }
 

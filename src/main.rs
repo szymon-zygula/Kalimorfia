@@ -28,7 +28,6 @@ enum SelectResult {
 fn select_clicked(
     pixel: glutin::dpi::PhysicalPosition<u32>,
     state: &mut State,
-    resolution: &glutin::dpi::PhysicalSize<u32>,
     entity_manager: &RefCell<EntityManager>,
 ) -> SelectResult {
     let point = state.camera.screen_to_ndc(&pixel);
@@ -36,17 +35,15 @@ fn select_clicked(
     let mut closest_dist = f32::INFINITY;
 
     for (&id, entity) in entity_manager.borrow().entities() {
-        let (is_at_point, camera_distance) = entity.borrow_mut().is_at_point(
-            point,
-            &state.camera.projection_transform(),
-            &state.camera.view_transform(),
-            resolution,
-            entity_manager.borrow().entities(),
-        );
-
-        if is_at_point && camera_distance < closest_dist {
-            closest_dist = camera_distance;
-            closest_id = Some(id);
+        if let Some(camera_distance) =
+            entity
+                .borrow_mut()
+                .is_at_ndc(point, &state.camera, entity_manager.borrow().entities())
+        {
+            if camera_distance < closest_dist {
+                closest_dist = camera_distance;
+                closest_id = Some(id);
+            }
         }
     }
 
@@ -97,7 +94,7 @@ fn main() {
 
             if !window.imgui_using_mouse() && mouse.has_left_button_been_pressed() {
                 if let Some(position) = mouse.integer_position() {
-                    if select_clicked(position, &mut state, &window.size(), &entity_manager)
+                    if select_clicked(position, &mut state, &entity_manager)
                         == SelectResult::Unselect
                     {
                         prevent_grab = true;
@@ -111,7 +108,7 @@ fn main() {
 
             if !window.imgui_using_mouse() && mouse.is_left_button_down() && !prevent_grab {
                 if let Some(only_selected) = state.selector.only_selected() {
-                    if let Some(ref position) = mouse.integer_position() {
+                    if let Some(position) = &mouse.integer_position() {
                         entity_manager.borrow_mut().set_ndc(
                             only_selected,
                             &state.camera.screen_to_ndc(position),
@@ -151,7 +148,7 @@ fn main() {
             ..
         } => *control_flow = glutin::event_loop::ControlFlow::Exit,
         event => {
-            if let Event::WindowEvent { ref event, .. } = event {
+            if let Event::WindowEvent { event, .. } = &event {
                 mouse.handle_window_event(event);
 
                 if let WindowEvent::Resized(resolution) = event {

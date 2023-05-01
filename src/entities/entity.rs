@@ -114,14 +114,10 @@ pub trait SceneObject {
         false
     }
 
-    fn is_at_point(
-        &self,
-        _point: Point2<f32>,
-        _projection_transform: &Matrix4<f32>,
-        _view_transform: &Matrix4<f32>,
-        _resolution: &glutin::dpi::PhysicalSize<u32>,
-    ) -> (bool, f32) {
-        (false, 0.0)
+    /// Returns `Some(d)` with `d` being the distance from `_point` to the camera if `self` is at
+    /// `_point`, else returns `None`.
+    fn is_at_ndc(&self, _point: Point2<f32>, _camera: &Camera) -> Option<f32> {
+        None
     }
 
     fn location(&self) -> Option<Point3<f32>> {
@@ -158,15 +154,13 @@ pub trait ReferentialSceneObject<'gl> {
         ControlResult::default()
     }
 
-    fn is_at_point(
+    fn is_at_ndc(
         &mut self,
         _point: Point2<f32>,
-        _projection_transform: &Matrix4<f32>,
-        _view_transform: &Matrix4<f32>,
-        _resolution: &glutin::dpi::PhysicalSize<u32>,
+        _camera: &Camera,
         _entities: &EntityCollection<'gl>,
-    ) -> (bool, f32) {
-        (false, 0.0)
+    ) -> Option<f32> {
+        None
     }
 
     fn ray_intersects(&self, _from: Point3<f32>, _ray: Vector3<f32>) -> bool {
@@ -209,21 +203,13 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
         }
     }
 
-    fn is_at_point(
+    fn is_at_ndc(
         &mut self,
         point: Point2<f32>,
-        projection_transform: &Matrix4<f32>,
-        view_transform: &Matrix4<f32>,
-        resolution: &glutin::dpi::PhysicalSize<u32>,
+        camera: &Camera,
         _entities: &EntityCollection<'gl>,
-    ) -> (bool, f32) {
-        SceneObject::is_at_point(
-            self,
-            point,
-            projection_transform,
-            view_transform,
-            resolution,
-        )
+    ) -> Option<f32> {
+        SceneObject::is_at_ndc(self, point, camera)
     }
 
     fn ray_intersects(&self, from: Point3<f32>, ray: Vector3<f32>) -> bool {

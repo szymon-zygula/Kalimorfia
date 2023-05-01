@@ -7,6 +7,27 @@ use glutin::dpi::{PhysicalPosition, PhysicalSize};
 use nalgebra::{Matrix4, Point2, Point3, Point4, Vector3, Vector4};
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Stereo {
+    pub baseline: f32,
+    pub screen_distance: f32,
+}
+
+impl Default for Stereo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Stereo {
+    pub fn new() -> Self {
+        Self {
+            baseline: 0.5,
+            screen_distance: 5.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Camera {
     pub azimuth: f32,
     pub altitude: f32,
@@ -16,6 +37,7 @@ pub struct Camera {
     pub near_plane: f32,
     pub far_plane: f32,
     pub fov: f32,
+    pub stereo: Option<Stereo>,
 }
 
 impl Camera {
@@ -33,6 +55,7 @@ impl Camera {
             near_plane: 0.1,
             far_plane: 100.0,
             fov: std::f32::consts::FRAC_PI_2,
+            stereo: None,
         }
     }
 
