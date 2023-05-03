@@ -140,7 +140,7 @@ fn main() {
     let shader_manager = shaders::create_shader_manager(&gl);
     let entity_manager = RefCell::new(EntityManager::new());
     let mut state = State::new(&gl, &entity_manager, Rc::clone(&shader_manager));
-    let main_control = MainControl::new(Rc::clone(&shader_manager), &entity_manager, &gl);
+    let mut main_control = MainControl::new(Rc::clone(&shader_manager), &entity_manager, &gl);
     let mut prevent_grab = false;
 
     unsafe {

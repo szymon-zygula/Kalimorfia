@@ -52,7 +52,7 @@ impl Camera {
             near_plane: 0.1,
             far_plane: 10000.0,
             x_offset: 0.0,
-            screen_distance: 2.5,
+            screen_distance: 1.0,
             stereo: None,
         }
     }

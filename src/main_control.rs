@@ -15,9 +15,90 @@ use kalimorfia::{
 };
 use std::{cell::RefCell, rc::Rc};
 
+struct BezierSurfaceArgs {
+    x_length: f32,
+    z_length: f32,
+
+    x_patches: i32,
+    z_patches: i32,
+}
+
+struct BezierCyllinderArgs {
+    length: f32,
+    radius: f32,
+
+    around_patches: i32,
+    along_patches: i32,
+}
+
+enum BezierSurfaceC0Args {
+    Surface(BezierSurfaceArgs),
+    Cyllinder(BezierCyllinderArgs),
+}
+
+impl BezierSurfaceC0Args {
+    const MIN_PATCHES: i32 = 1;
+    const MAX_PATCHES: i32 = 30;
+    const MIN_LENGTH: f32 = 0.1;
+    const MAX_LENGTH: f32 = 10.0;
+
+    pub fn new_surface() -> Self {
+        Self::Surface(BezierSurfaceArgs {
+            x_length: 1.0,
+            z_length: 1.0,
+
+            x_patches: 1,
+            z_patches: 1,
+        })
+    }
+
+    pub fn new_cyllinder() -> Self {
+        Self::Cyllinder(BezierCyllinderArgs {
+            length: 1.0,
+            radius: 1.0,
+            around_patches: 1,
+            along_patches: 1,
+        })
+    }
+
+    pub fn clamp_values(&mut self) {
+        match self {
+            BezierSurfaceC0Args::Surface(surface) => {
+                Self::clamp_patches(&mut surface.x_patches);
+                Self::clamp_patches(&mut surface.z_patches);
+                Self::clamp_length(&mut surface.x_length);
+                Self::clamp_length(&mut surface.z_length);
+            }
+            BezierSurfaceC0Args::Cyllinder(cyllinder) => {
+                Self::clamp_patches(&mut cyllinder.around_patches);
+                Self::clamp_patches(&mut cyllinder.along_patches);
+                Self::clamp_length(&mut cyllinder.length);
+                Self::clamp_length(&mut cyllinder.radius);
+            }
+        }
+    }
+
+    fn clamp_patches(patches: &mut i32) {
+        if *patches < Self::MIN_PATCHES {
+            *patches = Self::MIN_PATCHES;
+        } else if *patches > Self::MAX_PATCHES {
+            *patches = Self::MAX_PATCHES;
+        }
+    }
+
+    fn clamp_length(length: &mut f32) {
+        if *length < Self::MIN_LENGTH {
+            *length = Self::MIN_LENGTH;
+        } else if *length > Self::MAX_LENGTH {
+            *length = Self::MAX_LENGTH;
+        }
+    }
+}
+
 pub struct MainControl<'gl, 'a> {
     entity_manager: &'a RefCell<EntityManager<'gl>>,
     shader_manager: Rc<ShaderManager<'gl>>,
+    bezier_surface_args: Option<BezierSurfaceC0Args>,
     gl: &'gl glow::Context,
 }
 
@@ -31,15 +112,20 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             entity_manager,
             gl,
             shader_manager,
+            bezier_surface_args: None,
         }
     }
 
-    pub fn build_ui(&self, ui: &mut imgui::Ui, state: &mut State<'gl, '_>) {
+    pub fn build_ui(&mut self, ui: &mut imgui::Ui, state: &mut State<'gl, '_>) {
         self.main_control_window(ui, state);
         self.selection_window(ui, state);
+
+        if self.bezier_surface_args.is_some() {
+            self.bezier_surface_window(ui, state);
+        }
     }
 
-    fn main_control_window(&self, ui: &imgui::Ui, state: &mut State) {
+    fn main_control_window(&mut self, ui: &imgui::Ui, state: &mut State) {
         ui.window("Main control")
             .size([500.0, 300.0], imgui::Condition::FirstUseEver)
             .position([0.0, 0.0], imgui::Condition::FirstUseEver)
@@ -99,7 +185,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn object_creation(&self, ui: &imgui::Ui, state: &mut State) {
+    fn object_creation(&mut self, ui: &imgui::Ui, state: &mut State) {
         ui.text("Object creation");
         ui.columns(3, "creation_columns", false);
         if ui.button("Torus") {
@@ -124,6 +210,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         ui.next_column();
         if ui.button("Interpolating spline") {
             self.add_interpolating_spline(state);
+        }
+
+        ui.next_column();
+        if ui.button("Bezier surface C0") {
+            self.bezier_surface_args = Some(BezierSurfaceC0Args::new_surface());
         }
 
         ui.next_column();
@@ -213,6 +304,66 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
 
         state.selector.add_selectable(id);
+    }
+
+    fn add_bezier_surface_c0(&self, state: &mut State) {}
+
+    fn bezier_surface_window(&mut self, ui: &imgui::Ui, state: &mut State) {
+        ui.window("Bezier surface creation")
+            .size([350.0, 200.0], imgui::Condition::FirstUseEver)
+            .position([300.0, 300.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                let args = self.bezier_surface_args.as_mut().unwrap();
+                let _token = ui.push_id("bezier_creation_window");
+
+                match args {
+                    BezierSurfaceC0Args::Surface(..) => {
+                        if ui.button("Surface") {
+                            *args = BezierSurfaceC0Args::new_cyllinder();
+                        }
+                    }
+                    BezierSurfaceC0Args::Cyllinder(..) => {
+                        if ui.button("Cyllinder") {
+                            *args = BezierSurfaceC0Args::new_surface();
+                        }
+                    }
+                }
+
+                match args {
+                    BezierSurfaceC0Args::Surface(surface) => {
+                        ui.input_int("X patches", &mut surface.x_patches).build();
+                        ui.input_int("Z patches", &mut surface.z_patches).build();
+
+                        ui.input_float("X length", &mut surface.x_length).build();
+                        ui.input_float("Z length", &mut surface.z_length).build();
+                    }
+                    BezierSurfaceC0Args::Cyllinder(cyllinder) => {
+                        ui.input_int("Around patches", &mut cyllinder.around_patches)
+                            .build();
+                        ui.input_int("Along patches", &mut cyllinder.along_patches)
+                            .build();
+
+                        ui.input_float("Length", &mut cyllinder.length).build();
+                        ui.input_float("Radius", &mut cyllinder.radius).build();
+                    }
+                }
+
+                args.clamp_values();
+
+                ui.columns(2, "bezier_columns", false);
+                if ui.button("Ok") {
+                    self.add_bezier_surface_c0(state);
+                    self.bezier_surface_args = None;
+                }
+
+                ui.next_column();
+                if ui.button("Cancel") {
+                    self.bezier_surface_args = None;
+                }
+
+                ui.next_column();
+                ui.columns(1, "clear_columns", false);
+            });
     }
 
     fn selected_points(&self, selector: &Selector) -> Vec<usize> {
