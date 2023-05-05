@@ -58,14 +58,27 @@ impl<'gl> EntityManager<'gl> {
             .draw_referential(&self.entities, camera, premul, draw_type);
     }
 
-    pub fn remove_entity(&mut self, removed_id: usize) {
+    #[must_use]
+    pub fn remove_entity(&mut self, removed_id: usize) -> Option<usize> {
+        for (&key, entity) in &self.entities {
+            if self.subscriptions[&key].contains(&removed_id)
+                && !entity.borrow().allow_deletion(&HashSet::from([removed_id]))
+            {
+                return Some(key);
+            }
+        }
+
         self.entities.remove(&removed_id);
 
-        for entity in self.entities.values() {
-            entity
-                .borrow_mut()
-                .notify_about_deletion(&HashSet::from([removed_id]), &self.entities);
+        for (key, entity) in &self.entities {
+            if self.subscriptions[key].contains(&removed_id) {
+                entity
+                    .borrow_mut()
+                    .notify_about_deletion(&HashSet::from([removed_id]), &self.entities);
+            }
         }
+
+        None
     }
 
     pub fn add_entity(&mut self, entity: Box<dyn ReferentialSceneEntity<'gl> + 'gl>) -> usize {

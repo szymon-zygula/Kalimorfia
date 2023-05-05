@@ -50,6 +50,10 @@ pub trait ReferentialEntity<'gl> {
     fn add_point(&mut self, _id: usize, _entities: &EntityCollection<'gl>) -> bool {
         false
     }
+
+    fn allow_deletion(&self, _deleted: &HashSet<usize>) -> bool {
+        true
+    }
 }
 
 impl<'gl, T: Entity> ReferentialEntity<'gl> for T {

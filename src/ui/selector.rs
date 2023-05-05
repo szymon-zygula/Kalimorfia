@@ -8,20 +8,22 @@ pub struct Selector<'a> {
     selectables: BTreeMap<usize, bool>,
     on_select: Box<dyn FnMut(usize) + 'a>,
     on_deselect: Box<dyn FnMut(usize) + 'a>,
-    on_remove: Box<dyn FnMut(usize) + 'a>,
+    on_remove: Box<dyn FnMut(usize) -> Option<String> + 'a>,
+    last_remove_info: Option<String>,
 }
 
 impl<'a> Selector<'a> {
     pub fn new(
         on_select: impl FnMut(usize) + 'a,
         on_deselect: impl FnMut(usize) + 'a,
-        on_remove: impl FnMut(usize) + 'a,
+        on_remove: impl FnMut(usize) -> Option<String> + 'a,
     ) -> Self {
         Self {
             selectables: BTreeMap::new(),
             on_select: Box::new(on_select),
             on_deselect: Box::new(on_deselect),
             on_remove: Box::new(on_remove),
+            last_remove_info: None,
         }
     }
 
@@ -57,10 +59,18 @@ impl<'a> Selector<'a> {
             }
 
             ui.next_column();
-            let remove = ui.button_with_size("X", [18.0, 18.0]);
+            let mut remove = ui.button_with_size("X", [18.0, 18.0]);
             if remove {
-                (self.on_remove)(id);
+                if let Some(rejection_info) = (self.on_remove)(id) {
+                    ui.open_popup("removal_info");
+                    self.last_remove_info = Some(rejection_info);
+                    remove = false;
+                }
             }
+
+            ui.popup("removal_info", || {
+                ui.text(self.last_remove_info.as_ref().unwrap());
+            });
 
             ui.next_column();
 

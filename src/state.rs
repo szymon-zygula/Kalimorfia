@@ -46,7 +46,15 @@ impl<'gl, 'a> State<'gl, 'a> {
                         .unsubscribe(selected_aggregate_id, id);
                 },
                 move |id| {
-                    entity_manager.borrow_mut().remove_entity(id);
+                    let deleted_name = entity_manager.borrow().get_entity(id).name();
+                    let removal_result = entity_manager.borrow_mut().remove_entity(id);
+
+                    removal_result.map(|blocker| {
+                        format!(
+                            "Deletion of {deleted_name} blocked by {}",
+                            entity_manager.borrow().get_entity(blocker).name()
+                        )
+                    })
                 },
             ),
             selected_aggregate_id,

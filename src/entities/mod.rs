@@ -1,5 +1,6 @@
 pub mod aggregate;
 pub mod basic;
+pub mod bezier_surface_c0;
 pub mod changeable_name;
 pub mod cubic_spline_c0;
 pub mod cubic_spline_c2;

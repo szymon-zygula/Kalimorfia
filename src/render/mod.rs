@@ -7,3 +7,4 @@ pub mod point_cloud;
 pub mod shader;
 pub mod shader_manager;
 pub mod stereo;
+pub mod bezier_surface_mesh;

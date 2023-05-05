@@ -3,7 +3,7 @@ use super::{
     changeable_name::ChangeableName,
     entity::{
         ControlResult, DrawType, Drawable, Entity, EntityCollection, NamedEntity,
-        ReferentialDrawable, ReferentialEntity, ReferentialSceneObject, SceneObject,
+        ReferentialEntity, ReferentialSceneObject, SceneObject,
     },
     point::Point,
     utils,
@@ -28,9 +28,9 @@ use std::{
 
 pub struct CubicSplineC2<'gl> {
     gl: &'gl glow::Context,
-    mesh: RefCell<BezierMesh<'gl>>,
-    deboor_polygon_mesh: RefCell<LinesMesh<'gl>>,
-    bernstein_polygon_mesh: RefCell<LinesMesh<'gl>>,
+    mesh: BezierMesh<'gl>,
+    deboor_polygon_mesh: LinesMesh<'gl>,
+    bernstein_polygon_mesh: LinesMesh<'gl>,
     draw_deboor_polygon: bool,
     draw_bernstein_polygon: bool,
     show_bernstein_basis: bool,
@@ -53,9 +53,9 @@ impl<'gl> CubicSplineC2<'gl> {
         let mut created = Self {
             gl,
             points,
-            mesh: RefCell::new(BezierMesh::empty(gl)),
-            deboor_polygon_mesh: RefCell::new(LinesMesh::empty(gl)),
-            bernstein_polygon_mesh: RefCell::new(LinesMesh::empty(gl)),
+            mesh: BezierMesh::empty(gl),
+            deboor_polygon_mesh: LinesMesh::empty(gl),
+            bernstein_polygon_mesh: LinesMesh::empty(gl),
             draw_deboor_polygon: false,
             draw_bernstein_polygon: false,
             show_bernstein_basis: false,
@@ -140,22 +140,22 @@ impl<'gl> CubicSplineC2<'gl> {
         self.recalculate_mesh();
     }
 
-    fn recalculate_mesh(&self) {
+    fn recalculate_mesh(&mut self) {
         let Some(bspline) = &self.bspline else { return };
         let mut mesh = BezierMesh::new(
             self.gl,
             BezierCubicSplineC0::through_points(bspline.bernstein_points()),
         );
         mesh.thickness(3.0);
-        self.mesh.replace(mesh);
+        self.mesh = mesh;
 
         let mut bernstein_mesh = LinesMesh::strip(self.gl, bspline.bernstein_points_f32());
         bernstein_mesh.thickness(2.0);
-        self.bernstein_polygon_mesh.replace(bernstein_mesh);
+        self.bernstein_polygon_mesh = bernstein_mesh;
 
         let mut deboor_mesh = LinesMesh::strip(self.gl, bspline.deboor_points_f32());
         deboor_mesh.thickness(1.0);
-        self.deboor_polygon_mesh.replace(deboor_mesh);
+        self.deboor_polygon_mesh = deboor_mesh;
     }
 
     fn update_bernstein_from(&mut self, idx: usize, entities: &EntityCollection<'gl>) {
@@ -195,7 +195,7 @@ impl<'gl> CubicSplineC2<'gl> {
         );
 
         let segment_pixel_count = polygon_pixel_length / (self.points.len() / 3 + 1) as f32;
-        self.mesh.borrow().draw_with_program(
+        self.mesh.draw_with_program(
             program,
             camera,
             segment_pixel_count,
@@ -203,7 +203,7 @@ impl<'gl> CubicSplineC2<'gl> {
             &Color::for_draw_type(&draw_type),
         );
 
-        self.mesh.borrow().draw();
+        self.mesh.draw();
     }
 }
 
@@ -298,14 +298,8 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
     }
 }
 
-impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
-    fn draw_referential(
-        &self,
-        _entities: &EntityCollection<'gl>,
-        camera: &Camera,
-        premul: &Matrix4<f32>,
-        draw_type: DrawType,
-    ) {
+impl<'gl> Drawable for CubicSplineC2<'gl> {
+    fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         self.draw_curve(camera, premul, draw_type);
 
         let program = self.shader_manager.program("spline");
@@ -319,11 +313,11 @@ impl<'gl> ReferentialDrawable<'gl> for CubicSplineC2<'gl> {
         program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
 
         if self.draw_deboor_polygon {
-            self.deboor_polygon_mesh.borrow().draw();
+            self.deboor_polygon_mesh.draw();
         }
 
         if self.draw_bernstein_polygon {
-            self.bernstein_polygon_mesh.borrow().draw();
+            self.bernstein_polygon_mesh.draw();
         }
 
         if self.show_bernstein_basis {

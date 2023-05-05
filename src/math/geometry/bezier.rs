@@ -1,5 +1,7 @@
 use super::parametric_form::ParametricForm;
-use crate::math::{bernstein_polynomial::BernsteinPolynomial, bspline::CubicBSpline};
+use crate::math::{
+    bernstein_polynomial::BernsteinPolynomial, bspline::CubicBSpline, utils::point_64_to_32,
+};
 use nalgebra::{Point3, Vector1};
 
 #[derive(Clone, Debug)]
@@ -172,5 +174,61 @@ impl ParametricForm<1, 3> for BezierBSpline {
             self.y_t.value(vec.x),
             self.z_t.value(vec.x),
         )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BezierSurface {
+    points: Vec<Vec<Point3<f64>>>,
+}
+
+impl BezierSurface {
+    pub fn new(points: Vec<Vec<Point3<f64>>>) -> Self {
+        assert!(points.is_empty() || (points.len() - 1) % 3 == 0 && (points[0].len() - 1) % 3 == 0);
+        Self { points }
+    }
+
+    pub fn u_patches(&self) -> usize {
+        // Needs to be valid only for 0, 4, and 4 + 3k
+        (self.u_points() + 1) / 3
+    }
+
+    pub fn v_patches(&self) -> usize {
+        self.points.first().map_or(0, |u| (u.len() + 1) / 3)
+    }
+
+    pub fn u_points(&self) -> usize {
+        self.points.len()
+    }
+
+    pub fn v_points(&self) -> usize {
+        self.points.first().map_or(0, |u| u.len())
+    }
+
+    pub fn point(&self, u: usize, v: usize) -> Point3<f64> {
+        self.points[u][v]
+    }
+
+    pub fn patch_point(
+        &self,
+        patch_u: usize,
+        patch_v: usize,
+        point_u: usize,
+        point_v: usize,
+    ) -> Point3<f64> {
+        self.points[patch_u * 3 + point_u][patch_v * 3 + point_v]
+    }
+
+    pub fn flat_points(&self) -> Vec<Point3<f32>> {
+        self.points
+            .iter()
+            .flatten()
+            .copied()
+            .map(point_64_to_32)
+            .collect()
+    }
+
+    pub fn flat_idx(&self, u: usize, v: usize) -> usize {
+        u * self.v_points() + v
     }
 }
