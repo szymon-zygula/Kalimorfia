@@ -115,7 +115,7 @@ impl<'gl> GlDrawable for BezierSurfaceMesh<'gl> {
             self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
             self.gl.patch_parameter_i32(glow::PATCH_VERTICES, 16);
             self.gl.draw_arrays(glow::PATCHES, 0, self.vertex_count);
-            self.gl.polygon_mode(glow::FRONT, glow::FILL);
+            self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
         });
     }
 }
