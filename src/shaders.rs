@@ -6,7 +6,9 @@ const SHADERS_EXTENSION: &str = "glsl";
 
 pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let fragment_colored = shader(gl, "fragment_colored", glow::FRAGMENT_SHADER);
+    let fragment_uniform = shader(gl, "uniform_fragment", glow::FRAGMENT_SHADER);
 
+    let pass_through_vertex = shader(gl, "pass_through_vertex", glow::VERTEX_SHADER);
     let perspective_vertex_colored = shader(gl, "perspective_vertex_colored", glow::VERTEX_SHADER);
     let perspective_vertex_colored_uniform =
         shader(gl, "perspective_vertex_uniform_color", glow::VERTEX_SHADER);
@@ -14,6 +16,14 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let vertex_bezier = shader(gl, "vertex_bezier", glow::VERTEX_SHADER);
 
     let geometry_bezier = shader(gl, "geometry_bezier", glow::GEOMETRY_SHADER);
+
+    let surface_tesselation_control =
+        shader(gl, "surface_tesselation_control", glow::TESS_CONTROL_SHADER);
+    let surface_tesselation_evaluation = shader(
+        gl,
+        "surface_tesselation_evaluation",
+        glow::TESS_EVALUATION_SHADER,
+    );
 
     Rc::new(ShaderManager::new(vec![
         (
@@ -40,9 +50,18 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
         ),
         (
             "bezier",
+            GlProgram::with_shaders(gl, &[&vertex_bezier, &geometry_bezier, &fragment_colored]),
+        ),
+        (
+            "surface",
             GlProgram::with_shaders(
                 gl,
-                &[&vertex_bezier, &geometry_bezier, &fragment_colored],
+                &[
+                    &pass_through_vertex,
+                    &surface_tesselation_control,
+                    &surface_tesselation_evaluation,
+                    &fragment_uniform,
+                ],
             ),
         ),
     ]))

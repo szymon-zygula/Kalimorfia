@@ -216,7 +216,16 @@ impl<'gl> BezierSurfaceC0<'gl> {
     }
 
     fn draw_surface(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
-        // TODO: Surface drawing
+        let program = self.shader_manager.program("surface");
+        let color = Color::for_draw_type(&draw_type);
+        self.mesh.draw_with_program(
+            program,
+            camera,
+            premul,
+            &color,
+            self.u_patch_divisions,
+            self.v_patch_divisions,
+        )
     }
 }
 

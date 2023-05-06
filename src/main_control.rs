@@ -58,6 +58,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 ui.separator();
                 self.stereoscopy_control(ui, state);
                 ui.separator();
+                self.additional_control(ui, state);
+                ui.separator();
                 self.object_creation(ui, state);
                 ui.separator();
                 state.selector.control_ui(ui, self.entity_manager);
@@ -106,6 +108,38 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 .flags(imgui::SliderFlags::NO_INPUT)
                 .build(&mut stereo.baseline);
         }
+    }
+
+    fn additional_control(&self, ui: &imgui::Ui, state: &mut State) {
+        if ui.button("Remove all selected") {
+            // Remove everything two times to avoid blockage when a blocking parent and its child
+            // are both selected
+            for id in state.selector.selected() {
+                let removed = self.entity_manager.borrow_mut().remove_entity(id).is_none();
+                if removed {
+                    state.selector.remove(id);
+                }
+            }
+
+            let mut all_removed = true;
+            for id in state.selector.selected() {
+                if self.entity_manager.borrow().entities().contains_key(&id) {
+                    let removed = self.entity_manager.borrow_mut().remove_entity(id).is_none();
+                    all_removed &= removed;
+                    if removed {
+                        state.selector.remove(id);
+                    }
+                }
+            }
+
+            if !all_removed {
+                ui.open_popup("not_all_removed");
+            }
+        }
+
+        ui.popup("not_all_removed", || {
+            ui.text("Some removals were blocked by other entities");
+        });
     }
 
     fn object_creation(&mut self, ui: &imgui::Ui, state: &mut State) {

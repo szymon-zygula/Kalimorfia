@@ -17,6 +17,7 @@ pub struct BezierSurfaceMesh<'gl> {
     gl: &'gl glow::Context,
     vertex_buffer: u32,
     vertex_array: u32,
+    vertex_count: i32,
 }
 
 impl<'gl> BezierSurfaceMesh<'gl> {
@@ -61,6 +62,7 @@ impl<'gl> BezierSurfaceMesh<'gl> {
             gl,
             vertex_array,
             vertex_buffer,
+            vertex_count: (16 * surface.u_patches() * surface.v_patches()) as i32,
         }
     }
 
@@ -99,7 +101,7 @@ impl<'gl> BezierSurfaceMesh<'gl> {
         program.uniform_matrix_4_f32_slice("model", premul.as_slice());
         program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
         program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
-        program.uniform_color("wireframe_color", color);
+        program.uniform_color("color", color);
         program.uniform_u32("u_subdivisions", u_subdivisions);
         program.uniform_u32("v_subdivisions", v_subdivisions);
 
@@ -110,8 +112,10 @@ impl<'gl> BezierSurfaceMesh<'gl> {
 impl<'gl> GlDrawable for BezierSurfaceMesh<'gl> {
     fn draw(&self) {
         opengl::with_vao(self.gl, self.vertex_array, || unsafe {
-            // TODO
-            // todo!("Surface drawing")
+            self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
+            self.gl.patch_parameter_i32(glow::PATCH_VERTICES, 16);
+            self.gl.draw_arrays(glow::PATCHES, 0, self.vertex_count);
+            self.gl.polygon_mode(glow::FRONT, glow::FILL);
         });
     }
 }
