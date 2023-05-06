@@ -120,9 +120,27 @@ impl<'a> Selector<'a> {
         *self.selectables.get_mut(&id).unwrap() = true;
     }
 
+    pub fn select_all(&mut self) {
+        for (id, selected) in &mut self.selectables {
+            if !*selected {
+                *selected = true;
+                (self.on_select)(*id);
+            }
+        }
+    }
+
     pub fn deselect(&mut self, id: usize) {
         (self.on_deselect)(id);
         *self.selectables.get_mut(&id).unwrap() = false;
+    }
+
+    pub fn deselect_all(&mut self) {
+        for (id, selected) in &mut self.selectables {
+            if *selected {
+                *selected = false;
+                (self.on_deselect)(*id);
+            }
+        }
     }
 
     pub fn remove(&mut self, id: usize) {

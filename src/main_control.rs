@@ -111,6 +111,22 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     }
 
     fn additional_control(&self, ui: &imgui::Ui, state: &mut State) {
+        self.select_deselect_all(ui, state);
+        ui.next_column();
+        self.remove_selected(ui, state);
+    }
+
+    fn select_deselect_all(&self, ui: &imgui::Ui, state: &mut State) {
+        if ui.button("Select all") {
+            state.selector.select_all();
+        }
+
+        if ui.button("Deselect all") {
+            state.selector.deselect_all();
+        }
+    }
+
+    fn remove_selected(&self, ui: &imgui::Ui, state: &mut State) {
         if ui.button("Remove all selected") {
             // Remove everything two times to avoid blockage when a blocking parent and its child
             // are both selected
@@ -295,21 +311,27 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             let transform = match &args {
                 BezierSurfaceC0Args::Surface(surface) => {
                     let mut transform = LinearTransformEntity::new();
-                    transform.translation = Translation::with(Vector3::new(
-                        u as f32 / (u_points - 1) as f32 * surface.x_length,
-                        0.0,
-                        v as f32 / (v_points - 1) as f32 * surface.z_length,
-                    ));
+                    transform.translation = Translation::with(
+                        state.cursor.location().unwrap().coords
+                            + Vector3::new(
+                                u as f32 / (u_points - 1) as f32 * surface.x_length,
+                                0.0,
+                                v as f32 / (v_points - 1) as f32 * surface.z_length,
+                            ),
+                    );
                     transform
                 }
                 BezierSurfaceC0Args::Cylinder(cyllinder) => {
                     let mut transform = LinearTransformEntity::new();
                     let angle = v as f32 / v_points as f32 * std::f32::consts::PI * 2.0;
-                    transform.translation = Translation::with(Vector3::new(
-                        u as f32 / u_points as f32 * cyllinder.length,
-                        angle.sin() * cyllinder.radius,
-                        angle.cos() * cyllinder.radius,
-                    ));
+                    transform.translation = Translation::with(
+                        state.cursor.location().unwrap().coords
+                            + Vector3::new(
+                                u as f32 / u_points as f32 * cyllinder.length,
+                                angle.sin() * cyllinder.radius,
+                                angle.cos() * cyllinder.radius,
+                            ),
+                    );
                     transform
                 }
             };
