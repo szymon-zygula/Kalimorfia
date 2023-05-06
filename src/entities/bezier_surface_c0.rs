@@ -148,8 +148,8 @@ impl<'gl> BezierSurfaceC0<'gl> {
             draw_bernstein_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
             shader_manager,
-            u_patch_divisions: 2,
-            v_patch_divisions: 2,
+            u_patch_divisions: 3,
+            v_patch_divisions: 3,
             bezier_surface,
             is_cyllinder: is_cylinder,
         }
