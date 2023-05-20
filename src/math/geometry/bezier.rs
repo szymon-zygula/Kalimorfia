@@ -1,6 +1,9 @@
 use super::parametric_form::ParametricForm;
-use crate::math::{
-    bernstein_polynomial::BernsteinPolynomial, bspline::CubicBSpline, utils::point_64_to_32,
+use crate::{
+    math::{
+        bernstein_polynomial::BernsteinPolynomial, bspline::CubicBSpline, utils::point_64_to_32,
+    },
+    utils::transpose_vector,
 };
 use nalgebra::{Point3, Vector1};
 
@@ -178,23 +181,13 @@ impl ParametricForm<1, 3> for BezierBSpline {
 }
 
 #[derive(Clone, Debug)]
-pub struct BezierSurface {
-    points: Vec<Vec<Point3<f64>>>,
+pub struct PointsGrid {
+    pub points: Vec<Vec<Point3<f64>>>,
 }
 
-impl BezierSurface {
+impl PointsGrid {
     pub fn new(points: Vec<Vec<Point3<f64>>>) -> Self {
-        assert!(points.is_empty() || (points.len() - 1) % 3 == 0 && (points[0].len() - 1) % 3 == 0);
         Self { points }
-    }
-
-    pub fn u_patches(&self) -> usize {
-        // Needs to be valid only for 0, 4, and 4 + 3k
-        (self.u_points() + 1) / 3
-    }
-
-    pub fn v_patches(&self) -> usize {
-        self.points.first().map_or(0, |u| (u.len() + 1) / 3)
     }
 
     pub fn u_points(&self) -> usize {
@@ -209,16 +202,6 @@ impl BezierSurface {
         self.points[u][v]
     }
 
-    pub fn patch_point(
-        &self,
-        patch_u: usize,
-        patch_v: usize,
-        point_u: usize,
-        point_v: usize,
-    ) -> Point3<f64> {
-        self.points[patch_u * 3 + point_u][patch_v * 3 + point_v]
-    }
-
     pub fn flat_points(&self) -> Vec<Point3<f32>> {
         self.points
             .iter()
@@ -231,4 +214,57 @@ impl BezierSurface {
     pub fn flat_idx(&self, u: usize, v: usize) -> usize {
         u * self.v_points() + v
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct BezierSurface {
+    grid: PointsGrid,
+}
+
+impl BezierSurface {
+    pub fn new(points: Vec<Vec<Point3<f64>>>) -> Self {
+        assert!(points.is_empty() || (points.len() - 1) % 3 == 0 && (points[0].len() - 1) % 3 == 0);
+        Self {
+            grid: PointsGrid::new(points),
+        }
+    }
+
+    pub fn u_patches(&self) -> usize {
+        // Needs to be valid only for 0, 4, and 4 + 3k
+        (self.grid.u_points() + 1) / 3
+    }
+
+    pub fn v_patches(&self) -> usize {
+        self.grid.points.first().map_or(0, |u| (u.len() + 1) / 3)
+    }
+
+    pub fn patch_point(
+        &self,
+        patch_u: usize,
+        patch_v: usize,
+        point_u: usize,
+        point_v: usize,
+    ) -> Point3<f64> {
+        self.grid.points[patch_u * 3 + point_u][patch_v * 3 + point_v]
+    }
+
+    pub fn grid(&self) -> &PointsGrid {
+        &self.grid
+    }
+}
+
+pub fn deboor_surface_to_bernstein(deboor_points: Vec<Vec<Point3<f64>>>) -> Vec<Vec<Point3<f64>>> {
+    let bernstein_u_splines: Vec<_> = deboor_points
+        .into_iter()
+        .map(|points| BezierBSpline::through_points(points).bernstein_points())
+        .collect();
+
+    let transpose = transpose_vector(&bernstein_u_splines);
+
+    transpose_vector(
+        &transpose
+            .into_iter()
+            .map(|points| BezierBSpline::through_points(points).bernstein_points())
+            .collect(),
+    )
 }

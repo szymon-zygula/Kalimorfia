@@ -18,3 +18,19 @@ where
         f(i as usize, item)
     }
 }
+
+pub fn transpose_vector<T: Clone>(vec: &Vec<Vec<T>>) -> Vec<Vec<T>> {
+    let mut transpose = vec![Vec::<Option<T>>::new(); vec[0].len()];
+
+    for i in 0..vec[0].len() {
+        transpose[i].resize(vec.len(), None);
+        for j in 0..vec.len() {
+            transpose[i][j] = Some(vec[j][i].clone());
+        }
+    }
+
+    transpose
+        .into_iter()
+        .map(|v| v.into_iter().map(|e| e.unwrap()).collect())
+        .collect()
+}

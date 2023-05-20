@@ -9,6 +9,7 @@ use crate::{
             SceneObject,
         },
     },
+    math::geometry::bezier::{deboor_surface_to_bernstein, BezierSurface},
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
@@ -21,13 +22,13 @@ use std::{
     rc::Rc,
 };
 
-pub struct BezierSurfaceC0<'gl> {
+pub struct BezierSurfaceC2<'gl> {
     gl: &'gl glow::Context,
 
     mesh: BezierSurfaceMesh<'gl>,
-    bernstein_polygon_mesh: LinesMesh<'gl>,
+    deboor_polygon_mesh: LinesMesh<'gl>,
 
-    draw_bernstein_polygon: bool,
+    draw_deboor_polygon: bool,
 
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
@@ -39,7 +40,7 @@ pub struct BezierSurfaceC0<'gl> {
     is_cyllinder: bool,
 }
 
-impl<'gl> BezierSurfaceC0<'gl> {
+impl<'gl> BezierSurfaceC2<'gl> {
     pub fn new(
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
@@ -55,8 +56,8 @@ impl<'gl> BezierSurfaceC0<'gl> {
             gl,
             mesh: BezierSurfaceMesh::new(gl, bezier_surface.clone()),
             points,
-            bernstein_polygon_mesh: grid_mesh(gl, &bezier_surface.grid()),
-            draw_bernstein_polygon: false,
+            deboor_polygon_mesh: grid_mesh(gl, &bezier_surface.grid()),
+            draw_deboor_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
             shader_manager,
             u_patch_divisions: 3,
@@ -65,14 +66,32 @@ impl<'gl> BezierSurfaceC0<'gl> {
         }
     }
 
+    pub fn wrapped_points(&self) -> Vec<Vec<usize>> {
+        let mut points = self.points.clone();
+
+        if self.is_cyllinder {
+            for u_row in &mut points {
+                u_row.push(u_row[0]);
+                u_row.push(u_row[1]);
+                u_row.push(u_row[2]);
+            }
+        }
+
+        points
+    }
+
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
-        let bezier_surface = create_bezier_surface(&self.points, entities, self.is_cyllinder);
+        let wrapped_points = self.wrapped_points();
+        let deboor_points = point_ids_to_f64(&wrapped_points, entities);
+        let bernstein_points = deboor_surface_to_bernstein(deboor_points);
+        let bezier_surface = BezierSurface::new(bernstein_points);
+
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
-        self.bernstein_polygon_mesh = grid_mesh(self.gl, &bezier_surface.grid());
+        self.deboor_polygon_mesh = grid_mesh(self.gl, &bezier_surface.grid());
     }
 }
 
-impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
+impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
     fn control_referential_ui(
         &mut self,
         ui: &imgui::Ui,
@@ -80,9 +99,9 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
         _entities: &EntityCollection<'gl>,
         _subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
-        let _token = ui.push_id("c0_surface_control");
+        let _token = ui.push_id("c2_surface_control");
         self.name_control_ui(ui);
-        ui.checkbox("Draw De Boor polygon", &mut self.draw_bernstein_polygon);
+        ui.checkbox("Draw deboor polygon", &mut self.draw_deboor_polygon);
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
@@ -103,7 +122,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
     }
 }
 
-impl<'gl> Drawable for BezierSurfaceC0<'gl> {
+impl<'gl> Drawable for BezierSurfaceC2<'gl> {
     fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
         draw_bezier_surface(
             &self.mesh,
@@ -115,9 +134,9 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
             draw_type,
         );
 
-        if self.draw_bernstein_polygon {
+        if self.draw_deboor_polygon {
             draw_polygon(
-                &self.bernstein_polygon_mesh,
+                &self.deboor_polygon_mesh,
                 &self.shader_manager,
                 camera,
                 premul,
@@ -127,9 +146,9 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
     }
 }
 
-impl<'gl> SceneObject for BezierSurfaceC0<'gl> {}
+impl<'gl> SceneObject for BezierSurfaceC2<'gl> {}
 
-impl<'gl> NamedEntity for BezierSurfaceC0<'gl> {
+impl<'gl> NamedEntity for BezierSurfaceC2<'gl> {
     fn name(&self) -> String {
         self.name.name()
     }

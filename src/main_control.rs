@@ -3,7 +3,9 @@ use kalimorfia::{
     camera::Stereo,
     entities::{
         basic::{LinearTransformEntity, Translation},
-        bezier_surface_c0::{BezierSurfaceC0, BezierSurfaceC0Args},
+        bezier_surface_args::BezierSurfaceArgs,
+        bezier_surface_c0::BezierSurfaceC0,
+        bezier_surface_c2::BezierSurfaceC2,
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
         entity::{Entity, ReferentialSceneEntity, SceneObject},
@@ -21,7 +23,7 @@ use std::{cell::RefCell, rc::Rc};
 pub struct MainControl<'gl, 'a> {
     entity_manager: &'a RefCell<EntityManager<'gl>>,
     shader_manager: Rc<ShaderManager<'gl>>,
-    bezier_surface_args: Option<BezierSurfaceC0Args>,
+    bezier_surface_args: Option<BezierSurfaceArgs>,
     gl: &'gl glow::Context,
 }
 
@@ -187,7 +189,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
         ui.next_column();
         if ui.button("Bezier surface C0") {
-            self.bezier_surface_args = Some(BezierSurfaceC0Args::new_surface());
+            self.bezier_surface_args = Some(BezierSurfaceArgs::new_surface());
         }
 
         ui.next_column();
@@ -287,16 +289,37 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         state.selector.add_selectable(id);
     }
 
-    fn add_bezier_surface_c0(&self, state: &mut State, args: BezierSurfaceC0Args) {
+    fn add_bezier_surface_c0(&self, state: &mut State, args: BezierSurfaceArgs) {
+        let points = self.bezier_surface_points(state, args);
+
+        let boxed_surface = Box::new(BezierSurfaceC0::new(
+            self.gl,
+            Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
+            points.clone(),
+            self.entity_manager.borrow().entities(),
+            args,
+        ));
+
+        let id = self.entity_manager.borrow_mut().add_entity(boxed_surface);
+
+        for &point in points.iter().flatten() {
+            self.entity_manager.borrow_mut().subscribe(id, point);
+        }
+
+        state.selector.add_selectable(id);
+    }
+
+    fn bezier_surface_points(&self, state: &mut State, args: BezierSurfaceArgs) -> Vec<Vec<usize>> {
         let mut points: Vec<Vec<usize>> = Vec::new();
 
         let (u_patches, v_patches, v_points) = match &args {
-            BezierSurfaceC0Args::Surface(surface) => (
+            BezierSurfaceArgs::Surface(surface) => (
                 surface.x_patches,
                 surface.z_patches,
                 surface.z_patches * 3 + 1,
             ),
-            BezierSurfaceC0Args::Cylinder(cyllinder) => (
+            BezierSurfaceArgs::Cylinder(cyllinder) => (
                 cyllinder.along_patches,
                 cyllinder.around_patches,
                 cyllinder.around_patches * 3,
@@ -309,7 +332,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             let id = self.quietly_add_point(state);
 
             let transform = match &args {
-                BezierSurfaceC0Args::Surface(surface) => {
+                BezierSurfaceArgs::Surface(surface) => {
                     let mut transform = LinearTransformEntity::new();
                     transform.translation = Translation::with(
                         state.cursor.location().unwrap().coords
@@ -321,7 +344,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                     );
                     transform
                 }
-                BezierSurfaceC0Args::Cylinder(cyllinder) => {
+                BezierSurfaceArgs::Cylinder(cyllinder) => {
                     let mut transform = LinearTransformEntity::new();
                     let angle = v as f32 / v_points as f32 * std::f32::consts::PI * 2.0;
                     transform.translation = Translation::with(
@@ -356,7 +379,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                     }
                 }
 
-                if let BezierSurfaceC0Args::Surface(..) = args {
+                if let BezierSurfaceArgs::Surface(..) = args {
                     let v = v_points - 1;
                     add_v_point(u, v, &mut points[u as usize]);
                 }
@@ -373,27 +396,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             }
         }
 
-        if let BezierSurfaceC0Args::Surface(..) = args {
+        if let BezierSurfaceArgs::Surface(..) = args {
             let v = v_points - 1;
             add_v_point(u, v, &mut points[u as usize]);
         }
 
-        let boxed_surface = Box::new(BezierSurfaceC0::new(
-            self.gl,
-            Rc::clone(&state.name_repo),
-            Rc::clone(&self.shader_manager),
-            points.clone(),
-            self.entity_manager.borrow().entities(),
-            args,
-        ));
-
-        let id = self.entity_manager.borrow_mut().add_entity(boxed_surface);
-
-        for &point in points.iter().flatten() {
-            self.entity_manager.borrow_mut().subscribe(id, point);
-        }
-
-        state.selector.add_selectable(id);
+        points
     }
 
     fn bezier_surface_window(&mut self, ui: &imgui::Ui, state: &mut State) {
@@ -405,27 +413,27 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 let _token = ui.push_id("bezier_creation_window");
 
                 match args {
-                    BezierSurfaceC0Args::Surface(..) => {
+                    BezierSurfaceArgs::Surface(..) => {
                         if ui.button("Surface") {
-                            *args = BezierSurfaceC0Args::new_cylinder();
+                            *args = BezierSurfaceArgs::new_cylinder();
                         }
                     }
-                    BezierSurfaceC0Args::Cylinder(..) => {
+                    BezierSurfaceArgs::Cylinder(..) => {
                         if ui.button("Cylinder") {
-                            *args = BezierSurfaceC0Args::new_surface();
+                            *args = BezierSurfaceArgs::new_surface();
                         }
                     }
                 }
 
                 match args {
-                    BezierSurfaceC0Args::Surface(surface) => {
+                    BezierSurfaceArgs::Surface(surface) => {
                         ui.input_int("X patches", &mut surface.x_patches).build();
                         ui.input_int("Z patches", &mut surface.z_patches).build();
 
                         ui.input_float("X length", &mut surface.x_length).build();
                         ui.input_float("Z length", &mut surface.z_length).build();
                     }
-                    BezierSurfaceC0Args::Cylinder(cyllinder) => {
+                    BezierSurfaceArgs::Cylinder(cyllinder) => {
                         ui.input_int("Around patches", &mut cyllinder.around_patches)
                             .build();
                         ui.input_int("Along patches", &mut cyllinder.along_patches)
