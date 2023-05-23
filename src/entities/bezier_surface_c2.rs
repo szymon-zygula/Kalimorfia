@@ -27,8 +27,10 @@ pub struct BezierSurfaceC2<'gl> {
 
     mesh: BezierSurfaceMesh<'gl>,
     deboor_polygon_mesh: LinesMesh<'gl>,
+    bernstein_polygon_mesh: LinesMesh<'gl>,
 
     draw_deboor_polygon: bool,
+    draw_bernstein_polygon: bool,
 
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
@@ -54,8 +56,10 @@ impl<'gl> BezierSurfaceC2<'gl> {
             gl,
             mesh: BezierSurfaceMesh::empty(gl),
             deboor_polygon_mesh: LinesMesh::empty(gl),
+            bernstein_polygon_mesh: LinesMesh::empty(gl),
             points,
             draw_deboor_polygon: false,
+            draw_bernstein_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
             shader_manager,
             u_patch_divisions: 3,
@@ -87,7 +91,10 @@ impl<'gl> BezierSurfaceC2<'gl> {
         let bezier_surface = BezierSurface::new(bernstein_points);
 
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
-        self.deboor_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
+        self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
+
+        let deboor_grid = create_grid(&self.points, entities, self.is_cylinder);
+        self.deboor_polygon_mesh = grid_mesh(self.gl, &deboor_grid);
     }
 }
 
@@ -101,7 +108,8 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
     ) -> ControlResult {
         let _token = ui.push_id("c2_surface_control");
         self.name_control_ui(ui);
-        ui.checkbox("Draw deboor polygon", &mut self.draw_deboor_polygon);
+        ui.checkbox("Draw de Boor polygon", &mut self.draw_deboor_polygon);
+        ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
@@ -137,6 +145,16 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
         if self.draw_deboor_polygon {
             draw_polygon(
                 &self.deboor_polygon_mesh,
+                &self.shader_manager,
+                camera,
+                premul,
+                draw_type,
+            );
+        }
+
+        if self.draw_bernstein_polygon {
+            draw_polygon(
+                &self.bernstein_polygon_mesh,
                 &self.shader_manager,
                 camera,
                 premul,

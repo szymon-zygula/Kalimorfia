@@ -46,6 +46,20 @@ pub fn create_bezier_surface(
     BezierSurface::new(points)
 }
 
+pub fn create_grid(
+    points: &[Vec<usize>],
+    entities: &EntityCollection,
+    is_cylinder: bool,
+) -> PointsGrid {
+    let mut points: Vec<Vec<_>> = point_ids_to_f64(points, entities);
+
+    if is_cylinder {
+        points.push(points[0].clone());
+    }
+
+    PointsGrid::new(points)
+}
+
 pub fn draw_bezier_surface(
     mesh: &BezierSurfaceMesh,
     u_patch_divisions: u32,
@@ -87,25 +101,17 @@ pub fn draw_polygon(
     polygon_mesh.draw();
 }
 
-pub fn grid_mesh<'gl>(gl: &'gl glow::Context, bezier_surface: &PointsGrid) -> LinesMesh<'gl> {
-    let vertices = bezier_surface.flat_points();
-    let indices = (0..bezier_surface.u_points())
+pub fn grid_mesh<'gl>(gl: &'gl glow::Context, grid: &PointsGrid) -> LinesMesh<'gl> {
+    let vertices = grid.flat_points();
+    let indices = (0..grid.u_points())
         .tuple_windows()
-        .cartesian_product(0..bezier_surface.v_points())
-        .flat_map(|((u1, u2), v)| {
-            [
-                bezier_surface.flat_idx(u1, v) as u32,
-                bezier_surface.flat_idx(u2, v) as u32,
-            ]
-        })
+        .cartesian_product(0..grid.v_points())
+        .flat_map(|((u1, u2), v)| [grid.flat_idx(u1, v) as u32, grid.flat_idx(u2, v) as u32])
         .chain(
-            (0..bezier_surface.u_points())
-                .cartesian_product((0..bezier_surface.v_points()).tuple_windows())
+            (0..grid.u_points())
+                .cartesian_product((0..grid.v_points()).tuple_windows())
                 .flat_map(|(u, (v1, v2))| {
-                    [
-                        bezier_surface.flat_idx(u, v1) as u32,
-                        bezier_surface.flat_idx(u, v2) as u32,
-                    ]
+                    [grid.flat_idx(u, v1) as u32, grid.flat_idx(u, v2) as u32]
                 }),
         )
         .collect();
