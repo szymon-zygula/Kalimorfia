@@ -36,7 +36,7 @@ pub struct BezierSurfaceC0<'gl> {
     u_patch_divisions: u32,
     v_patch_divisions: u32,
 
-    is_cyllinder: bool,
+    is_cylinder: bool,
 }
 
 impl<'gl> BezierSurfaceC0<'gl> {
@@ -55,20 +55,20 @@ impl<'gl> BezierSurfaceC0<'gl> {
             gl,
             mesh: BezierSurfaceMesh::new(gl, bezier_surface.clone()),
             points,
-            bernstein_polygon_mesh: grid_mesh(gl, &bezier_surface.grid()),
+            bernstein_polygon_mesh: grid_mesh(gl, bezier_surface.grid()),
             draw_bernstein_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
-            is_cyllinder: is_cylinder,
+            is_cylinder,
         }
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
-        let bezier_surface = create_bezier_surface(&self.points, entities, self.is_cyllinder);
+        let bezier_surface = create_bezier_surface(&self.points, entities, self.is_cylinder);
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
-        self.bernstein_polygon_mesh = grid_mesh(self.gl, &bezier_surface.grid());
+        self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
     }
 }
 

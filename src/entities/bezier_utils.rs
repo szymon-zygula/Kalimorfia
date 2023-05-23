@@ -35,14 +35,12 @@ pub fn point_ids_to_f64(
 pub fn create_bezier_surface(
     points: &[Vec<usize>],
     entities: &EntityCollection,
-    is_cyllinder: bool,
+    is_cylinder: bool,
 ) -> BezierSurface {
     let mut points: Vec<Vec<_>> = point_ids_to_f64(points, entities);
 
-    if is_cyllinder {
-        for u_row in &mut points {
-            u_row.push(u_row[0]);
-        }
+    if is_cylinder {
+        points.push(points[0].clone());
     }
 
     BezierSurface::new(points)

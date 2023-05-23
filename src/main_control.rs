@@ -354,7 +354,63 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         state: &mut State,
         args: BezierSurfaceArgs,
     ) -> Vec<Vec<usize>> {
-        todo!()
+        let (u_points, v_points) = match &args {
+            BezierSurfaceArgs::Surface(surface) => (surface.x_patches + 3, surface.z_patches + 3),
+            BezierSurfaceArgs::Cylinder(cyllinder) => {
+                (cyllinder.around_patches, cyllinder.along_patches + 3)
+            }
+        };
+
+        let mut add_v_point = |u: i32, v: i32, u_row: &mut Vec<usize>| {
+            let id = self.quietly_add_point(state);
+
+            let transform = match &args {
+                BezierSurfaceArgs::Surface(surface) => {
+                    let mut transform = LinearTransformEntity::new();
+                    transform.translation = Translation::with(
+                        state.cursor.location().unwrap().coords
+                            + Vector3::new(
+                                u as f32 / (u_points - 3) as f32 * surface.x_length,
+                                0.0,
+                                v as f32 / (v_points - 3) as f32 * surface.z_length,
+                            ),
+                    );
+                    transform
+                }
+                BezierSurfaceArgs::Cylinder(cyllinder) => {
+                    let mut transform = LinearTransformEntity::new();
+                    let angle = u as f32 / u_points as f32 * std::f32::consts::PI * 2.0;
+                    transform.translation = Translation::with(
+                        state.cursor.location().unwrap().coords
+                            + Vector3::new(
+                                angle.cos() * cyllinder.radius,
+                                angle.sin() * cyllinder.radius,
+                                v as f32 / (v_points - 3) as f32 * cyllinder.length,
+                            ),
+                    );
+                    transform
+                }
+            };
+
+            self.entity_manager
+                .borrow_mut()
+                .get_entity_mut(id)
+                .set_model_transform(transform);
+
+            u_row.push(id);
+        };
+
+        let mut points: Vec<Vec<usize>> = Vec::new();
+
+        for u in 0..u_points {
+            points.push(Vec::new());
+
+            for v in 0..v_points {
+                add_v_point(u, v, &mut points[u as usize]);
+            }
+        }
+
+        points
     }
 
     fn bezier_surface_points_c0(
@@ -362,22 +418,15 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         state: &mut State,
         args: BezierSurfaceArgs,
     ) -> Vec<Vec<usize>> {
-        let mut points: Vec<Vec<usize>> = Vec::new();
-
-        let (u_patches, v_patches, v_points) = match &args {
-            BezierSurfaceArgs::Surface(surface) => (
-                surface.x_patches,
-                surface.z_patches,
-                surface.z_patches * 3 + 1,
-            ),
+        let (u_points, v_points) = match &args {
+            BezierSurfaceArgs::Surface(surface) => {
+                (surface.x_patches * 3 + 1, surface.z_patches * 3 + 1)
+            }
             BezierSurfaceArgs::Cylinder(cyllinder) => (
-                cyllinder.along_patches,
-                cyllinder.around_patches,
                 cyllinder.around_patches * 3,
+                cyllinder.along_patches * 3 + 1,
             ),
         };
-
-        let u_points = u_patches * 3 + 1;
 
         let mut add_v_point = |u: i32, v: i32, u_row: &mut Vec<usize>| {
             let id = self.quietly_add_point(state);
@@ -397,13 +446,13 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 }
                 BezierSurfaceArgs::Cylinder(cyllinder) => {
                     let mut transform = LinearTransformEntity::new();
-                    let angle = v as f32 / v_points as f32 * std::f32::consts::PI * 2.0;
+                    let angle = u as f32 / u_points as f32 * std::f32::consts::PI * 2.0;
                     transform.translation = Translation::with(
                         state.cursor.location().unwrap().coords
                             + Vector3::new(
-                                u as f32 / u_points as f32 * cyllinder.length,
-                                angle.sin() * cyllinder.radius,
                                 angle.cos() * cyllinder.radius,
+                                angle.sin() * cyllinder.radius,
+                                v as f32 / (v_points - 1) as f32 * cyllinder.length,
                             ),
                     );
                     transform
@@ -418,38 +467,14 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             u_row.push(id);
         };
 
-        for u_patch in 0..u_patches {
-            for u_inner in 0..3 {
-                let u = u_patch * 3 + u_inner;
-                points.push(Vec::new());
+        let mut points: Vec<Vec<usize>> = Vec::new();
 
-                for v_patch in 0..v_patches {
-                    for v_inner in 0..3 {
-                        let v = v_patch * 3 + v_inner;
-                        add_v_point(u, v, &mut points[u as usize]);
-                    }
-                }
+        for u in 0..u_points {
+            points.push(Vec::new());
 
-                if let BezierSurfaceArgs::Surface(..) = args {
-                    let v = v_points - 1;
-                    add_v_point(u, v, &mut points[u as usize]);
-                }
-            }
-        }
-
-        let u = u_points - 1;
-        points.push(Vec::new());
-
-        for v_patch in 0..v_patches {
-            for v_inner in 0..3 {
-                let v = v_patch * 3 + v_inner;
+            for v in 0..v_points {
                 add_v_point(u, v, &mut points[u as usize]);
             }
-        }
-
-        if let BezierSurfaceArgs::Surface(..) = args {
-            let v = v_points - 1;
-            add_v_point(u, v, &mut points[u as usize]);
         }
 
         points
@@ -504,6 +529,10 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
                         ui.input_float("Length", &mut cyllinder.length).build();
                         ui.input_float("Radius", &mut cyllinder.radius).build();
+
+                        if let Some(BezierSurfaceType::C2) = self.added_surface_type {
+                            cyllinder.around_patches = std::cmp::max(cyllinder.around_patches, 3);
+                        }
                     }
                 }
 

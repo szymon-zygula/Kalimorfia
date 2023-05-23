@@ -72,11 +72,9 @@ impl<'gl> BezierSurfaceC2<'gl> {
         let mut points = self.points.clone();
 
         if self.is_cylinder {
-            for u_row in &mut points {
-                u_row.push(u_row[0]);
-                u_row.push(u_row[1]);
-                u_row.push(u_row[2]);
-            }
+            points.push(points[0].clone());
+            points.push(points[1].clone());
+            points.push(points[2].clone());
         }
 
         points
@@ -89,7 +87,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
         let bezier_surface = BezierSurface::new(bernstein_points);
 
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
-        self.deboor_polygon_mesh = grid_mesh(self.gl, &bezier_surface.grid());
+        self.deboor_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
     }
 }
 
