@@ -21,6 +21,15 @@ pub struct BezierSurfaceMesh<'gl> {
 }
 
 impl<'gl> BezierSurfaceMesh<'gl> {
+    pub fn empty(gl: &'gl glow::Context) -> Self {
+        Self {
+            gl,
+            vertex_buffer: 0,
+            vertex_array: 0,
+            vertex_count: 0,
+        }
+    }
+
     pub fn new(gl: &'gl glow::Context, surface: BezierSurface) -> Self {
         let mut patch_vertices = Vec::new();
 

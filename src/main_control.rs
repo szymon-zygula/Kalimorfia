@@ -8,22 +8,29 @@ use kalimorfia::{
         bezier_surface_c2::BezierSurfaceC2,
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
-        entity::{Entity, ReferentialSceneEntity, SceneObject},
+        entity::{Entity, EntityCollection, ReferentialSceneEntity, SceneObject},
         interpolating_spline::InterpolatingSpline,
         manager::EntityManager,
         point::Point,
         torus::Torus,
     },
     render::shader_manager::ShaderManager,
+    repositories::NameRepository,
     ui::selector::Selector,
 };
 use nalgebra::Vector3;
 use std::{cell::RefCell, rc::Rc};
 
+enum BezierSurfaceType {
+    C0,
+    C2,
+}
+
 pub struct MainControl<'gl, 'a> {
     entity_manager: &'a RefCell<EntityManager<'gl>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     bezier_surface_args: Option<BezierSurfaceArgs>,
+    added_surface_type: Option<BezierSurfaceType>,
     gl: &'gl glow::Context,
 }
 
@@ -34,6 +41,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         gl: &'gl glow::Context,
     ) -> Self {
         Self {
+            added_surface_type: None,
             entity_manager,
             gl,
             shader_manager,
@@ -46,7 +54,15 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.selection_window(ui, state);
 
         if self.bezier_surface_args.is_some() {
-            self.bezier_surface_window(ui, state);
+            match self.added_surface_type {
+                Some(BezierSurfaceType::C0) => {
+                    self.bezier_surface_window(ui, state, BezierSurfaceC0::new)
+                }
+                Some(BezierSurfaceType::C2) => {
+                    self.bezier_surface_window(ui, state, BezierSurfaceC2::new)
+                }
+                _ => {}
+            }
         }
     }
 
@@ -190,6 +206,13 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         ui.next_column();
         if ui.button("Bezier surface C0") {
             self.bezier_surface_args = Some(BezierSurfaceArgs::new_surface());
+            self.added_surface_type = Some(BezierSurfaceType::C0);
+        }
+
+        ui.next_column();
+        if ui.button("Bezier surface C2") {
+            self.bezier_surface_args = Some(BezierSurfaceArgs::new_surface());
+            self.added_surface_type = Some(BezierSurfaceType::C2);
         }
 
         ui.next_column();
@@ -289,10 +312,26 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         state.selector.add_selectable(id);
     }
 
-    fn add_bezier_surface_c0(&self, state: &mut State, args: BezierSurfaceArgs) {
-        let points = self.bezier_surface_points(state, args);
+    fn add_bezier_surface<T: ReferentialSceneEntity<'gl> + 'gl>(
+        &self,
+        state: &mut State,
+        args: BezierSurfaceArgs,
+        surface_creator: impl FnOnce(
+            &'gl glow::Context,
+            Rc<RefCell<dyn NameRepository>>,
+            Rc<ShaderManager<'gl>>,
+            Vec<Vec<usize>>,
+            &EntityCollection<'gl>,
+            BezierSurfaceArgs,
+        ) -> T,
+    ) {
+        let points = match self.added_surface_type {
+            Some(BezierSurfaceType::C0) => self.bezier_surface_points_c0(state, args),
+            Some(BezierSurfaceType::C2) => self.bezier_surface_points_c2(state, args),
+            None => panic!("Should not happen"),
+        };
 
-        let boxed_surface = Box::new(BezierSurfaceC0::new(
+        let surface = Box::new(surface_creator(
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
@@ -301,7 +340,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             args,
         ));
 
-        let id = self.entity_manager.borrow_mut().add_entity(boxed_surface);
+        let id = self.entity_manager.borrow_mut().add_entity(surface);
 
         for &point in points.iter().flatten() {
             self.entity_manager.borrow_mut().subscribe(id, point);
@@ -310,7 +349,19 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         state.selector.add_selectable(id);
     }
 
-    fn bezier_surface_points(&self, state: &mut State, args: BezierSurfaceArgs) -> Vec<Vec<usize>> {
+    fn bezier_surface_points_c2(
+        &self,
+        state: &mut State,
+        args: BezierSurfaceArgs,
+    ) -> Vec<Vec<usize>> {
+        todo!()
+    }
+
+    fn bezier_surface_points_c0(
+        &self,
+        state: &mut State,
+        args: BezierSurfaceArgs,
+    ) -> Vec<Vec<usize>> {
         let mut points: Vec<Vec<usize>> = Vec::new();
 
         let (u_patches, v_patches, v_points) = match &args {
@@ -404,7 +455,19 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         points
     }
 
-    fn bezier_surface_window(&mut self, ui: &imgui::Ui, state: &mut State) {
+    fn bezier_surface_window<T: ReferentialSceneEntity<'gl> + 'gl>(
+        &mut self,
+        ui: &imgui::Ui,
+        state: &mut State,
+        surface_creator: impl FnMut(
+            &'gl glow::Context,
+            Rc<RefCell<dyn NameRepository>>,
+            Rc<ShaderManager<'gl>>,
+            Vec<Vec<usize>>,
+            &EntityCollection<'gl>,
+            BezierSurfaceArgs,
+        ) -> T,
+    ) {
         ui.window("Bezier surface creation")
             .size([350.0, 200.0], imgui::Condition::FirstUseEver)
             .position([300.0, 300.0], imgui::Condition::FirstUseEver)
@@ -448,7 +511,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
                 ui.columns(2, "bezier_columns", false);
                 if ui.button("Ok") {
-                    self.add_bezier_surface_c0(state, *self.bezier_surface_args.as_ref().unwrap());
+                    self.add_bezier_surface(
+                        state,
+                        *self.bezier_surface_args.as_ref().unwrap(),
+                        surface_creator,
+                    );
                     self.bezier_surface_args = None;
                 }
 

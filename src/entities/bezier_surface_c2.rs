@@ -37,7 +37,7 @@ pub struct BezierSurfaceC2<'gl> {
     u_patch_divisions: u32,
     v_patch_divisions: u32,
 
-    is_cyllinder: bool,
+    is_cylinder: bool,
 }
 
 impl<'gl> BezierSurfaceC2<'gl> {
@@ -50,26 +50,28 @@ impl<'gl> BezierSurfaceC2<'gl> {
         args: BezierSurfaceArgs,
     ) -> Self {
         let is_cylinder = matches!(args, BezierSurfaceArgs::Cylinder(..));
-        let bezier_surface = create_bezier_surface(&points, entities, is_cylinder);
-
-        Self {
+        let mut s = Self {
             gl,
-            mesh: BezierSurfaceMesh::new(gl, bezier_surface.clone()),
+            mesh: BezierSurfaceMesh::empty(gl),
+            deboor_polygon_mesh: LinesMesh::empty(gl),
             points,
-            deboor_polygon_mesh: grid_mesh(gl, &bezier_surface.grid()),
             draw_deboor_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
-            is_cyllinder: is_cylinder,
-        }
+            is_cylinder,
+        };
+
+        s.recalculate_mesh(entities);
+
+        s
     }
 
     pub fn wrapped_points(&self) -> Vec<Vec<usize>> {
         let mut points = self.points.clone();
 
-        if self.is_cyllinder {
+        if self.is_cylinder {
             for u_row in &mut points {
                 u_row.push(u_row[0]);
                 u_row.push(u_row[1]);
