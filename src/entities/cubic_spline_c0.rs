@@ -230,4 +230,12 @@ impl<'gl> NamedEntity for CubicSplineC0<'gl> {
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         self.name.name_control_ui(ui);
     }
+
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "objectType": "bezierC0",
+            "controlPoints": utils::control_points_json(&self.points),
+            "name": self.name()
+        })
+    }
 }

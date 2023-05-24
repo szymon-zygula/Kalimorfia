@@ -142,4 +142,15 @@ impl<'gl> NamedEntity for Point<'gl> {
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         self.name.name_control_ui(ui)
     }
+
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "position": {
+                "x": self.position.translation.x,
+                "y": self.position.translation.y,
+                "z": self.position.translation.z
+            },
+            "name": self.name(),
+        })
+    }
 }

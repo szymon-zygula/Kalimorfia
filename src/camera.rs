@@ -236,6 +236,16 @@ impl Camera {
             (left, right)
         })
     }
+
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "xxx": "camera"
+        })
+    }
+
+    pub fn from_json(json: serde_json::Value) -> Self {
+        Self::default()
+    }
 }
 
 impl Default for Camera {

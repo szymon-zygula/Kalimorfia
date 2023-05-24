@@ -44,4 +44,10 @@ impl NamedEntity for ChangeableName {
             ui.text("Name already taken");
         });
     }
+
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "name": self.name
+        })
+    }
 }

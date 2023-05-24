@@ -19,7 +19,7 @@ use kalimorfia::{
     ui::selector::Selector,
 };
 use nalgebra::Vector3;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, io::Write, rc::Rc};
 
 enum BezierSurfaceType {
     C0,
@@ -31,6 +31,7 @@ pub struct MainControl<'gl, 'a> {
     shader_manager: Rc<ShaderManager<'gl>>,
     bezier_surface_args: Option<BezierSurfaceArgs>,
     added_surface_type: Option<BezierSurfaceType>,
+    filepath: String,
     gl: &'gl glow::Context,
 }
 
@@ -41,6 +42,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         gl: &'gl glow::Context,
     ) -> Self {
         Self {
+            filepath: String::new(),
             added_surface_type: None,
             entity_manager,
             gl,
@@ -75,6 +77,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 self.cursor_control(ui, state);
                 ui.separator();
                 self.stereoscopy_control(ui, state);
+                ui.separator();
+                self.file_control(ui, state);
                 ui.separator();
                 self.additional_control(ui, state);
                 ui.separator();
@@ -125,6 +129,82 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             ui.slider_config("Baseline", 0.01, 0.50)
                 .flags(imgui::SliderFlags::NO_INPUT)
                 .build(&mut stereo.baseline);
+        }
+    }
+
+    fn add_ids_to_surface(
+        free_id: &mut usize,
+        obj: &mut serde_json::Map<String, serde_json::Value>,
+    ) {
+        // Strange, but is there an alternative???
+        let maybe_surface = if let Some(inside) = obj.get_mut("bezierSurfaceC0") {
+            Some(inside)
+        } else {
+            obj.get_mut("bezierSurfaceC2")
+        };
+
+        if let Some(serde_json::Value::Object(surface)) = maybe_surface {
+            let Some(serde_json::Value::Array(patches)) = surface.get_mut("patches") else {
+                        panic!("No patches in surface JSON");
+                    };
+
+            for patch in patches {
+                let serde_json::Value::Object(patch) = patch else {
+                            panic!("Error in surface JSON");
+                        };
+
+                patch.insert(String::from("id"), serde_json::json!(free_id));
+                *free_id += 1;
+            }
+        }
+    }
+
+    fn scene_json(&self, state: &State) -> serde_json::Value {
+        let mut points = Vec::new();
+        let mut others = Vec::new();
+        let mut free_id = self.entity_manager.borrow().next_id();
+
+        for &id in state.selector.selectables().keys() {
+            let manager = self.entity_manager.borrow();
+            let entity = manager.get_entity(id);
+            let mut json = entity.to_json();
+
+            if let serde_json::Value::Object(obj) = &mut json {
+                obj.insert(String::from("id"), serde_json::json!(id));
+                Self::add_ids_to_surface(&mut free_id, obj);
+            } else {
+                panic!("Something has been deserialized to something else than an object");
+            }
+
+            if entity.is_single_point() {
+                points.push(json);
+            } else {
+                others.push(json);
+            }
+        }
+
+        serde_json::json!({
+            "points": points,
+            "geometry": others
+        })
+    }
+
+    fn save_scene(&self, state: &State) {
+        let scene_json = self.scene_json(state).to_string();
+        let mut file = std::fs::File::create(&self.filepath).expect("TODO TODO TOD !!!!!");
+        file.write_all(&scene_json.into_bytes())
+            .expect("TOTODODODO");
+    }
+
+    fn file_control(&mut self, ui: &imgui::Ui, state: &mut State) {
+        ui.input_text("filepath_input", &mut self.filepath).build();
+
+        if ui.button("Save to file") {
+            self.save_scene(state);
+        }
+
+        if ui.button("Load file") {
+            state.selector.deselect_all();
         }
     }
 

@@ -257,4 +257,8 @@ impl<'gl> NamedEntity for Aggregate<'gl> {
     }
 
     fn name_control_ui(&mut self, _ui: &imgui::Ui) {}
+
+    fn to_json(&self) -> serde_json::Value {
+        unimplemented!("Aggregate should never be converted to json")
+    }
 }

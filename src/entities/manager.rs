@@ -141,4 +141,8 @@ impl<'gl> EntityManager<'gl> {
                 .unsubscribe(subscribee, &self.entities);
         }
     }
+
+    pub fn next_id(&self) -> usize {
+        self.id_counter
+    }
 }

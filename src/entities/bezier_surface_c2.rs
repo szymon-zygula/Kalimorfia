@@ -8,6 +8,7 @@ use crate::{
             ControlResult, DrawType, Drawable, EntityCollection, NamedEntity, ReferentialEntity,
             SceneObject,
         },
+        utils,
     },
     math::geometry::bezier::{deboor_surface_to_bernstein, BezierSurface},
     render::{
@@ -96,6 +97,55 @@ impl<'gl> BezierSurfaceC2<'gl> {
         let deboor_grid = create_grid(&self.points, entities, self.is_cylinder);
         self.deboor_polygon_mesh = grid_mesh(self.gl, &deboor_grid);
     }
+
+    fn u_patches(&self) -> usize {
+        if self.is_cylinder {
+            self.points.len()
+        } else {
+            self.points.len() - 3
+        }
+    }
+
+    fn v_patches(&self) -> usize {
+        self.points.first().map_or(0, |first| first.len() - 3)
+    }
+
+    fn patch_control_points(&self, patch_u: usize, patch_v: usize) -> Vec<usize> {
+        let mut points = Vec::new();
+
+        for v in 0..4 {
+            for u in 0..4 {
+                points.push(self.points[(patch_u + u) % self.points.len()][patch_v + v]);
+            }
+        }
+
+        points
+    }
+
+    fn json_patches(&self) -> Vec<serde_json::Value> {
+        let mut patches = Vec::new();
+
+        let u_patches = self.u_patches();
+        let v_patches = self.v_patches();
+
+        for patch_u in 0..u_patches {
+            for patch_v in 0..v_patches {
+                patches.push(serde_json::json!({
+                    "objectType": "bezierPatchC0",
+                    "name": "patch",
+                    "controlPoints": utils::control_points_json(
+                        &self.patch_control_points(patch_u, patch_v)
+                    ),
+                    "samples": {
+                        "x": self.u_patch_divisions,
+                        "y": self.v_patch_divisions
+                    }
+                }));
+            }
+        }
+
+        patches
+    }
 }
 
 impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
@@ -173,5 +223,21 @@ impl<'gl> NamedEntity for BezierSurfaceC2<'gl> {
 
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         self.name.name_control_ui(ui);
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "objectType": "bezierSurfaceC2",
+            "name": self.name(),
+            "patches": self.json_patches(),
+            "parameterWrapped": {
+                "u": self.is_cylinder,
+                "v": false,
+            },
+            "size": {
+                "x": self.u_patches(),
+                "y": self.v_patches(),
+            }
+        })
     }
 }

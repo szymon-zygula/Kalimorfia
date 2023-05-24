@@ -282,4 +282,12 @@ impl<'gl> NamedEntity for InterpolatingSpline<'gl> {
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         self.name.name_control_ui(ui);
     }
+
+    fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "objectType": "interpolatedC2",
+            "name": self.name(),
+            "controlPoints": utils::control_points_json(&self.points)
+        })
+    }
 }

@@ -77,3 +77,11 @@ pub fn polygon_pixel_length(points: &[usize], entities: &EntityCollection, camer
         camera,
     )
 }
+
+pub fn control_points_json(ids: &[usize]) -> serde_json::Value {
+    serde_json::Value::Array(
+        ids.iter()
+            .map(|id| serde_json::json!({ "id": id }))
+            .collect(),
+    )
+}

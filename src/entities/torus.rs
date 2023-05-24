@@ -5,7 +5,10 @@ use super::{
 };
 use crate::{
     camera::Camera,
-    math::geometry::{self, gridable::Gridable},
+    math::{
+        decompositions::tait_bryan::TaitBryanDecomposition,
+        geometry::{self, gridable::Gridable},
+    },
     primitives::color::Color,
     render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
     repositories::NameRepository,
@@ -128,5 +131,34 @@ impl<'gl> NamedEntity for Torus<'gl> {
 
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         self.name.name_control_ui(ui);
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        let decomposition =
+            TaitBryanDecomposition::decompose(&self.linear_transform.orientation.matrix());
+        serde_json::json!({
+            "objectType": "torus",
+            "position": {
+                "x": self.linear_transform.translation.translation.x,
+                "y": self.linear_transform.translation.translation.y,
+                "z": self.linear_transform.translation.translation.z
+            },
+            "rotation": {
+                "x": decomposition.x,
+                "y": decomposition.y,
+                "z": decomposition.z
+            },
+            "scale": {
+                "x": self.linear_transform.scale.scale.x,
+                "y": self.linear_transform.scale.scale.y,
+                "z": self.linear_transform.scale.scale.z
+            },
+            "samples": {
+                "x": self.round_points,
+                "y": self.tube_points
+            },
+            "smallRadius": self.torus.tube_radius,
+            "largeRadius": self.torus.inner_radius
+        })
     }
 }

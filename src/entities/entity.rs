@@ -244,6 +244,7 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
 pub trait NamedEntity {
     fn name(&self) -> String;
     fn name_control_ui(&mut self, ui: &imgui::Ui);
+    fn to_json(&self) -> serde_json::Value;
 }
 
 pub trait SceneEntity: Entity + SceneObject + Drawable + NamedEntity {}
