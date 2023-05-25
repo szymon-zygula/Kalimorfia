@@ -132,14 +132,14 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn save_scene(&self, state: &State) {
+    fn save_scene(&self, state: &State) -> Result<(), ()> {
         let scene_json = json::serialize_scene(&self.entity_manager.borrow(), state).to_string();
-        let mut file = std::fs::File::create(&self.filepath).expect("TODO TODO TOD !!!!!");
-        file.write_all(&scene_json.into_bytes())
-            .expect("TOTODODODO");
+        let mut file = std::fs::File::create(&self.filepath).map_err(|_| ())?;
+        file.write_all(&scene_json.into_bytes()).map_err(|_| ())?;
+        Ok(())
     }
 
-    fn load_scene(&mut self, state: &mut State<'gl, 'a>) {
+    fn load_scene(&mut self, state: &mut State<'gl, 'a>) -> Result<(), ()> {
         self.entity_manager.borrow_mut().reset();
         self.bezier_surface_args = None;
         self.added_surface_type = None;
@@ -149,7 +149,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             Rc::clone(&self.shader_manager),
         );
 
-        let file_contents = std::fs::read_to_string(&self.filepath).expect("TODO TODO TODO");
+        let file_contents = std::fs::read_to_string(&self.filepath).map_err(|_| ())?;
         let json = serde_json::Value::from(file_contents);
         json::deserialize_scene(
             self.gl,
@@ -158,18 +158,28 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             &mut self.entity_manager.borrow_mut(),
             state,
         );
+
+        Ok(())
     }
 
     fn file_control(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
         ui.input_text("filepath_input", &mut self.filepath).build();
 
         if ui.button("Save to file") {
-            self.save_scene(state);
+            if let Err(_) = self.save_scene(state) {
+                ui.open_popup("file_io_error");
+            }
         }
 
         if ui.button("Load file") {
-            self.load_scene(state);
+            if let Err(_) = self.load_scene(state) {
+                ui.open_popup("file_io_error");
+            }
         }
+
+        ui.popup("file_io_error", || {
+            ui.text("Error while performing file IO");
+        });
     }
 
     fn additional_control(&self, ui: &imgui::Ui, state: &mut State) {

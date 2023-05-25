@@ -1,7 +1,7 @@
 use super::{
     basic::LinearTransformEntity,
     changeable_name::ChangeableName,
-    entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject,},
+    entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject},
 };
 use crate::{
     camera::Camera,
@@ -17,12 +17,12 @@ use nalgebra::{Matrix4, Point3};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Torus<'gl> {
-    torus: geometry::torus::Torus,
+    pub torus: geometry::torus::Torus,
     mesh: LinesMesh<'gl>,
-    tube_points: u32,
-    round_points: u32,
-    linear_transform: LinearTransformEntity,
-    name: ChangeableName,
+    pub tube_points: u32,
+    pub round_points: u32,
+    pub linear_transform: LinearTransformEntity,
+    pub name: ChangeableName,
     shader_manager: Rc<ShaderManager<'gl>>,
 }
 
