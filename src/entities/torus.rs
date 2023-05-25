@@ -1,7 +1,7 @@
 use super::{
     basic::LinearTransformEntity,
     changeable_name::ChangeableName,
-    entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject},
+    entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject,},
 };
 use crate::{
     camera::Camera,

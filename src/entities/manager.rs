@@ -82,11 +82,19 @@ impl<'gl> EntityManager<'gl> {
     }
 
     pub fn add_entity(&mut self, entity: Box<dyn ReferentialSceneEntity<'gl> + 'gl>) -> usize {
+        self.add_entity_with_id(entity, self.id_counter);
         let id = self.id_counter;
         self.id_counter += 1;
+        id
+    }
+
+    pub fn add_entity_with_id(
+        &mut self,
+        entity: Box<dyn ReferentialSceneEntity<'gl> + 'gl>,
+        id: usize,
+    ) {
         self.entities.insert(id, RefCell::new(entity));
         self.subscriptions.insert(id, HashSet::new());
-        id
     }
 
     pub fn get_entity_mut(&mut self, id: usize) -> &mut dyn ReferentialSceneEntity<'gl> {
@@ -144,5 +152,11 @@ impl<'gl> EntityManager<'gl> {
 
     pub fn next_id(&self) -> usize {
         self.id_counter
+    }
+
+    pub fn reset(&mut self) {
+        self.id_counter = 0;
+        self.entities.clear();
+        self.subscriptions.clear();
     }
 }

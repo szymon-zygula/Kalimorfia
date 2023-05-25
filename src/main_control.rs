@@ -1,4 +1,4 @@
-use crate::state::State;
+use crate::{json, state::State};
 use kalimorfia::{
     camera::Stereo,
     entities::{
@@ -132,71 +132,35 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn add_ids_to_surface(
-        free_id: &mut usize,
-        obj: &mut serde_json::Map<String, serde_json::Value>,
-    ) {
-        // Strange, but is there an alternative???
-        let maybe_surface = if let Some(inside) = obj.get_mut("bezierSurfaceC0") {
-            Some(inside)
-        } else {
-            obj.get_mut("bezierSurfaceC2")
-        };
-
-        if let Some(serde_json::Value::Object(surface)) = maybe_surface {
-            let Some(serde_json::Value::Array(patches)) = surface.get_mut("patches") else {
-                        panic!("No patches in surface JSON");
-                    };
-
-            for patch in patches {
-                let serde_json::Value::Object(patch) = patch else {
-                            panic!("Error in surface JSON");
-                        };
-
-                patch.insert(String::from("id"), serde_json::json!(free_id));
-                *free_id += 1;
-            }
-        }
-    }
-
-    fn scene_json(&self, state: &State) -> serde_json::Value {
-        let mut points = Vec::new();
-        let mut others = Vec::new();
-        let mut free_id = self.entity_manager.borrow().next_id();
-
-        for &id in state.selector.selectables().keys() {
-            let manager = self.entity_manager.borrow();
-            let entity = manager.get_entity(id);
-            let mut json = entity.to_json();
-
-            if let serde_json::Value::Object(obj) = &mut json {
-                obj.insert(String::from("id"), serde_json::json!(id));
-                Self::add_ids_to_surface(&mut free_id, obj);
-            } else {
-                panic!("Something has been deserialized to something else than an object");
-            }
-
-            if entity.is_single_point() {
-                points.push(json);
-            } else {
-                others.push(json);
-            }
-        }
-
-        serde_json::json!({
-            "points": points,
-            "geometry": others
-        })
-    }
-
     fn save_scene(&self, state: &State) {
-        let scene_json = self.scene_json(state).to_string();
+        let scene_json = json::serialize_scene(&self.entity_manager.borrow(), state).to_string();
         let mut file = std::fs::File::create(&self.filepath).expect("TODO TODO TOD !!!!!");
         file.write_all(&scene_json.into_bytes())
             .expect("TOTODODODO");
     }
 
-    fn file_control(&mut self, ui: &imgui::Ui, state: &mut State) {
+    fn load_scene(&mut self, state: &mut State<'gl, 'a>) {
+        self.entity_manager.borrow_mut().reset();
+        self.bezier_surface_args = None;
+        self.added_surface_type = None;
+        *state = State::new(
+            &self.gl,
+            &self.entity_manager,
+            Rc::clone(&self.shader_manager),
+        );
+
+        let file_contents = std::fs::read_to_string(&self.filepath).expect("TODO TODO TODO");
+        let json = serde_json::Value::from(file_contents);
+        json::deserialize_scene(
+            self.gl,
+            &self.shader_manager,
+            json,
+            &mut self.entity_manager.borrow_mut(),
+            state,
+        );
+    }
+
+    fn file_control(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
         ui.input_text("filepath_input", &mut self.filepath).build();
 
         if ui.button("Save to file") {
@@ -204,7 +168,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
 
         if ui.button("Load file") {
-            state.selector.deselect_all();
+            self.load_scene(state);
         }
     }
 
