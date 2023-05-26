@@ -197,33 +197,31 @@ struct ParameterWrapped {
 #[derive(Serialize, Deserialize)]
 struct JBezierSurfaceC0 {
     #[serde(rename = "objectType")]
-    object_type: String,
-    name: String,
-    id: usize,
-    patches: Vec<JPatch>,
+    pub object_type: String,
+    pub name: String,
+    pub id: usize,
+    pub patches: Vec<JPatch>,
     #[serde(rename = "parameterWrapped")]
-    parameter_wrapped: ParameterWrapped,
-    size: XY,
+    pub parameter_wrapped: ParameterWrapped,
+    pub size: XY,
 }
 
 impl JBezierSurfaceC0 {
     pub fn control_points(&self) -> Vec<Vec<usize>> {
-        let mut points = Vec::new();
+        let u_points = self.size.x * 3 + 1;
+        let v_points = self.size.y * 3 + 1;
+        let mut points: Vec<_> = (0..u_points).map(|_| vec![0; v_points]).collect();
 
-        for u in 0..self.size.x {
-            points.push(Vec::new());
+        for u_patch in 0..self.size.x {
+            for v_patch in 0..self.size.y {
+                for u in 0..4 {
+                    for v in 0..4 {
+                        let patch_idx: usize = v_patch * self.size.x + u_patch;
+                        let point_idx: usize = v * 4 + u;
 
-            for v in 0..(self.size.y - 1) {
-                let patch_u = u / 3;
-                let patch_v = v / 3;
-                let patch_idx = patch_v * self.size.y + patch_u;
-                let local_u = u % 3;
-                let local_v = v % 3;
-                let point_idx = local_v * 4 + local_u;
-                points
-                    .last_mut()
-                    .unwrap()
-                    .push(self.patches[patch_idx].control_points[point_idx].id);
+                        points[u][v] = self.patches[patch_idx].control_points[point_idx].id;
+                    }
+                }
             }
         }
 
@@ -246,6 +244,10 @@ impl JBezierSurfaceC0 {
                 z_patches: self.size.y as i32,
             })
         }
+    }
+
+    pub fn sampling(&self) -> XY {
+        self.patches[0].samples
     }
 }
 
@@ -284,6 +286,10 @@ impl JBezierSurfaceC2 {
                 z_patches: self.size.y as i32,
             })
         }
+    }
+
+    pub fn sampling(&self) -> XY {
+        self.patches[0].samples
     }
 }
 
@@ -418,18 +424,22 @@ pub fn deserialize_scene<'gl>(
                 spline
             }
             "bezierSurfaceC0" => {
-                let surface: JBezierSurfaceC0 =
+                let jsurface: JBezierSurfaceC0 =
                     serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points = surface.control_points();
+                let points = jsurface.control_points();
 
-                let surface = Box::new(BezierSurfaceC0::new(
+                let mut surface = Box::new(BezierSurfaceC0::new(
                     gl,
                     Rc::clone(&state.name_repo),
                     Rc::clone(&shader_manager),
                     points.clone(),
                     entity_manager.entities(),
-                    surface.args(),
+                    jsurface.args(),
                 ));
+
+                let sampling = jsurface.sampling();
+                surface.u_patch_divisions = sampling.x as u32;
+                surface.v_patch_divisions = sampling.y as u32;
 
                 for &point in points.iter().flatten() {
                     entity_manager.subscribe(id, point);
@@ -438,18 +448,22 @@ pub fn deserialize_scene<'gl>(
                 surface
             }
             "bezierSurfaceC2" => {
-                let surface: JBezierSurfaceC2 =
+                let jsurface: JBezierSurfaceC2 =
                     serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points = surface.control_points();
+                let points = jsurface.control_points();
 
-                let surface = Box::new(BezierSurfaceC2::new(
+                let mut surface = Box::new(BezierSurfaceC2::new(
                     gl,
                     Rc::clone(&state.name_repo),
                     Rc::clone(&shader_manager),
                     points.clone(),
                     entity_manager.entities(),
-                    surface.args(),
+                    jsurface.args(),
                 ));
+
+                let sampling = jsurface.sampling();
+                surface.u_patch_divisions = sampling.x as u32;
+                surface.v_patch_divisions = sampling.y as u32;
 
                 for &point in points.iter().flatten() {
                     entity_manager.subscribe(id, point);
