@@ -347,7 +347,7 @@ pub fn deserialize_scene<'gl>(
     let serde_json::Value::Object(obj) = json else { return Err(()); };
     let Some(serde_json::Value::Array(geometry)) = obj.get("geometry") else { return Err(()); };
     let Some(serde_json::Value::Array(points)) = obj.get("points") else { return Err(()); };
-    let mut max_id = entity_manager.next_id() - 1;
+    let mut max_id = entity_manager.next_id() as isize - 1;
 
     let Some(camera) = obj.get("camera") else { return Err(()); };
     camera_json(&mut state.camera, camera.clone())?;
@@ -356,7 +356,7 @@ pub fn deserialize_scene<'gl>(
         let serde_json::Value::Object(point) = point else { return Err(()); };
         let Some(serde_json::Value::Number(id)) = point.get("id") else { return Err(()); };
         let id = id.as_u64().ok_or(())? as usize;
-        max_id = max_id.max(id);
+        max_id = max_id.max(id as isize);
         let Some(position) = point.get("position") else { return Err(()); };
         let position: Xyz = serde_json::from_value(position.clone()).map_err(|_| ())?;
 
@@ -376,7 +376,7 @@ pub fn deserialize_scene<'gl>(
         let Some(serde_json::Value::String(type_)) = object.get("objectType") else { return Err(()); };
         let Some(serde_json::Value::Number(id)) = object.get("id") else { return Err(()); };
         let id = id.as_u64().ok_or(())? as usize;
-        max_id = max_id.max(id);
+        max_id = max_id.max(id as isize);
 
         match type_.as_str() {
             "torus" => {
@@ -409,7 +409,7 @@ pub fn deserialize_scene<'gl>(
         state.selector.add_selectable(id);
     }
 
-    entity_manager.set_next_id(max_id + 1);
+    entity_manager.set_next_id((max_id + 1) as usize);
 
     Ok(())
 }

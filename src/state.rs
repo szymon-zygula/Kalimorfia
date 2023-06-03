@@ -22,17 +22,11 @@ impl<'gl, 'a> State<'gl, 'a> {
         shader_manager: Rc<ShaderManager<'gl>>,
     ) -> Self {
         let selected_aggregate_id =
-            entity_manager
-                .borrow_mut()
-                .add_entity(Box::new(Aggregate::new(
-                    gl,
-                    &mut ExactNameRepository::new(),
-                    Rc::clone(&shader_manager),
-                )));
+            Self::create_aggregate(gl, entity_manager, Rc::clone(&shader_manager));
 
         State {
             camera: Camera::new(),
-            cursor: ScreenCursor::new(gl, Camera::new(), Rc::clone(&shader_manager)),
+            cursor: ScreenCursor::new(gl, Camera::new(), shader_manager),
             name_repo: Rc::new(RefCell::new(UniqueNameRepository::new())),
             selector: Self::new_selector(entity_manager, selected_aggregate_id),
             selected_aggregate_id,
@@ -74,19 +68,26 @@ impl<'gl, 'a> State<'gl, 'a> {
         entity_manager: &'a RefCell<EntityManager<'gl>>,
         shader_manager: Rc<ShaderManager<'gl>>,
     ) {
-        self.selected_aggregate_id =
-            entity_manager
-                .borrow_mut()
-                .add_entity(Box::new(Aggregate::new(
-                    gl,
-                    &mut ExactNameRepository::new(),
-                    shader_manager,
-                )));
+        self.selected_aggregate_id = Self::create_aggregate(gl, entity_manager, shader_manager);
 
         let old_res = self.camera.resolution;
         self.camera = Camera::new();
         self.camera.resolution = old_res;
         self.name_repo = Rc::new(RefCell::new(UniqueNameRepository::new()));
         self.selector = Self::new_selector(entity_manager, self.selected_aggregate_id);
+    }
+
+    fn create_aggregate(
+        gl: &'gl glow::Context,
+        entity_manager: &'a RefCell<EntityManager<'gl>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
+    ) -> usize {
+        entity_manager
+            .borrow_mut()
+            .add_special_entity(Box::new(Aggregate::new(
+                gl,
+                &mut ExactNameRepository::new(),
+                shader_manager,
+            )))
     }
 }

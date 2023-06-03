@@ -9,13 +9,21 @@ use std::{
 #[derive(Default)]
 pub struct EntityManager<'gl> {
     id_counter: usize,
+    special_id_counter: usize,
     entities: EntityCollection<'gl>,
     subscriptions: HashMap<usize, HashSet<usize>>,
 }
 
 impl<'gl> EntityManager<'gl> {
+    const SPECIAL_ID_START: usize = usize::MAX / 2;
+
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            id_counter: 0,
+            special_id_counter: Self::SPECIAL_ID_START,
+            entities: EntityCollection::new(),
+            subscriptions: HashMap::new(),
+        }
     }
 
     pub fn control_referential_ui(&mut self, controller_id: usize, ui: &imgui::Ui) {
@@ -85,6 +93,16 @@ impl<'gl> EntityManager<'gl> {
         self.add_entity_with_id(entity, self.id_counter);
         let id = self.id_counter;
         self.id_counter += 1;
+        id
+    }
+
+    pub fn add_special_entity(
+        &mut self,
+        entity: Box<dyn ReferentialSceneEntity<'gl> + 'gl>,
+    ) -> usize {
+        self.add_entity_with_id(entity, self.special_id_counter);
+        let id = self.special_id_counter;
+        self.special_id_counter += 1;
         id
     }
 
