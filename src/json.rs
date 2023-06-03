@@ -21,26 +21,23 @@ use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 
 fn add_ids_to_surface(free_id: &mut usize, obj: &mut serde_json::Map<String, serde_json::Value>) {
-    // Strange, but is there an alternative???
-    let maybe_surface = if let Some(inside) = obj.get_mut("bezierSurfaceC0") {
-        Some(inside)
-    } else {
-        obj.get_mut("bezierSurfaceC2")
+    let Some(serde_json::Value::String(object_type)) = obj.get("objectType") else { return; };
+
+    if object_type != "bezierSurfaceC0" && object_type != "bezierSurfaceC2" {
+        return;
+    }
+
+    let Some(serde_json::Value::Array(patches)) = obj.get_mut("patches") else {
+        panic!("No patches in surface JSON");
     };
 
-    if let Some(serde_json::Value::Object(surface)) = maybe_surface {
-        let Some(serde_json::Value::Array(patches)) = surface.get_mut("patches") else {
-                    panic!("No patches in surface JSON");
-                };
+    for patch in patches {
+        let serde_json::Value::Object(patch) = patch else {
+            panic!("Error in surface JSON");
+        };
 
-        for patch in patches {
-            let serde_json::Value::Object(patch) = patch else {
-                        panic!("Error in surface JSON");
-                    };
-
-            patch.insert(String::from("id"), serde_json::json!(free_id));
-            *free_id += 1;
-        }
+        patch.insert(String::from("id"), serde_json::json!(free_id));
+        *free_id += 1;
     }
 }
 

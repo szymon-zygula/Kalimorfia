@@ -45,7 +45,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             filepath: std::env::current_dir()
                 .map(|p| String::from(p.to_str().unwrap_or("/")))
                 .unwrap_or(String::from("/"))
-                + "/file.json",
+                + "/file1.json",
             added_surface_type: None,
             entity_manager,
             gl,

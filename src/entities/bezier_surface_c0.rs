@@ -102,8 +102,8 @@ impl<'gl> BezierSurfaceC0<'gl> {
         let u_patches = self.u_patches();
         let v_patches = self.v_patches();
 
-        for patch_u in 0..u_patches {
-            for patch_v in 0..v_patches {
+        for patch_v in 0..v_patches {
+            for patch_u in 0..u_patches {
                 patches.push(serde_json::json!({
                     "objectType": "bezierPatchC0",
                     "name": "patch",
