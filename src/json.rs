@@ -305,7 +305,7 @@ pub fn deserialize_scene<'gl>(
     shader_manager: &Rc<ShaderManager<'gl>>,
     json: serde_json::Value,
     entity_manager: &mut EntityManager<'gl>,
-    state: &mut State,
+    state: &mut State<'gl, '_>,
 ) -> Result<(), ()> {
     let serde_json::Value::Object(obj) = json else { return Err(()); };
     let Some(serde_json::Value::Array(geometry)) = obj.get("geometry") else { return Err(()); };
@@ -336,126 +336,27 @@ pub fn deserialize_scene<'gl>(
         let id = id.as_u64().ok_or(())? as usize;
 
         let entity: Box<dyn ReferentialSceneEntity<'gl>> = match type_.as_str() {
-            "torus" => {
-                let jtorus: JTorus = serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let mut torus = Box::new(Torus::new(
-                    gl,
-                    Rc::clone(&state.name_repo),
-                    Rc::clone(shader_manager),
-                ));
-
-                let mut tref = &mut torus.as_mut();
-                let mut trans = &mut tref.linear_transform;
-                trans.translation = jtorus.position.translation();
-                trans.orientation = jtorus.rotation.rotation();
-                trans.scale = jtorus.scale.scale();
-                trans.shear = jtorus.shear.map_or(
-                    Shear {
-                        xy: 0.0,
-                        xz: 0.0,
-                        yz: 0.0,
-                    },
-                    |s| s.shear(),
-                );
-
-                tref.torus.inner_radius = jtorus.large_radius as f64;
-                tref.torus.tube_radius = jtorus.small_radius as f64;
-                tref.tube_points = jtorus.samples.x as u32;
-                tref.round_points = jtorus.samples.y as u32;
-
-                torus
-            }
+            "torus" => torus_from_json(gl, state, shader_manager, geom.clone())?,
             "bezierC0" => {
-                let spline: JBezierC0 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points: Vec<_> = spline.control_points.iter().map(|p| p.id).collect();
-                let spline = Box::new(CubicSplineC0::through_points(
-                    gl,
-                    Rc::clone(&state.name_repo),
-                    Rc::clone(&shader_manager),
-                    points.clone(),
-                    entity_manager.entities(),
-                ));
-
-                for point in points {
-                    entity_manager.subscribe(id, point);
-                }
-
-                spline
+                bezier_c0_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
             }
             "bezierC2" => {
-                let spline: JBezierC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points: Vec<_> = spline.de_boor_points.iter().map(|p| p.id).collect();
-                let spline = Box::new(CubicSplineC2::through_points(
-                    gl,
-                    Rc::clone(&state.name_repo),
-                    Rc::clone(&shader_manager),
-                    points.clone(),
-                    entity_manager.entities(),
-                ));
-
-                for point in points {
-                    entity_manager.subscribe(id, point);
-                }
-
-                spline
+                bezier_c2_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
             }
-            "interpolatedC2" => {
-                let spline: JInterpolatedC2 =
-                    serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points: Vec<_> = spline.control_points.iter().map(|p| p.id).collect();
-                let spline = Box::new(InterpolatingSpline::through_points(
-                    gl,
-                    Rc::clone(&state.name_repo),
-                    Rc::clone(&shader_manager),
-                    points.clone(),
-                    entity_manager.entities(),
-                ));
-
-                for point in points {
-                    entity_manager.subscribe(id, point);
-                }
-
-                spline
-            }
+            "interpolatedC2" => interpolating_from_json(
+                gl,
+                id,
+                state,
+                shader_manager,
+                entity_manager,
+                geom.clone(),
+            )?,
             "bezierSurfaceC0" => {
-                let surface: JBezierSurfaceC0 =
-                    serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points = surface.control_points();
-
-                let surface = Box::new(BezierSurfaceC0::new(
-                    gl,
-                    Rc::clone(&state.name_repo),
-                    Rc::clone(&shader_manager),
-                    points.clone(),
-                    entity_manager.entities(),
-                    surface.args(),
-                ));
-
-                for &point in points.iter().flatten() {
-                    entity_manager.subscribe(id, point);
-                }
-
-                surface
+                surface_c0_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
             }
+
             "bezierSurfaceC2" => {
-                let surface: JBezierSurfaceC2 =
-                    serde_json::from_value(geom.clone()).map_err(|_| ())?;
-                let points = surface.control_points();
-
-                let surface = Box::new(BezierSurfaceC2::new(
-                    gl,
-                    Rc::clone(&state.name_repo),
-                    Rc::clone(&shader_manager),
-                    points.clone(),
-                    entity_manager.entities(),
-                    surface.args(),
-                ));
-
-                for &point in points.iter().flatten() {
-                    entity_manager.subscribe(id, point);
-                }
-
-                surface
+                surface_c2_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
             }
             _ => return Err(()),
         };
@@ -465,4 +366,168 @@ pub fn deserialize_scene<'gl>(
     }
 
     Ok(())
+}
+
+fn torus_from_json<'gl>(
+    gl: &'gl glow::Context,
+    state: &State<'gl, '_>,
+    shader_manager: &Rc<ShaderManager<'gl>>,
+    geom: serde_json::Value,
+) -> Result<Box<Torus<'gl>>, ()> {
+    let jtorus: JTorus = serde_json::from_value(geom).map_err(|_| ())?;
+    let mut torus = Box::new(Torus::new(
+        gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(shader_manager),
+    ));
+
+    let mut tref = &mut torus.as_mut();
+    let mut trans = &mut tref.linear_transform;
+    trans.translation = jtorus.position.translation();
+    trans.orientation = jtorus.rotation.rotation();
+    trans.scale = jtorus.scale.scale();
+    trans.shear = jtorus.shear.map_or(
+        Shear {
+            xy: 0.0,
+            xz: 0.0,
+            yz: 0.0,
+        },
+        |s| s.shear(),
+    );
+
+    tref.torus.inner_radius = jtorus.large_radius as f64;
+    tref.torus.tube_radius = jtorus.small_radius as f64;
+    tref.tube_points = jtorus.samples.x as u32;
+    tref.round_points = jtorus.samples.y as u32;
+
+    Ok(torus)
+}
+
+fn bezier_c0_from_json<'gl>(
+    gl: &'gl glow::Context,
+    id: usize,
+    state: &State<'gl, '_>,
+    shader_manager: &Rc<ShaderManager<'gl>>,
+    entity_manager: &mut EntityManager<'gl>,
+    geom: serde_json::Value,
+) -> Result<Box<CubicSplineC0<'gl>>, ()> {
+    let spline: JBezierC0 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+    let points: Vec<_> = spline.control_points.iter().map(|p| p.id).collect();
+    let spline = Box::new(CubicSplineC0::through_points(
+        gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(&shader_manager),
+        points.clone(),
+        entity_manager.entities(),
+    ));
+
+    for point in points {
+        entity_manager.subscribe(id, point);
+    }
+
+    Ok(spline)
+}
+
+fn bezier_c2_from_json<'gl>(
+    gl: &'gl glow::Context,
+    id: usize,
+    state: &State<'gl, '_>,
+    shader_manager: &Rc<ShaderManager<'gl>>,
+    entity_manager: &mut EntityManager<'gl>,
+    geom: serde_json::Value,
+) -> Result<Box<CubicSplineC2<'gl>>, ()> {
+    let spline: JBezierC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+    let points: Vec<_> = spline.de_boor_points.iter().map(|p| p.id).collect();
+    let spline = Box::new(CubicSplineC2::through_points(
+        gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(&shader_manager),
+        points.clone(),
+        entity_manager.entities(),
+    ));
+
+    for point in points {
+        entity_manager.subscribe(id, point);
+    }
+
+    Ok(spline)
+}
+
+fn interpolating_from_json<'gl>(
+    gl: &'gl glow::Context,
+    id: usize,
+    state: &State<'gl, '_>,
+    shader_manager: &Rc<ShaderManager<'gl>>,
+    entity_manager: &mut EntityManager<'gl>,
+    geom: serde_json::Value,
+) -> Result<Box<InterpolatingSpline<'gl>>, ()> {
+    let spline: JInterpolatedC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+    let points: Vec<_> = spline.control_points.iter().map(|p| p.id).collect();
+    let spline = Box::new(InterpolatingSpline::through_points(
+        gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(&shader_manager),
+        points.clone(),
+        entity_manager.entities(),
+    ));
+
+    for point in points {
+        entity_manager.subscribe(id, point);
+    }
+
+    Ok(spline)
+}
+
+fn surface_c0_from_json<'gl>(
+    gl: &'gl glow::Context,
+    id: usize,
+    state: &State<'gl, '_>,
+    shader_manager: &Rc<ShaderManager<'gl>>,
+    entity_manager: &mut EntityManager<'gl>,
+    geom: serde_json::Value,
+) -> Result<Box<BezierSurfaceC0<'gl>>, ()> {
+    let surface: JBezierSurfaceC0 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+    let points = surface.control_points();
+
+    let surface = Box::new(BezierSurfaceC0::new(
+        gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(&shader_manager),
+        points.clone(),
+        entity_manager.entities(),
+        surface.args(),
+    ));
+
+    for &point in points.iter().flatten() {
+        entity_manager.subscribe(id, point);
+    }
+
+    Ok(surface)
+}
+
+fn surface_c2_from_json<'gl>(
+    gl: &'gl glow::Context,
+    id: usize,
+    state: &State<'gl, '_>,
+    shader_manager: &Rc<ShaderManager<'gl>>,
+    entity_manager: &mut EntityManager<'gl>,
+    geom: serde_json::Value,
+) -> Result<Box<BezierSurfaceC2<'gl>>, ()> {
+    let surface: JBezierSurfaceC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+    let points = surface.control_points();
+
+    let surface = Box::new(BezierSurfaceC2::new(
+        gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(&shader_manager),
+        points.clone(),
+        entity_manager.entities(),
+        surface.args(),
+    ));
+
+    for &point in points.iter().flatten() {
+        entity_manager.subscribe(id, point);
+    }
+
+    Ok(surface)
 }
