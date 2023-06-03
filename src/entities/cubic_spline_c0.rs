@@ -231,6 +231,10 @@ impl<'gl> NamedEntity for CubicSplineC0<'gl> {
         self.name.name_control_ui(ui);
     }
 
+    fn set_similar_name(&mut self, name: &str) {
+        self.name.set_similar_name(name)
+    }
+
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
             "objectType": "bezierC0",

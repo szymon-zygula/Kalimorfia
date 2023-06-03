@@ -137,6 +137,10 @@ impl<'gl> NamedEntity for Torus<'gl> {
         self.name.name_control_ui(ui);
     }
 
+    fn set_similar_name(&mut self, name: &str) {
+        self.name.set_similar_name(name)
+    }
+
     fn to_json(&self) -> serde_json::Value {
         let decomposition =
             TaitBryanDecomposition::decompose(&self.linear_transform.orientation.matrix());

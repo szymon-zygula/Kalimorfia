@@ -256,6 +256,10 @@ impl<'gl> NamedEntity for Aggregate<'gl> {
         self.name.clone()
     }
 
+    fn set_similar_name(&mut self, name: &str) {
+        self.name = String::from(name);
+    }
+
     fn name_control_ui(&mut self, _ui: &imgui::Ui) {}
 
     fn to_json(&self) -> serde_json::Value {

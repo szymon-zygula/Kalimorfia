@@ -139,7 +139,7 @@ struct PointRef {
 struct JTorus {
     #[serde(rename = "objectType")]
     object_type: String,
-    name: String,
+    name: Option<String>,
     id: usize,
     position: Xyz,
     rotation: Xyz,
@@ -156,7 +156,7 @@ struct JTorus {
 struct JBezierC0 {
     #[serde(rename = "objectType")]
     object_type: String,
-    name: String,
+    name: Option<String>,
     id: usize,
     #[serde(rename = "controlPoints")]
     control_points: Vec<PointRef>,
@@ -166,7 +166,7 @@ struct JBezierC0 {
 struct JBezierC2 {
     #[serde(rename = "objectType")]
     object_type: String,
-    name: String,
+    name: Option<String>,
     id: usize,
     #[serde(rename = "deBoorPoints")]
     de_boor_points: Vec<PointRef>,
@@ -176,7 +176,7 @@ struct JBezierC2 {
 struct JInterpolatedC2 {
     #[serde(rename = "objectType")]
     object_type: String,
-    name: String,
+    name: Option<String>,
     id: usize,
     #[serde(rename = "controlPoints")]
     control_points: Vec<PointRef>,
@@ -186,7 +186,7 @@ struct JInterpolatedC2 {
 struct JPatch {
     #[serde(rename = "objectType")]
     object_type: String,
-    name: String,
+    name: Option<String>,
     id: usize,
     #[serde(rename = "controlPoints")]
     control_points: [PointRef; 16],
@@ -203,7 +203,7 @@ struct ParameterWrapped {
 struct JBezierSurfaceC0 {
     #[serde(rename = "objectType")]
     pub object_type: String,
-    pub name: String,
+    pub name: Option<String>,
     pub id: usize,
     pub patches: Vec<JPatch>,
     #[serde(rename = "parameterWrapped")]
@@ -267,7 +267,7 @@ impl JBezierSurfaceC0 {
 struct JBezierSurfaceC2 {
     #[serde(rename = "objectType")]
     object_type: String,
-    name: String,
+    name: Option<String>,
     id: usize,
     patches: Vec<JPatch>,
     #[serde(rename = "parameterWrapped")]
@@ -337,6 +337,20 @@ struct JCamera {
     pub rotation: Xyf,
 }
 
+impl JCamera {
+    fn new() -> Self {
+        Self {
+            focus_point: Xyz {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            distance: 1.0,
+            rotation: Xyf { x: 0.0, y: 0.0 },
+        }
+    }
+}
+
 pub fn deserialize_scene<'gl>(
     gl: &'gl glow::Context,
     shader_manager: &Rc<ShaderManager<'gl>>,
@@ -349,8 +363,8 @@ pub fn deserialize_scene<'gl>(
     let Some(serde_json::Value::Array(points)) = obj.get("points") else { return Err(()); };
     let mut max_id = entity_manager.next_id() as isize - 1;
 
-    let Some(camera) = obj.get("camera") else { return Err(()); };
-    camera_json(&mut state.camera, camera.clone())?;
+    let camera = obj.get("camera");
+    camera_json(&mut state.camera, camera)?;
 
     for point in points {
         let serde_json::Value::Object(point) = point else { return Err(()); };
@@ -407,6 +421,10 @@ pub fn deserialize_scene<'gl>(
         };
 
         state.selector.add_selectable(id);
+
+        if let Some(serde_json::Value::String(name)) = object.get("name") {
+            entity_manager.get_entity_mut(id).set_similar_name(name);
+        }
     }
 
     entity_manager.set_next_id((max_id + 1) as usize);
@@ -600,8 +618,12 @@ fn surface_c2_from_json<'gl>(
     Ok(())
 }
 
-fn camera_json(camera: &mut Camera, json: serde_json::Value) -> Result<(), ()> {
-    let jcamera: JCamera = serde_json::from_value(json).map_err(|_| ())?;
+fn camera_json(camera: &mut Camera, json: Option<&serde_json::Value>) -> Result<(), ()> {
+    let jcamera: JCamera = match json {
+        None => JCamera::new(),
+        Some(json) => serde_json::from_value(json.clone()).map_err(|_| ())?,
+    };
+
     camera.set_linear_distance(jcamera.distance);
     camera.center = jcamera.focus_point.point();
     camera.altitude = jcamera.rotation.x;

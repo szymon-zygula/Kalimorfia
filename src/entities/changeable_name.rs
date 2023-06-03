@@ -24,6 +24,19 @@ impl NamedEntity for ChangeableName {
         self.name.clone()
     }
 
+    fn set_similar_name(&mut self, name: &str) {
+        let name_res = self.name_repo.borrow_mut().take_name(name);
+
+        let new_name = if let Ok(new_name) = name_res {
+            new_name
+        } else {
+            self.name_repo.borrow_mut().generate_name(name)
+        };
+
+        self.name = new_name.clone();
+        self.rename = new_name;
+    }
+
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         ui.input_text("Name", &mut self.rename).build();
 

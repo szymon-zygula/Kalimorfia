@@ -221,6 +221,10 @@ impl<'gl> NamedEntity for BezierSurfaceC2<'gl> {
         self.name.name()
     }
 
+    fn set_similar_name(&mut self, name: &str) {
+        self.name.set_similar_name(name)
+    }
+
     fn name_control_ui(&mut self, ui: &imgui::Ui) {
         self.name.name_control_ui(ui);
     }
