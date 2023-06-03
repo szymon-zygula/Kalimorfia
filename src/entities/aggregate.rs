@@ -231,6 +231,25 @@ impl<'gl> ReferentialEntity<'gl> for Aggregate<'gl> {
         self.update_cursor_position(remaining);
     }
 
+    fn notify_about_reindexing(
+        &mut self,
+        changes: &HashMap<usize, usize>,
+        entities: &EntityCollection<'gl>,
+    ) {
+        for (old_id, new_id) in changes {
+            if self.entities.contains(old_id) {
+                self.entities.remove(old_id);
+                self.entities.insert(*new_id);
+
+                if let Some(transform) = self.original_transforms.remove(old_id) {
+                    self.original_transforms.insert(*new_id, transform);
+                }
+            }
+        }
+
+        self.update_cursor_position(entities);
+    }
+
     fn subscribe(&mut self, subscribee: usize, entities: &EntityCollection<'gl>) {
         self.entities.insert(subscribee);
         if entities[&subscribee].borrow().location().is_some() {

@@ -202,6 +202,20 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC0<'gl> {
         self.points.retain(|id| !deleted.contains(id));
         self.recalculate_mesh(remaining);
     }
+
+    fn notify_about_reindexing(
+        &mut self,
+        changes: &HashMap<usize, usize>,
+        entities: &EntityCollection<'gl>,
+    ) {
+        for old_id in &mut self.points {
+            if let Some(&new_id) = changes.get(old_id) {
+                *old_id = new_id;
+            }
+        }
+
+        self.recalculate_mesh(entities);
+    }
 }
 
 impl<'gl> ReferentialDrawable<'gl> for CubicSplineC0<'gl> {

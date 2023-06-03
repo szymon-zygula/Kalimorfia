@@ -44,6 +44,10 @@ impl<'gl> Point<'gl> {
     pub fn size(&self) -> f32 {
         self.size
     }
+
+    pub fn set_position(&mut self, new_position: Vector3<f32>) {
+        self.position.translation = new_position;
+    }
 }
 
 impl<'gl> Entity for Point<'gl> {
@@ -131,6 +135,10 @@ impl<'gl> SceneObject for Point<'gl> {
 
     fn as_point(&self) -> Option<&Point> {
         Some(self)
+    }
+
+    fn map_point_mut(&mut self, mut map: Box<dyn FnMut(&mut Point)>) {
+        map(self)
     }
 }
 

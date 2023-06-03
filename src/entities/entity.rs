@@ -43,6 +43,13 @@ pub trait ReferentialEntity<'gl> {
     ) {
     }
 
+    fn notify_about_reindexing(
+        &mut self,
+        _changes: &HashMap<usize, usize>,
+        _entities: &EntityCollection<'gl>,
+    ) {
+    }
+
     fn subscribe(&mut self, _subscribees: usize, _entities: &EntityCollection<'gl>) {}
 
     fn unsubscribe(&mut self, _subscribees: usize, _entities: &EntityCollection<'gl>) {}
@@ -145,6 +152,8 @@ pub trait SceneObject {
     fn as_point(&self) -> Option<&Point> {
         None
     }
+
+    fn map_point_mut(&mut self, mut _map: Box<dyn FnMut(&mut Point)>) {}
 }
 
 pub trait ReferentialSceneObject<'gl> {
@@ -190,6 +199,8 @@ pub trait ReferentialSceneObject<'gl> {
     fn as_point(&self) -> Option<&Point> {
         None
     }
+
+    fn map_point_mut(&mut self, mut _map: Box<dyn FnMut(&mut Point)>) {}
 }
 
 impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
@@ -238,6 +249,10 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
 
     fn as_point(&self) -> Option<&Point> {
         self.as_point()
+    }
+
+    fn map_point_mut(&mut self, map: Box<dyn FnMut(&mut Point)>) {
+        self.map_point_mut(map)
     }
 }
 

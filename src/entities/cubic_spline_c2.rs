@@ -296,6 +296,21 @@ impl<'gl> ReferentialEntity<'gl> for CubicSplineC2<'gl> {
         self.recalculate_bspline(remaining);
         self.recalculate_mesh();
     }
+
+    fn notify_about_reindexing(
+        &mut self,
+        changes: &HashMap<usize, usize>,
+        entities: &EntityCollection<'gl>,
+    ) {
+        for old_id in &mut self.points {
+            if let Some(&new_id) = changes.get(old_id) {
+                *old_id = new_id;
+            }
+        }
+
+        self.recalculate_bspline(entities);
+        self.recalculate_mesh();
+    }
 }
 
 impl<'gl> Drawable for CubicSplineC2<'gl> {

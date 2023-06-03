@@ -151,6 +151,20 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
         // Refuse deletion of any subscribed point
         false
     }
+
+    fn notify_about_reindexing(
+        &mut self,
+        changes: &HashMap<usize, usize>,
+        entities: &EntityCollection<'gl>,
+    ) {
+        for old_id in self.points.iter_mut().flatten() {
+            if let Some(&new_id) = changes.get(old_id) {
+                *old_id = new_id;
+            }
+        }
+
+        self.recalculate_mesh(entities);
+    }
 }
 
 impl<'gl> Drawable for BezierSurfaceC0<'gl> {

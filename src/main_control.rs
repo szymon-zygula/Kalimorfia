@@ -191,8 +191,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.select_deselect_all(ui, state);
         ui.next_column();
         self.remove_selected(ui, state);
+        self.merge_points(ui, state);
         ui.next_column();
         self.select_children(ui, state);
+        ui.next_column();
+        ui.columns(1, "additional columns clear", false);
     }
 
     fn select_deselect_all(&self, ui: &imgui::Ui, state: &mut State) {
@@ -203,6 +206,23 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         if ui.button("Deselect all") {
             state.selector.deselect_all();
         }
+    }
+
+    fn merge_points(&self, ui: &imgui::Ui, state: &mut State) {
+        if !ui.button("Merge selected points") {
+            return;
+        }
+
+        let points = state
+            .selector
+            .selected()
+            .iter()
+            .copied()
+            .filter(|&e| self.entity_manager.borrow().get_entity(e).is_single_point())
+            .collect();
+
+        self.entity_manager.borrow_mut().merge_points(points);
+        state.selector.deselect_all();
     }
 
     fn remove_selected(&self, ui: &imgui::Ui, state: &mut State) {

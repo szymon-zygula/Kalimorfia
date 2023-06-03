@@ -1,6 +1,6 @@
 use super::entity::{DrawType, EntityCollection, ReferentialSceneEntity};
 use crate::camera::Camera;
-use nalgebra::{Matrix4, Point2};
+use nalgebra::{Matrix4, Point2, Vector3};
 use std::{
     cell::{Ref, RefCell},
     collections::{HashMap, HashSet},
@@ -129,6 +129,47 @@ impl<'gl> EntityManager<'gl> {
 
     pub fn entities(&self) -> &EntityCollection<'gl> {
         &self.entities
+    }
+
+    pub fn merge_points(&mut self, ids: Vec<usize>) {
+        if ids.is_empty() {
+            return;
+        }
+
+        let mut position_sum = Vector3::zeros();
+        let count = ids.len() as f32;
+
+        for id in &ids {
+            position_sum += self.entities()[id]
+                .borrow()
+                .location()
+                .expect("non point passed to `merge_points`")
+                .coords;
+        }
+
+        let position_average = position_sum / count;
+        self.get_entity_mut(ids[0])
+            .map_point_mut(Box::new(move |p| p.set_position(position_average)));
+
+        let reindexing = ids.iter().skip(1).map(|&p| (p, ids[0])).collect();
+        let ids_hashset: HashSet<usize> = ids.iter().copied().collect();
+
+        for (key, entity) in &self.entities {
+            if self.subscriptions[key].intersection(&ids_hashset).count() != 0 {
+                entity
+                    .borrow_mut()
+                    .notify_about_reindexing(&reindexing, &self.entities);
+            }
+        }
+
+        for subscriptions in self.subscriptions.values_mut() {
+            for (old, new) in &reindexing {
+                if subscriptions.contains(old) {
+                    subscriptions.remove(old);
+                    subscriptions.insert(*new);
+                }
+            }
+        }
     }
 
     pub fn set_ndc(&self, id: usize, position: &Point2<f32>, camera: &Camera) {
