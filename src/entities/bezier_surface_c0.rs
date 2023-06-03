@@ -34,8 +34,8 @@ pub struct BezierSurfaceC0<'gl> {
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
 
-    u_patch_divisions: u32,
-    v_patch_divisions: u32,
+    pub u_patch_divisions: u32,
+    pub v_patch_divisions: u32,
 
     is_cylinder: bool,
 }
