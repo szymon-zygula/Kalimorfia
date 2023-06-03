@@ -45,7 +45,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             filepath: std::env::current_dir()
                 .map(|p| String::from(p.to_str().unwrap_or("/")))
                 .unwrap_or(String::from("/"))
-                + "/file1.json",
+                + "/file.json",
             added_surface_type: None,
             entity_manager,
             gl,
@@ -187,9 +187,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     }
 
     fn additional_control(&self, ui: &imgui::Ui, state: &mut State) {
+        ui.columns(3, "additional columns", false);
         self.select_deselect_all(ui, state);
         ui.next_column();
         self.remove_selected(ui, state);
+        ui.next_column();
+        self.select_children(ui, state);
     }
 
     fn select_deselect_all(&self, ui: &imgui::Ui, state: &mut State) {
@@ -232,6 +235,23 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         ui.popup("not_all_removed", || {
             ui.text("Some removals were blocked by other entities");
         });
+    }
+
+    fn select_children(&self, ui: &imgui::Ui, state: &mut State) {
+        if !ui.button("Select children") {
+            return;
+        }
+
+        for selected in state.selector.selected() {
+            let subscriptions = self
+                .entity_manager
+                .borrow()
+                .subscriptions_of(selected)
+                .clone();
+            for subscribee in subscriptions {
+                state.selector.select(subscribee);
+            }
+        }
     }
 
     fn object_creation(&mut self, ui: &imgui::Ui, state: &mut State) {

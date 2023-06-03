@@ -211,14 +211,6 @@ struct JBezierSurfaceC0 {
     pub size: Xy,
 }
 
-#[derive(Serialize, Deserialize)]
-struct JCamera {
-    #[serde(rename = "focusPoint")]
-    pub focus_point: Xyz,
-    pub distance: f32,
-    pub rotation: Xyf,
-}
-
 impl JBezierSurfaceC0 {
     pub fn control_points(&self) -> Vec<Vec<usize>> {
         let u_points = self.size.x * 3 + 1;
@@ -239,6 +231,10 @@ impl JBezierSurfaceC0 {
                     }
                 }
             }
+        }
+
+        if self.parameter_wrapped.u {
+            points.pop();
         }
 
         points
@@ -301,6 +297,12 @@ impl JBezierSurfaceC2 {
             }
         }
 
+        if self.parameter_wrapped.u {
+            points.pop();
+            points.pop();
+            points.pop();
+        }
+
         points
     }
 
@@ -325,6 +327,14 @@ impl JBezierSurfaceC2 {
     pub fn sampling(&self) -> Xy {
         self.patches[0].samples
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct JCamera {
+    #[serde(rename = "focusPoint")]
+    pub focus_point: Xyz,
+    pub distance: f32,
+    pub rotation: Xyf,
 }
 
 pub fn deserialize_scene<'gl>(

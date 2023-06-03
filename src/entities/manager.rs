@@ -150,6 +150,10 @@ impl<'gl> EntityManager<'gl> {
         }
     }
 
+    pub fn subscriptions_of(&self, id: usize) -> &HashSet<usize> {
+        &self.subscriptions[&id]
+    }
+
     pub fn next_id(&self) -> usize {
         self.id_counter
     }
