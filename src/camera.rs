@@ -61,6 +61,10 @@ impl Camera {
         self.log_distance.exp()
     }
 
+    pub fn set_linear_distance(&mut self, linear_distance: f32) {
+        self.log_distance = linear_distance.ln();
+    }
+
     fn point_visible_with_tolerance(&self, point: &Point3<f32>, tolerance: f32) -> bool {
         Point3::from_homogeneous(
             self.projection_transform() * self.view_transform() * point.to_homogeneous(),
@@ -239,12 +243,17 @@ impl Camera {
 
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
-            "xxx": "camera"
+            "focusPoint": {
+                "x": self.center.x,
+                "y": self.center.y,
+                "z": self.center.z,
+            },
+            "distance": self.linear_distance(),
+            "rotation": {
+                "x": self.altitude,
+                "y": self.azimuth
+            }
         })
-    }
-
-    pub fn from_json(json: serde_json::Value) -> Self {
-        Self::default()
     }
 }
 

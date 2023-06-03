@@ -159,4 +159,8 @@ impl<'gl> EntityManager<'gl> {
         self.entities.clear();
         self.subscriptions.clear();
     }
+
+    pub fn set_next_id(&mut self, next_id: usize) {
+        self.id_counter = next_id;
+    }
 }

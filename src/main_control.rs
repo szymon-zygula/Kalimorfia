@@ -19,7 +19,7 @@ use kalimorfia::{
     ui::selector::Selector,
 };
 use nalgebra::Vector3;
-use std::{cell::RefCell, io::Write, rc::Rc};
+use std::{cell::RefCell, io::Write, rc::Rc, str::FromStr};
 
 enum BezierSurfaceType {
     C0,
@@ -42,7 +42,10 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         gl: &'gl glow::Context,
     ) -> Self {
         Self {
-            filepath: String::new(),
+            filepath: std::env::current_dir()
+                .map(|p| String::from(p.to_str().unwrap_or("/")))
+                .unwrap_or(String::from("/"))
+                + "/file.json",
             added_surface_type: None,
             entity_manager,
             gl,
@@ -51,7 +54,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    pub fn build_ui(&mut self, ui: &mut imgui::Ui, state: &mut State<'gl, '_>) {
+    pub fn build_ui(&mut self, ui: &mut imgui::Ui, state: &mut State<'gl, 'a>) {
         self.main_control_window(ui, state);
         self.selection_window(ui, state);
 
@@ -68,7 +71,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn main_control_window(&mut self, ui: &imgui::Ui, state: &mut State) {
+    fn main_control_window(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
         ui.window("Main control")
             .size([500.0, 550.0], imgui::Condition::FirstUseEver)
             .position([0.0, 0.0], imgui::Condition::FirstUseEver)
@@ -139,42 +142,43 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         Ok(())
     }
 
-    fn load_scene(&mut self, state: &mut State<'gl, 'a>) -> Result<(), ()> {
+    fn reset_scene(&mut self, state: &mut State<'gl, 'a>) {
         self.entity_manager.borrow_mut().reset();
         self.bezier_surface_args = None;
         self.added_surface_type = None;
-        *state = State::new(
-            &self.gl,
-            &self.entity_manager,
+        state.reset(
+            self.gl,
+            self.entity_manager,
             Rc::clone(&self.shader_manager),
         );
+    }
+
+    fn load_scene(&mut self, state: &mut State<'gl, 'a>) -> Result<(), ()> {
+        self.reset_scene(state);
 
         let file_contents = std::fs::read_to_string(&self.filepath).map_err(|_| ())?;
-        let json = serde_json::Value::from(file_contents);
+        let json = serde_json::Value::from_str(&file_contents).map_err(|_| ())?;
         json::deserialize_scene(
             self.gl,
             &self.shader_manager,
             json,
             &mut self.entity_manager.borrow_mut(),
             state,
-        );
+        )?;
 
         Ok(())
     }
 
     fn file_control(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
-        ui.input_text("filepath_input", &mut self.filepath).build();
+        ui.input_text("Filepath", &mut self.filepath).build();
 
-        if ui.button("Save to file") {
-            if let Err(_) = self.save_scene(state) {
-                ui.open_popup("file_io_error");
-            }
+        if ui.button("Save to file") && self.save_scene(state).is_err() {
+            ui.open_popup("file_io_error");
         }
 
-        if ui.button("Load file") {
-            if let Err(_) = self.load_scene(state) {
-                ui.open_popup("file_io_error");
-            }
+        if ui.button("Load file") && self.load_scene(state).is_err() {
+            self.reset_scene(state);
+            ui.open_popup("file_io_error");
         }
 
         ui.popup("file_io_error", || {

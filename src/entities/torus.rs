@@ -61,6 +61,11 @@ impl<'gl> Torus<'gl> {
         torus.linear_transform.translation.translation = position.coords;
         torus
     }
+
+    pub fn regenerate_mesh(&mut self) {
+        let (vertices, indices) = self.torus.grid(self.round_points, self.tube_points);
+        self.mesh.update_vertices(vertices, indices);
+    }
 }
 
 macro_rules! safe_slider {
@@ -84,8 +89,7 @@ impl<'gl> Entity for Torus<'gl> {
         ui.separator();
 
         if torus_changed {
-            let (vertices, indices) = self.torus.grid(self.round_points, self.tube_points);
-            self.mesh.update_vertices(vertices, indices);
+            self.regenerate_mesh();
         }
 
         torus_changed
@@ -158,7 +162,8 @@ impl<'gl> NamedEntity for Torus<'gl> {
                 "y": self.tube_points
             },
             "smallRadius": self.torus.tube_radius,
-            "largeRadius": self.torus.inner_radius
+            "largeRadius": self.torus.inner_radius,
+            "name": self.name()
         })
     }
 }

@@ -2,13 +2,12 @@ use crate::state::State;
 use kalimorfia::{
     camera::Camera,
     entities::{
-        basic::{LinearTransformEntity, Orientation, Scale, Shear, Translation},
+        basic::{Orientation, Scale, Shear, Translation},
         bezier_surface_args::{BezierCylinderArgs, BezierFlatSurfaceArgs, BezierSurfaceArgs},
         bezier_surface_c0::BezierSurfaceC0,
         bezier_surface_c2::BezierSurfaceC2,
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
-        entity::ReferentialSceneEntity,
         interpolating_spline::InterpolatingSpline,
         manager::EntityManager,
         point::Point,
@@ -46,6 +45,7 @@ fn add_ids_to_surface(free_id: &mut usize, obj: &mut serde_json::Map<String, ser
 }
 
 pub fn serialize_scene(entity_manager: &EntityManager, state: &State) -> serde_json::Value {
+    let camera = state.camera.to_json();
     let mut points = Vec::new();
     let mut others = Vec::new();
     let mut free_id = entity_manager.next_id();
@@ -70,19 +70,20 @@ pub fn serialize_scene(entity_manager: &EntityManager, state: &State) -> serde_j
     }
 
     serde_json::json!({
+        "camera": camera,
         "points": points,
         "geometry": others
     })
 }
 
 #[derive(Serialize, Deserialize)]
-struct XYZ {
+struct Xyz {
     x: f32,
     y: f32,
     z: f32,
 }
 
-impl XYZ {
+impl Xyz {
     pub fn point(&self) -> Point3<f32> {
         Point3::new(self.x, self.y, self.z)
     }
@@ -121,13 +122,13 @@ impl XYZ {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
-struct XY {
+struct Xy {
     x: usize,
     y: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
-struct XYf {
+struct Xyf {
     x: f32,
     y: f32,
 }
@@ -143,11 +144,11 @@ struct JTorus {
     object_type: String,
     name: String,
     id: usize,
-    position: XYZ,
-    rotation: XYZ,
-    scale: XYZ,
-    shear: Option<XYZ>,
-    samples: XY,
+    position: Xyz,
+    rotation: Xyz,
+    scale: Xyz,
+    shear: Option<Xyz>,
+    samples: Xy,
     #[serde(rename = "smallRadius")]
     small_radius: f32,
     #[serde(rename = "largeRadius")]
@@ -192,7 +193,7 @@ struct JPatch {
     id: usize,
     #[serde(rename = "controlPoints")]
     control_points: [PointRef; 16],
-    samples: XY,
+    samples: Xy,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -210,15 +211,15 @@ struct JBezierSurfaceC0 {
     pub patches: Vec<JPatch>,
     #[serde(rename = "parameterWrapped")]
     pub parameter_wrapped: ParameterWrapped,
-    pub size: XY,
+    pub size: Xy,
 }
 
 #[derive(Serialize, Deserialize)]
 struct JCamera {
-    #[serde(rename = "focus_point")]
-    pub focus_point: XYZ,
+    #[serde(rename = "focusPoint")]
+    pub focus_point: Xyz,
     pub distance: f32,
-    pub rotation: XYf,
+    pub rotation: Xyf,
 }
 
 impl JBezierSurfaceC0 {
@@ -264,7 +265,7 @@ impl JBezierSurfaceC0 {
         }
     }
 
-    pub fn sampling(&self) -> XY {
+    pub fn sampling(&self) -> Xy {
         self.patches[0].samples
     }
 }
@@ -278,7 +279,7 @@ struct JBezierSurfaceC2 {
     patches: Vec<JPatch>,
     #[serde(rename = "parameterWrapped")]
     parameter_wrapped: ParameterWrapped,
-    size: XY,
+    size: Xy,
 }
 
 impl JBezierSurfaceC2 {
@@ -324,22 +325,9 @@ impl JBezierSurfaceC2 {
         }
     }
 
-    pub fn sampling(&self) -> XY {
+    pub fn sampling(&self) -> Xy {
         self.patches[0].samples
     }
-}
-
-pub fn deserialize_position(json: serde_json::Value) -> Result<XYZ, ()> {
-    let serde_json::Value::Object(position) = json else { return Err(()); };
-    let Some(serde_json::Value::Number(x)) = position.get("x") else { return Err(()); };
-    let Some(serde_json::Value::Number(y)) = position.get("y") else { return Err(()); };
-    let Some(serde_json::Value::Number(z)) = position.get("z") else { return Err(()); };
-
-    Ok(XYZ {
-        x: x.as_f64().ok_or(())? as f32,
-        y: y.as_f64().ok_or(())? as f32,
-        z: z.as_f64().ok_or(())? as f32,
-    })
 }
 
 pub fn deserialize_scene<'gl>(
@@ -352,19 +340,24 @@ pub fn deserialize_scene<'gl>(
     let serde_json::Value::Object(obj) = json else { return Err(()); };
     let Some(serde_json::Value::Array(geometry)) = obj.get("geometry") else { return Err(()); };
     let Some(serde_json::Value::Array(points)) = obj.get("points") else { return Err(()); };
+    let mut max_id = entity_manager.next_id() - 1;
+
+    let Some(camera) = obj.get("camera") else { return Err(()); };
+    camera_json(&mut state.camera, camera.clone())?;
 
     for point in points {
         let serde_json::Value::Object(point) = point else { return Err(()); };
         let Some(serde_json::Value::Number(id)) = point.get("id") else { return Err(()); };
         let id = id.as_u64().ok_or(())? as usize;
+        max_id = max_id.max(id);
         let Some(position) = point.get("position") else { return Err(()); };
-        let position: XYZ = serde_json::from_value(position.clone()).map_err(|_| ())?;
+        let position: Xyz = serde_json::from_value(position.clone()).map_err(|_| ())?;
 
         let point = Box::new(Point::with_position(
             gl,
             Point3::new(position.x, position.y, position.z),
             Rc::clone(&state.name_repo),
-            Rc::clone(&shader_manager),
+            Rc::clone(shader_manager),
         ));
 
         entity_manager.add_entity_with_id(point, id);
@@ -373,12 +366,15 @@ pub fn deserialize_scene<'gl>(
 
     for geom in geometry {
         let serde_json::Value::Object(object) = geom else { return Err(()); };
-        let Some(serde_json::Value::String(type_)) = object.get("type") else { return Err(()); };
+        let Some(serde_json::Value::String(type_)) = object.get("objectType") else { return Err(()); };
         let Some(serde_json::Value::Number(id)) = object.get("id") else { return Err(()); };
         let id = id.as_u64().ok_or(())? as usize;
+        max_id = max_id.max(id);
 
-        let entity: Box<dyn ReferentialSceneEntity<'gl>> = match type_.as_str() {
-            "torus" => torus_from_json(gl, state, shader_manager, geom.clone())?,
+        match type_.as_str() {
+            "torus" => {
+                torus_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
+            }
             "bezierC0" => {
                 bezier_c0_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
             }
@@ -403,19 +399,22 @@ pub fn deserialize_scene<'gl>(
             _ => return Err(()),
         };
 
-        entity_manager.add_entity_with_id(entity, id);
         state.selector.add_selectable(id);
     }
+
+    entity_manager.set_next_id(max_id + 1);
 
     Ok(())
 }
 
 fn torus_from_json<'gl>(
     gl: &'gl glow::Context,
+    id: usize,
     state: &State<'gl, '_>,
     shader_manager: &Rc<ShaderManager<'gl>>,
+    entity_manager: &mut EntityManager<'gl>,
     geom: serde_json::Value,
-) -> Result<Box<Torus<'gl>>, ()> {
+) -> Result<(), ()> {
     let jtorus: JTorus = serde_json::from_value(geom).map_err(|_| ())?;
     let mut torus = Box::new(Torus::new(
         gl,
@@ -439,10 +438,12 @@ fn torus_from_json<'gl>(
 
     tref.torus.inner_radius = jtorus.large_radius as f64;
     tref.torus.tube_radius = jtorus.small_radius as f64;
-    tref.tube_points = jtorus.samples.x as u32;
-    tref.round_points = jtorus.samples.y as u32;
+    tref.round_points = jtorus.samples.x as u32;
+    tref.tube_points = jtorus.samples.y as u32;
+    tref.regenerate_mesh();
 
-    Ok(torus)
+    entity_manager.add_entity_with_id(torus, id);
+    Ok(())
 }
 
 fn bezier_c0_from_json<'gl>(
@@ -452,22 +453,24 @@ fn bezier_c0_from_json<'gl>(
     shader_manager: &Rc<ShaderManager<'gl>>,
     entity_manager: &mut EntityManager<'gl>,
     geom: serde_json::Value,
-) -> Result<Box<CubicSplineC0<'gl>>, ()> {
-    let spline: JBezierC0 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+) -> Result<(), ()> {
+    let spline: JBezierC0 = serde_json::from_value(geom).map_err(|_| ())?;
     let points: Vec<_> = spline.control_points.iter().map(|p| p.id).collect();
     let spline = Box::new(CubicSplineC0::through_points(
         gl,
         Rc::clone(&state.name_repo),
-        Rc::clone(&shader_manager),
+        Rc::clone(shader_manager),
         points.clone(),
         entity_manager.entities(),
     ));
+
+    entity_manager.add_entity_with_id(spline, id);
 
     for point in points {
         entity_manager.subscribe(id, point);
     }
 
-    Ok(spline)
+    Ok(())
 }
 
 fn bezier_c2_from_json<'gl>(
@@ -477,22 +480,24 @@ fn bezier_c2_from_json<'gl>(
     shader_manager: &Rc<ShaderManager<'gl>>,
     entity_manager: &mut EntityManager<'gl>,
     geom: serde_json::Value,
-) -> Result<Box<CubicSplineC2<'gl>>, ()> {
-    let spline: JBezierC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+) -> Result<(), ()> {
+    let spline: JBezierC2 = serde_json::from_value(geom).map_err(|_| ())?;
     let points: Vec<_> = spline.de_boor_points.iter().map(|p| p.id).collect();
     let spline = Box::new(CubicSplineC2::through_points(
         gl,
         Rc::clone(&state.name_repo),
-        Rc::clone(&shader_manager),
+        Rc::clone(shader_manager),
         points.clone(),
         entity_manager.entities(),
     ));
+
+    entity_manager.add_entity_with_id(spline, id);
 
     for point in points {
         entity_manager.subscribe(id, point);
     }
 
-    Ok(spline)
+    Ok(())
 }
 
 fn interpolating_from_json<'gl>(
@@ -502,22 +507,24 @@ fn interpolating_from_json<'gl>(
     shader_manager: &Rc<ShaderManager<'gl>>,
     entity_manager: &mut EntityManager<'gl>,
     geom: serde_json::Value,
-) -> Result<Box<InterpolatingSpline<'gl>>, ()> {
-    let spline: JInterpolatedC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+) -> Result<(), ()> {
+    let spline: JInterpolatedC2 = serde_json::from_value(geom).map_err(|_| ())?;
     let points: Vec<_> = spline.control_points.iter().map(|p| p.id).collect();
     let spline = Box::new(InterpolatingSpline::through_points(
         gl,
         Rc::clone(&state.name_repo),
-        Rc::clone(&shader_manager),
+        Rc::clone(shader_manager),
         points.clone(),
         entity_manager.entities(),
     ));
+
+    entity_manager.add_entity_with_id(spline, id);
 
     for point in points {
         entity_manager.subscribe(id, point);
     }
 
-    Ok(spline)
+    Ok(())
 }
 
 fn surface_c0_from_json<'gl>(
@@ -527,14 +534,14 @@ fn surface_c0_from_json<'gl>(
     shader_manager: &Rc<ShaderManager<'gl>>,
     entity_manager: &mut EntityManager<'gl>,
     geom: serde_json::Value,
-) -> Result<Box<BezierSurfaceC0<'gl>>, ()> {
-    let jsurface: JBezierSurfaceC0 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+) -> Result<(), ()> {
+    let jsurface: JBezierSurfaceC0 = serde_json::from_value(geom).map_err(|_| ())?;
     let points = jsurface.control_points();
 
     let mut surface = Box::new(BezierSurfaceC0::new(
         gl,
         Rc::clone(&state.name_repo),
-        Rc::clone(&shader_manager),
+        Rc::clone(shader_manager),
         points.clone(),
         entity_manager.entities(),
         jsurface.args(),
@@ -544,11 +551,13 @@ fn surface_c0_from_json<'gl>(
     surface.u_patch_divisions = sampling.x as u32;
     surface.v_patch_divisions = sampling.y as u32;
 
+    entity_manager.add_entity_with_id(surface, id);
+
     for &point in points.iter().flatten() {
         entity_manager.subscribe(id, point);
     }
 
-    Ok(surface)
+    Ok(())
 }
 
 fn surface_c2_from_json<'gl>(
@@ -558,14 +567,14 @@ fn surface_c2_from_json<'gl>(
     shader_manager: &Rc<ShaderManager<'gl>>,
     entity_manager: &mut EntityManager<'gl>,
     geom: serde_json::Value,
-) -> Result<Box<BezierSurfaceC2<'gl>>, ()> {
-    let jsurface: JBezierSurfaceC2 = serde_json::from_value(geom.clone()).map_err(|_| ())?;
+) -> Result<(), ()> {
+    let jsurface: JBezierSurfaceC2 = serde_json::from_value(geom).map_err(|_| ())?;
     let points = jsurface.control_points();
 
     let mut surface = Box::new(BezierSurfaceC2::new(
         gl,
         Rc::clone(&state.name_repo),
-        Rc::clone(&shader_manager),
+        Rc::clone(shader_manager),
         points.clone(),
         entity_manager.entities(),
         jsurface.args(),
@@ -575,20 +584,21 @@ fn surface_c2_from_json<'gl>(
     surface.u_patch_divisions = sampling.x as u32;
     surface.v_patch_divisions = sampling.y as u32;
 
+    entity_manager.add_entity_with_id(surface, id);
+
     for &point in points.iter().flatten() {
         entity_manager.subscribe(id, point);
     }
 
-    Ok(surface)
+    Ok(())
 }
 
-fn camera_json(json: serde_json::Value) -> Result<Camera, ()> {
+fn camera_json(camera: &mut Camera, json: serde_json::Value) -> Result<(), ()> {
     let jcamera: JCamera = serde_json::from_value(json).map_err(|_| ())?;
-    let mut camera = Camera::new();
     camera.set_linear_distance(jcamera.distance);
     camera.center = jcamera.focus_point.point();
     camera.altitude = jcamera.rotation.x;
     camera.azimuth = jcamera.rotation.y;
 
-    Ok(camera)
+    Ok(())
 }

@@ -156,4 +156,9 @@ impl<'a> Selector<'a> {
             true
         }
     }
+
+    pub fn reset(&mut self) {
+        self.selectables.clear();
+        self.last_remove_info = None;
+    }
 }
