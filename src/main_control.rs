@@ -56,6 +56,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
     pub fn build_ui(&mut self, ui: &mut imgui::Ui, state: &mut State<'gl, 'a>) {
         self.main_control_window(ui, state);
+        self.entities_window(ui, state);
         self.selection_window(ui, state);
 
         if self.bezier_surface_args.is_some() {
@@ -73,7 +74,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
     fn main_control_window(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
         ui.window("Main control")
-            .size([500.0, 550.0], imgui::Condition::FirstUseEver)
+            .size([500.0, 400.0], imgui::Condition::FirstUseEver)
             .position([0.0, 0.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 ui.separator();
@@ -86,6 +87,14 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 self.additional_control(ui, state);
                 ui.separator();
                 self.object_creation(ui, state);
+            });
+    }
+
+    fn entities_window(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
+        ui.window("Entities")
+            .size([500.0, 300.0], imgui::Condition::FirstUseEver)
+            .position([0.0, 400.0], imgui::Condition::FirstUseEver)
+            .build(|| {
                 ui.separator();
                 state.selector.control_ui(ui, self.entity_manager);
             });
@@ -95,7 +104,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         let _token = ui.push_id("selection_window");
         ui.window("Selection")
             .size([500.0, 300.0], imgui::Condition::FirstUseEver)
-            .position([0.0, 550.0], imgui::Condition::FirstUseEver)
+            .position([0.0, 700.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 ui.separator();
                 self.entity_manager
