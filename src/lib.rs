@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod constants;
 pub mod entities;
+pub mod graph;
 pub mod math;
 pub mod mouse;
 pub mod primitives;

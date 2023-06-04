@@ -14,6 +14,7 @@ use kalimorfia::{
         point::Point,
         torus::Torus,
     },
+    graph::C0EdgeGraph,
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
     ui::selector::Selector,
@@ -320,6 +321,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         if ui.button("Bezier surface C2") {
             self.bezier_surface_args = Some(BezierSurfaceArgs::new_surface());
             self.added_surface_type = Some(BezierSurfaceType::C2);
+        }
+
+        ui.next_column();
+        if ui.button("Gregory patch") {
+            self.add_gregory_patch(state);
         }
 
         ui.next_column();
@@ -663,6 +669,23 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 ui.next_column();
                 ui.columns(1, "clear_columns", false);
             });
+    }
+
+    fn add_gregory_patch(&self, state: &mut State) {
+        let selected_surface_ids: Vec<_> = state
+            .selector
+            .selected()
+            .iter()
+            .filter_map(|(id, e)| e.borrow().as_c0_surface().and(Some(id)))
+            .collect();
+
+        let triangles = C0EdgeGraph::new(
+            self.entity_manager.borrow().entities(),
+            &selected_surface_ids,
+        )
+        .find_triangles();
+
+        println!("{:?}", triangles);
     }
 
     fn selected_points(&self, selector: &Selector) -> Vec<usize> {

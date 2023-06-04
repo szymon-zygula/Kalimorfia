@@ -9,6 +9,7 @@ pub mod cubic_spline_c0;
 pub mod cubic_spline_c2;
 pub mod cursor;
 pub mod entity;
+pub mod gregory_patch;
 pub mod interpolating_spline;
 pub mod manager;
 pub mod point;

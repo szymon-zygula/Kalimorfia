@@ -1,4 +1,4 @@
-use super::{basic::LinearTransformEntity, point::Point};
+use super::{basic::LinearTransformEntity, point::Point, bezier_surface_c0::BezierSurfaceC0};
 use crate::camera::Camera;
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
@@ -154,6 +154,10 @@ pub trait SceneObject {
     }
 
     fn map_point_mut(&mut self, mut _map: Box<dyn FnMut(&mut Point)>) {}
+
+    fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
+        None
+    }
 }
 
 pub trait ReferentialSceneObject<'gl> {
@@ -201,6 +205,10 @@ pub trait ReferentialSceneObject<'gl> {
     }
 
     fn map_point_mut(&mut self, mut _map: Box<dyn FnMut(&mut Point)>) {}
+
+    fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
+        None
+    }
 }
 
 impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
@@ -253,6 +261,10 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
 
     fn map_point_mut(&mut self, map: Box<dyn FnMut(&mut Point)>) {
         self.map_point_mut(map)
+    }
+
+    fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
+        self.as_c0_surface()
     }
 }
 

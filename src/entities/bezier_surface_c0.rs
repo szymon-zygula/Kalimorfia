@@ -1,4 +1,5 @@
 use crate::{
+    graph::C0Edge,
     camera::Camera,
     entities::{
         bezier_surface_args::*,
@@ -120,6 +121,34 @@ impl<'gl> BezierSurfaceC0<'gl> {
 
         patches
     }
+
+    pub fn patch_edges(&self) -> Vec<C0Edge> {
+        let u_patches = self.u_patches();
+        let v_patches = self.v_patches();
+
+        let edges = Vec::new();
+
+        // v = 0
+        for u in 0..u_patches {
+            let patch_points = self.patch_control_points(u, 0);
+        }
+
+        // u = 1
+        for v in 0..v_patches {
+
+        }
+
+        // u = 1
+        for u in 0..u_patches {
+
+        }
+
+        for v in 0..u_patches {
+
+        }
+
+        edges
+    }
 }
 
 impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
@@ -132,7 +161,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
     ) -> ControlResult {
         let _token = ui.push_id("c0_surface_control");
         self.name_control_ui(ui);
-        ui.checkbox("Draw De Boor polygon", &mut self.draw_bernstein_polygon);
+        ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
@@ -191,7 +220,11 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
     }
 }
 
-impl<'gl> SceneObject for BezierSurfaceC0<'gl> {}
+impl<'gl> SceneObject for BezierSurfaceC0<'gl> {
+    fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
+        Some(self)
+    }
+}
 
 impl<'gl> NamedEntity for BezierSurfaceC0<'gl> {
     fn name(&self) -> String {
