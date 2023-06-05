@@ -1,5 +1,4 @@
 use crate::{
-    graph::C0Edge,
     camera::Camera,
     entities::{
         bezier_surface_args::*,
@@ -11,6 +10,7 @@ use crate::{
         },
         utils,
     },
+    graph::C0Edge,
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
@@ -122,29 +122,77 @@ impl<'gl> BezierSurfaceC0<'gl> {
         patches
     }
 
+    ///
+    /// *+++     &***
+    /// *  #  => &  +
+    /// *  #  => &  +
+    /// &&&#     ###+
+    ///
+    fn rotate_patch(patch: &[[usize; 4]; 4]) -> [[usize; 4]; 4] {
+        [
+            [patch[3][0], patch[2][0], patch[1][0], patch[0][0]],
+            [patch[3][1], patch[2][1], patch[1][1], patch[0][1]],
+            [patch[3][2], patch[2][2], patch[1][2], patch[0][2]],
+            [patch[3][3], patch[2][3], patch[1][3], patch[0][3]],
+        ]
+    }
+
+    fn patch(&self, patch_u: usize, patch_v: usize) -> [[usize; 4]; 4] {
+        let u = patch_u * 3;
+        let v = patch_v * 3;
+
+        [
+            [
+                self.points[u][v],
+                self.points[u][v + 1],
+                self.points[u][v + 2],
+                self.points[u][v + 3],
+            ],
+            [
+                self.points[u + 1][v],
+                self.points[u + 1][v + 1],
+                self.points[u + 1][v + 2],
+                self.points[u + 1][v + 3],
+            ],
+            [
+                self.points[u + 2][v],
+                self.points[u + 2][v + 1],
+                self.points[u + 2][v + 2],
+                self.points[u + 2][v + 3],
+            ],
+            [
+                self.points[u + 3][v],
+                self.points[u + 3][v + 1],
+                self.points[u + 3][v + 2],
+                self.points[u + 3][v + 3],
+            ],
+        ]
+    }
+
     pub fn patch_edges(&self) -> Vec<C0Edge> {
         let u_patches = self.u_patches();
         let v_patches = self.v_patches();
 
-        let edges = Vec::new();
+        let mut edges = Vec::new();
 
-        // v = 0
-        for u in 0..u_patches {
-            let patch_points = self.patch_control_points(u, 0);
-        }
-
-        // u = 1
         for v in 0..v_patches {
-
+            edges.push(C0Edge::new(self.patch(0, v)));
         }
 
-        // u = 1
         for u in 0..u_patches {
-
+            let patch = Self::rotate_patch(&self.patch(u, v_patches - 1));
+            edges.push(C0Edge::new(patch));
         }
 
-        for v in 0..u_patches {
+        for v in 0..v_patches {
+            let patch = Self::rotate_patch(&Self::rotate_patch(&self.patch(u_patches - 1, v)));
+            edges.push(C0Edge::new(patch));
+        }
 
+        for u in 0..u_patches {
+            let patch =
+                Self::rotate_patch(&Self::rotate_patch(&Self::rotate_patch(&self.patch(u, 0))));
+            edges.push(C0Edge::new(patch));
         }
 
         edges

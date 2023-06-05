@@ -672,11 +672,13 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     }
 
     fn add_gregory_patch(&self, state: &mut State) {
+        let entity_manager = self.entity_manager.borrow();
+
         let selected_surface_ids: Vec<_> = state
             .selector
             .selected()
             .iter()
-            .filter_map(|(id, e)| e.borrow().as_c0_surface().and(Some(id)))
+            .filter_map(|&id| entity_manager.get_entity(id).as_c0_surface().and(Some(id)))
             .collect();
 
         let triangles = C0EdgeGraph::new(

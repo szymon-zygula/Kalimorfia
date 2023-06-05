@@ -8,6 +8,7 @@ pub struct C0EdgeGraph {
 
 impl C0EdgeGraph {
     pub fn new(entities: &EntityCollection, selected: &[usize]) -> Self {
+        // TODO: remove edges which are present multiple times (not just ends, but whole curves
         Self {
             edges: selected
                 .iter()
@@ -19,6 +20,11 @@ impl C0EdgeGraph {
                         .as_c0_surface()
                         .unwrap()
                         .patch_edges()
+                })
+                .filter(|e| {
+                    // Filter degenerate loop-edges
+                    let (a, b) = e.endpoints();
+                    a != b
                 })
                 .collect(),
         }
@@ -37,16 +43,19 @@ impl C0EdgeGraph {
         &self.edges
     }
 
-    pub fn oriented_edge(&self, vertex1: usize, vertex2: usize) -> Option<C0Edge> {
-        self.edges.iter().find_map(|e| {
-            let endpoints = e.endpoints();
+    pub fn oriented_edges(&self, vertex0: usize, vertex1: usize) -> Vec<C0Edge> {
+        self.edges
+            .iter()
+            .filter_map(|e| {
+                let endpoints = e.endpoints();
 
-            (endpoints.0 == vertex1 && endpoints.1 == vertex2)
-                .then_some(e.clone())
-                .or_else(|| {
-                    (endpoints.0 == vertex2 && endpoints.1 == vertex1).then_some(e.reverese())
-                })
-        })
+                (endpoints.0 == vertex0 && endpoints.1 == vertex1)
+                    .then_some(e.clone())
+                    .or_else(|| {
+                        (endpoints.0 == vertex1 && endpoints.1 == vertex0).then_some(e.reverese())
+                    })
+            })
+            .collect()
     }
 
     pub fn find_triangles(&self) -> Vec<C0EdgeTriangle> {
@@ -54,14 +63,16 @@ impl C0EdgeGraph {
             .iter()
             .cartesian_product(self.vertices().iter().copied())
             .map(|(edge0, vertex2)| (edge0, vertex2, edge0.endpoints()))
-            .filter_map(|(edge0, vertex2, (vertex0, vertex1))| {
-                (vertex0 < vertex2 && vertex1 < vertex2)
-                    .then_some(
-                        self.oriented_edge(vertex1, vertex2)
-                            .zip(self.oriented_edge(vertex2, vertex0))
-                            .map(|(edge1, edge2)| C0EdgeTriangle([edge0.clone(), edge1, edge2])),
-                    )
-                    .flatten()
+            .flat_map(|(edge0, vertex2, (vertex0, vertex1))| {
+                if vertex0 < vertex2 && vertex1 < vertex2 {
+                    self.oriented_edges(vertex1, vertex2)
+                        .iter()
+                        .cartesian_product(self.oriented_edges(vertex2, vertex0))
+                        .map(|(edge1, edge2)| C0EdgeTriangle([edge0.clone(), edge1.clone(), edge2]))
+                        .collect::<Vec<C0EdgeTriangle>>()
+                } else {
+                    Vec::new()
+                }
             })
             .collect()
     }

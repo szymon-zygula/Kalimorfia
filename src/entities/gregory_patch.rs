@@ -10,6 +10,7 @@ use crate::{
         },
         utils,
     },
+    graph::C0EdgeTriangle,
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
@@ -30,6 +31,8 @@ pub struct GregoryPatch<'gl> {
 
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
+
+    triangle: C0EdgeTriangle,
 }
 
 impl<'gl> GregoryPatch<'gl> {
@@ -38,14 +41,19 @@ impl<'gl> GregoryPatch<'gl> {
         name_repo: Rc<RefCell<dyn NameRepository>>,
         shader_manager: Rc<ShaderManager<'gl>>,
         entities: &EntityCollection<'gl>,
+        triangle: C0EdgeTriangle,
     ) -> Self {
-        Self {
+        let mut gregory = Self {
             gl,
             name: ChangeableName::new("Gregory patch", name_repo),
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
-        }
+            triangle,
+        };
+
+        gregory.recalculate_mesh(entities);
+        gregory
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
