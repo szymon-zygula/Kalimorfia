@@ -160,12 +160,21 @@ impl<'gl> BezierSurfaceC0<'gl> {
                 self.points[u + 2][v + 2],
                 self.points[u + 2][v + 3],
             ],
-            [
-                self.points[u + 3][v],
-                self.points[u + 3][v + 1],
-                self.points[u + 3][v + 2],
-                self.points[u + 3][v + 3],
-            ],
+            if self.is_cylinder && patch_u == self.u_patches() - 1 {
+                [
+                    self.points[0][v],
+                    self.points[0][v + 1],
+                    self.points[0][v + 2],
+                    self.points[0][v + 3],
+                ]
+            } else {
+                [
+                    self.points[u + 3][v],
+                    self.points[u + 3][v + 1],
+                    self.points[u + 3][v + 2],
+                    self.points[u + 3][v + 3],
+                ]
+            },
         ]
     }
 

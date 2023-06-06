@@ -41,7 +41,7 @@ impl<'a> Selector<'a> {
 
             ui.columns(2, "columns", false);
             let clicked = ui
-                .selectable_config(entity.name())
+                .selectable_config(format!("[{}] {}", id, entity.name()))
                 .selected(*selected)
                 .build();
 

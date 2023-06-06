@@ -8,7 +8,6 @@ pub struct C0EdgeGraph {
 
 impl C0EdgeGraph {
     pub fn new(entities: &EntityCollection, selected: &[usize]) -> Self {
-        // TODO: remove edges which are present multiple times (not just ends, but whole curves
         Self {
             edges: selected
                 .iter()
@@ -25,6 +24,22 @@ impl C0EdgeGraph {
                     // Filter degenerate loop-edges
                     let (a, b) = e.endpoints();
                     a != b
+                })
+                .map(|e| {
+                    let endpoints = e.endpoints();
+
+                    if endpoints.0 > endpoints.1 {
+                        e.reverse()
+                    } else {
+                        e
+                    }
+                })
+                .sorted_by(|e1, e2| e1.edge_points().cmp(e2.edge_points()))
+                .group_by(|e| *e.edge_points())
+                .into_iter()
+                .filter_map(|(_, val)| {
+                    let edges: Vec<_> = val.collect();
+                    (edges.len() == 1).then_some(edges[0].clone())
                 })
                 .collect(),
         }
@@ -52,7 +67,7 @@ impl C0EdgeGraph {
                 (endpoints.0 == vertex0 && endpoints.1 == vertex1)
                     .then_some(e.clone())
                     .or_else(|| {
-                        (endpoints.0 == vertex1 && endpoints.1 == vertex0).then_some(e.reverese())
+                        (endpoints.0 == vertex1 && endpoints.1 == vertex0).then_some(e.reverse())
                     })
             })
             .collect()
@@ -91,7 +106,7 @@ impl C0Edge {
         Self { points }
     }
 
-    pub fn reverese(&self) -> Self {
+    pub fn reverse(&self) -> Self {
         Self {
             points: [
                 [
