@@ -9,6 +9,7 @@ use kalimorfia::{
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
         entity::{Entity, EntityCollection, ReferentialSceneEntity, SceneObject},
+        gregory_patch::GregoryPatch,
         interpolating_spline::InterpolatingSpline,
         manager::EntityManager,
         point::Point,
@@ -687,7 +688,27 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         )
         .find_triangles();
 
+        std::mem::drop(entity_manager);
+
         println!("{:?}", triangles);
+        for triangle in triangles {
+            let gregory = Box::new(GregoryPatch::new(
+                self.gl,
+                Rc::clone(&state.name_repo),
+                Rc::clone(&self.shader_manager),
+                self.entity_manager.borrow().entities(),
+                triangle.clone(),
+            ));
+
+            let id = self.entity_manager.borrow_mut().add_entity(gregory);
+            state.selector.add_selectable(id);
+
+            for edge in triangle.0 {
+                for &point in edge.points.iter().flatten() {
+                    self.entity_manager.borrow_mut().subscribe(id, point);
+                }
+            }
+        }
     }
 
     fn selected_points(&self, selector: &Selector) -> Vec<usize> {

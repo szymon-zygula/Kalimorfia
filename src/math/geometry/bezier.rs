@@ -5,7 +5,7 @@ use crate::{
     },
     utils::transpose_vector,
 };
-use nalgebra::{Point3, Vector1};
+use nalgebra::{Point3, Vector1, Vector3};
 
 #[derive(Clone, Debug)]
 pub struct BezierCurve {
@@ -31,6 +31,34 @@ impl BezierCurve {
             .zip(self.z_t.coeffs.iter())
             .map(|((&x, &y), &z)| Point3::new(x, y, z))
             .collect()
+    }
+
+    pub fn divide_at(&self, t: f64) -> (Self, Self) {
+        let x_t = self.x_t.divide_at(t);
+        let y_t = self.y_t.divide_at(t);
+        let z_t = self.z_t.divide_at(t);
+
+        (
+            Self {
+                x_t: x_t.0,
+                y_t: y_t.0,
+                z_t: z_t.0,
+            },
+            Self {
+                x_t: x_t.1,
+                y_t: y_t.1,
+                z_t: z_t.1,
+            },
+        )
+    }
+
+    pub fn derivative(&self, t: f64) -> Vector3<f64> {
+        Vector3::new(
+            self.x_t.derivative(t),
+            self.y_t.derivative(t),
+            self.z_t.derivative(t),
+        )
+        .normalize()
     }
 }
 

@@ -25,6 +25,14 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
         glow::TESS_EVALUATION_SHADER,
     );
 
+    let gregory_tesselation_control =
+        shader(gl, "gregory_tesselation_control", glow::TESS_CONTROL_SHADER);
+    let gregory_tesselation_evaluation = shader(
+        gl,
+        "gregory_tesselation_evaluation",
+        glow::TESS_EVALUATION_SHADER,
+    );
+
     Rc::new(ShaderManager::new(vec![
         (
             "point",
@@ -60,6 +68,18 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
                     &pass_through_vertex,
                     &surface_tesselation_control,
                     &surface_tesselation_evaluation,
+                    &fragment_uniform,
+                ],
+            ),
+        ),
+        (
+            "gregory",
+            GlProgram::with_shaders(
+                gl,
+                &[
+                    &pass_through_vertex,
+                    &gregory_tesselation_control,
+                    &gregory_tesselation_evaluation,
                     &fragment_uniform,
                 ],
             ),

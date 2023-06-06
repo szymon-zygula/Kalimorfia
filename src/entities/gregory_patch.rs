@@ -1,22 +1,20 @@
 use crate::{
     camera::Camera,
     entities::{
-        bezier_surface_args::*,
         bezier_utils::*,
         changeable_name::ChangeableName,
         entity::{
             ControlResult, DrawType, Drawable, EntityCollection, NamedEntity, ReferentialEntity,
             SceneObject,
         },
-        utils,
     },
-    graph::C0EdgeTriangle,
-    render::{
-        bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
-    },
+    graph::{C0Edge, C0EdgeTriangle},
+    math::geometry::gregory::{BorderPatch, GregoryTriangle},
+    primitives::color::Color,
+    render::{bezier_surface_mesh::GregoryMesh, shader_manager::ShaderManager},
     repositories::NameRepository,
 };
-use nalgebra::Matrix4;
+use nalgebra::{Matrix4, Point3};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -33,6 +31,7 @@ pub struct GregoryPatch<'gl> {
     pub v_patch_divisions: u32,
 
     triangle: C0EdgeTriangle,
+    mesh: GregoryMesh<'gl>,
 }
 
 impl<'gl> GregoryPatch<'gl> {
@@ -50,6 +49,7 @@ impl<'gl> GregoryPatch<'gl> {
             u_patch_divisions: 3,
             v_patch_divisions: 3,
             triangle,
+            mesh: GregoryMesh::empty(gl),
         };
 
         gregory.recalculate_mesh(entities);
@@ -57,7 +57,46 @@ impl<'gl> GregoryPatch<'gl> {
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
-        todo!()
+        let patch0 = Self::patch_id_to_points(&self.triangle.0[0], entities);
+        let patch1 = Self::patch_id_to_points(&self.triangle.0[1], entities);
+        let patch2 = Self::patch_id_to_points(&self.triangle.0[2], entities);
+
+        let triangle = GregoryTriangle::new([patch0, patch1, patch2]);
+
+        self.mesh = GregoryMesh::new(self.gl, triangle.0.into());
+    }
+
+    fn patch_id_to_points(patch: &C0Edge, entities: &EntityCollection<'gl>) -> BorderPatch {
+        BorderPatch([
+            [
+                Self::point(patch.points[0][0], entities),
+                Self::point(patch.points[0][1], entities),
+                Self::point(patch.points[0][2], entities),
+                Self::point(patch.points[0][3], entities),
+            ],
+            [
+                Self::point(patch.points[1][0], entities),
+                Self::point(patch.points[1][1], entities),
+                Self::point(patch.points[1][2], entities),
+                Self::point(patch.points[1][3], entities),
+            ],
+            [
+                Self::point(patch.points[2][0], entities),
+                Self::point(patch.points[2][1], entities),
+                Self::point(patch.points[2][2], entities),
+                Self::point(patch.points[2][3], entities),
+            ],
+            [
+                Self::point(patch.points[3][0], entities),
+                Self::point(patch.points[3][1], entities),
+                Self::point(patch.points[3][2], entities),
+                Self::point(patch.points[3][3], entities),
+            ],
+        ])
+    }
+
+    fn point(id: usize, entities: &EntityCollection<'gl>) -> Point3<f32> {
+        entities[&id].borrow().location().unwrap()
     }
 }
 
@@ -95,7 +134,13 @@ impl<'gl> ReferentialEntity<'gl> for GregoryPatch<'gl> {
         changes: &HashMap<usize, usize>,
         entities: &EntityCollection<'gl>,
     ) {
-        todo!();
+        for edge in &mut self.triangle.0 {
+            for old_id in edge.points.iter_mut().flatten() {
+                if let Some(&new_id) = changes.get(old_id) {
+                    *old_id = new_id;
+                }
+            }
+        }
 
         self.recalculate_mesh(entities);
     }
@@ -103,7 +148,16 @@ impl<'gl> ReferentialEntity<'gl> for GregoryPatch<'gl> {
 
 impl<'gl> Drawable for GregoryPatch<'gl> {
     fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
-        todo!()
+        let program = self.shader_manager.program("gregory");
+        let color = Color::for_draw_type(&draw_type);
+        self.mesh.draw_with_program(
+            program,
+            camera,
+            premul,
+            &color,
+            self.u_patch_divisions,
+            self.v_patch_divisions,
+        )
     }
 }
 

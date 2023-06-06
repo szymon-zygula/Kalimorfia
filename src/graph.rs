@@ -2,6 +2,7 @@ use itertools::Itertools;
 
 use crate::entities::entity::EntityCollection;
 
+#[derive(Clone)]
 pub struct C0EdgeGraph {
     edges: Vec<C0Edge>,
 }
@@ -93,12 +94,12 @@ impl C0EdgeGraph {
     }
 }
 
-#[derive(Debug)]
-pub struct C0EdgeTriangle([C0Edge; 3]);
+#[derive(Debug, Clone)]
+pub struct C0EdgeTriangle(pub [C0Edge; 3]);
 
 #[derive(Clone, Debug)]
 pub struct C0Edge {
-    points: [[usize; 4]; 4],
+    pub points: [[usize; 4]; 4],
 }
 
 impl C0Edge {
