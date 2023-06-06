@@ -15,7 +15,7 @@ pub struct GregoryTriangle {
     patches: [GregoryPatch; 3],
 }
 
-struct BorderPatch([[Point3<f32>; 4]; 4]);
+pub struct BorderPatch([[Point3<f32>; 4]; 4]);
 
 impl BorderPatch {
     pub fn border_points(&self) -> [[Point3<f32>; 4]; 2] {
@@ -41,6 +41,6 @@ impl GregoryTriangle {
         let p21 = p31 + border_tangents[1][1][0];
         let p22 = p32 + border_tangents[2][1][0];
 
-        
+        todo!()
     }
 }

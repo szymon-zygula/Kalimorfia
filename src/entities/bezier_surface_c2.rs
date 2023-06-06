@@ -131,7 +131,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
         for patch_v in 0..v_patches {
             for patch_u in 0..u_patches {
                 patches.push(serde_json::json!({
-                    "objectType": "bezierPatchC0",
+                    "objectType": "bezierPatchC2",
                     "name": "patch",
                     "controlPoints": utils::control_points_json(
                         &self.patch_control_points(patch_u, patch_v)
