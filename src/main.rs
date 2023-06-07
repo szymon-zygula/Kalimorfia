@@ -1,7 +1,7 @@
+mod json;
 mod main_control;
 mod shaders;
 mod state;
-mod json;
 
 use crate::{main_control::MainControl, state::State};
 use glow::HasContext;
@@ -69,7 +69,7 @@ fn render_scene(
     grid: &SceneGrid,
 ) {
     unsafe {
-        gl.clear(glow::COLOR_BUFFER_BIT);
+        gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
     }
 
     grid.draw_regular(camera);

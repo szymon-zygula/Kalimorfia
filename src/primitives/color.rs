@@ -45,6 +45,10 @@ impl Color {
         Self::new(0.5, 1.0, 0.3)
     }
 
+    pub fn windows98() -> Self {
+        Self::new(0.0, 0.6, 0.6)
+    }
+
     pub fn for_draw_type(draw_type: &DrawType) -> Self {
         match draw_type {
             DrawType::Regular => Self::white(),

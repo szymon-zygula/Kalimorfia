@@ -690,7 +690,6 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
         std::mem::drop(entity_manager);
 
-        println!("{:?}", triangles);
         for triangle in triangles {
             let gregory = Box::new(GregoryPatch::new(
                 self.gl,

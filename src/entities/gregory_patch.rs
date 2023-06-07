@@ -13,10 +13,11 @@ use crate::{
     primitives::{color::Color, vertex::ColoredVertex},
     render::{
         bezier_surface_mesh::GregoryMesh, gl_drawable::GlDrawable, mesh::ColoredLineMesh,
-        shader_manager::ShaderManager,
+        point_cloud::PointCloud, shader_manager::ShaderManager,
     },
     repositories::NameRepository,
 };
+use glow::HasContext;
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::{
     cell::RefCell,
@@ -36,7 +37,9 @@ pub struct GregoryPatch<'gl> {
     triangle: C0EdgeTriangle,
     mesh: GregoryMesh<'gl>,
     vector_meshes: Vec<ColoredLineMesh<'gl>>,
+    control_points_meshes: [PointCloud<'gl>; 4],
     draw_vectors: bool,
+    draw_control_points: bool,
 }
 
 impl<'gl> GregoryPatch<'gl> {
@@ -56,7 +59,14 @@ impl<'gl> GregoryPatch<'gl> {
             triangle,
             mesh: GregoryMesh::empty(gl),
             vector_meshes: Vec::new(),
+            control_points_meshes: [
+                PointCloud::new(gl, Vec::new()),
+                PointCloud::new(gl, Vec::new()),
+                PointCloud::new(gl, Vec::new()),
+                PointCloud::new(gl, Vec::new()),
+            ],
             draw_vectors: false,
+            draw_control_points: false,
         };
 
         gregory.recalculate_mesh(entities);
@@ -80,7 +90,11 @@ impl<'gl> GregoryPatch<'gl> {
             vec![0, 1],
         ));
 
-        self.vector_meshes.last_mut().unwrap().as_line_mesh_mut().thickness(2.0);
+        self.vector_meshes
+            .last_mut()
+            .unwrap()
+            .as_line_mesh_mut()
+            .thickness(2.0);
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
@@ -97,7 +111,8 @@ impl<'gl> GregoryPatch<'gl> {
             .flatten()
             .zip(triangle.twist_u_p.iter().flatten())
         {
-            self.add_vector_mesh(u, p, &Color::red());
+            // Negated u derivatives are more useful
+            self.add_vector_mesh(&-u, p, &Color::red());
         }
 
         for (v, p) in triangle
@@ -118,6 +133,13 @@ impl<'gl> GregoryPatch<'gl> {
         {
             self.add_vector_mesh(t, p, &Color::lime());
         }
+
+        self.control_points_meshes = [
+            PointCloud::new(self.gl, Self::points(&triangle, 0)),
+            PointCloud::new(self.gl, Self::points(&triangle, 1)),
+            PointCloud::new(self.gl, Self::points(&triangle, 2)),
+            PointCloud::new(self.gl, Self::common_points(&triangle)),
+        ];
 
         self.mesh = GregoryMesh::new(self.gl, triangle.patches.into());
     }
@@ -154,6 +176,70 @@ impl<'gl> GregoryPatch<'gl> {
     fn point(id: usize, entities: &EntityCollection<'gl>) -> Point3<f32> {
         entities[&id].borrow().location().unwrap()
     }
+
+    fn points(triangle: &GregoryTriangle, patch: usize) -> Vec<Point3<f32>> {
+        let patch = &triangle.patches[patch];
+
+        patch.bottom[1..3]
+            .iter()
+            .chain(patch.u_inner.iter())
+            .chain(patch.v_inner.iter())
+            .chain([patch.top_sides[1]].iter())
+            .chain([patch.bottom_sides[1]].iter())
+            .copied()
+            .collect()
+    }
+
+    fn common_points(triangle: &GregoryTriangle) -> Vec<Point3<f32>> {
+        triangle
+            .patches
+            .iter()
+            .map(|patch| patch.top.iter())
+            .flatten()
+            .copied()
+            .collect()
+    }
+
+    fn draw_vectors(&self, camera: &Camera, premul: &Matrix4<f32>) {
+        let program = self.shader_manager.program("cursor");
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
+
+        for m in &self.vector_meshes {
+            m.draw()
+        }
+    }
+
+    fn draw_control_points(&self, camera: &Camera, premul: &Matrix4<f32>) {
+        let program = self.shader_manager.program("point");
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
+
+        unsafe { self.gl.enable(glow::PROGRAM_POINT_SIZE) };
+        program.uniform_f32("point_size", 5.0);
+
+        program.uniform_color("point_color", &Color::red());
+        self.control_points_meshes[0].draw();
+
+        program.uniform_color("point_color", &Color::green());
+        self.control_points_meshes[1].draw();
+
+        program.uniform_color("point_color", &Color::blue());
+        self.control_points_meshes[2].draw();
+
+        program.uniform_color("point_color", &Color::windows98());
+        self.control_points_meshes[3].draw();
+    }
 }
 
 impl<'gl> ReferentialEntity<'gl> for GregoryPatch<'gl> {
@@ -168,6 +254,7 @@ impl<'gl> ReferentialEntity<'gl> for GregoryPatch<'gl> {
         self.name_control_ui(ui);
 
         ui.checkbox("Draw vectors", &mut self.draw_vectors);
+        ui.checkbox("Draw control points", &mut self.draw_control_points);
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
@@ -217,19 +304,12 @@ impl<'gl> Drawable for GregoryPatch<'gl> {
             self.v_patch_divisions,
         );
 
-        let program = self.shader_manager.program("cursor");
-        program.enable();
-        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
-        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
-        program.uniform_matrix_4_f32_slice(
-            "projection_transform",
-            camera.projection_transform().as_slice(),
-        );
-
         if self.draw_vectors {
-            for m in &self.vector_meshes {
-                m.draw()
-            }
+            self.draw_vectors(camera, premul);
+        }
+
+        if self.draw_control_points {
+            self.draw_control_points(camera, premul);
         }
     }
 }

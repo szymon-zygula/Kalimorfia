@@ -44,7 +44,7 @@ impl<'gl> PointCloud<'gl> {
         }
     }
 
-    pub fn update_points<T>(&mut self, points: Vec<T>) {
+    pub fn update_points(&mut self, points: Vec<Point3<f32>>) {
         let raw_points = utils::slice_as_raw(&points);
 
         unsafe {

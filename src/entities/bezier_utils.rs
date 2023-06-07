@@ -14,7 +14,7 @@ use crate::{
 use itertools::Itertools;
 use nalgebra::{Matrix4, Point3};
 
-pub const MAX_SUBDIVISIONS: u32 = 25;
+pub const MAX_SUBDIVISIONS: u32 = 50;
 pub const MIN_SUBDIVISIONS: u32 = 1;
 
 pub fn point_ids_to_f64(

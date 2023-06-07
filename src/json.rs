@@ -417,7 +417,7 @@ pub fn deserialize_scene<'gl>(
             "bezierSurfaceC2" => {
                 surface_c2_from_json(gl, id, state, shader_manager, entity_manager, geom.clone())?
             }
-            _ => return Err(()),
+            _ => return Ok(()),
         };
 
         state.selector.add_selectable(id);
