@@ -184,23 +184,28 @@ impl<'gl> BezierSurfaceC0<'gl> {
 
         let mut edges = Vec::new();
 
-        for v in 0..v_patches {
-            edges.push(C0Edge::new(self.patch(0, v)));
+        if !self.is_cylinder {
+            for v in 0..v_patches {
+                edges.push(C0Edge::new(self.patch(0, v)));
+            }
         }
 
         for u in 0..u_patches {
-            let patch = Self::rotate_patch(&self.patch(u, v_patches - 1));
+            let patch = Self::rotate_patch(&Self::rotate_patch(&Self::rotate_patch(
+                &self.patch(u, v_patches - 1),
+            )));
             edges.push(C0Edge::new(patch));
         }
 
-        for v in 0..v_patches {
-            let patch = Self::rotate_patch(&Self::rotate_patch(&self.patch(u_patches - 1, v)));
-            edges.push(C0Edge::new(patch));
+        if !self.is_cylinder {
+            for v in 0..v_patches {
+                let patch = Self::rotate_patch(&Self::rotate_patch(&self.patch(u_patches - 1, v)));
+                edges.push(C0Edge::new(patch));
+            }
         }
 
         for u in 0..u_patches {
-            let patch =
-                Self::rotate_patch(&Self::rotate_patch(&Self::rotate_patch(&self.patch(u, 0))));
+            let patch = Self::rotate_patch(&self.patch(u, 0));
             edges.push(C0Edge::new(patch));
         }
 

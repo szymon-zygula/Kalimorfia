@@ -108,7 +108,7 @@ impl BorderPatch {
         [w0, w1, w2]
     }
 
-    pub fn diff_v(&self) -> [[Vector3<f32>; 4]; 2] {
+    pub fn subdivide(&self) -> (BezierCurve, BezierCurve) {
         let points = self.points();
 
         let bezier0 = BezierCurve::through_points(&[
@@ -125,24 +125,58 @@ impl BorderPatch {
             utils::point_32_to_64(points[1][3]),
         ]);
 
+        (bezier0, bezier1)
+    }
+
+    pub fn diff_v(&self) -> [[Vector3<f32>; 4]; 2] {
+        let bezier = self.subdivide();
+
         [
             [
-                utils::vec_64_to_32(bezier0.derivative(0.0)),
-                utils::vec_64_to_32(bezier0.derivative(1.0 / 3.0)),
-                utils::vec_64_to_32(bezier0.derivative(2.0 / 3.0)),
-                utils::vec_64_to_32(bezier0.derivative(1.0)),
+                utils::vec_64_to_32(bezier.0.derivative(0.0)),
+                utils::vec_64_to_32(bezier.0.derivative(1.0 / 3.0)),
+                utils::vec_64_to_32(bezier.0.derivative(2.0 / 3.0)),
+                utils::vec_64_to_32(bezier.0.derivative(1.0)),
             ],
             [
-                utils::vec_64_to_32(bezier1.derivative(0.0)),
-                utils::vec_64_to_32(bezier1.derivative(1.0 / 3.0)),
-                utils::vec_64_to_32(bezier1.derivative(2.0 / 3.0)),
-                utils::vec_64_to_32(bezier1.derivative(1.0)),
+                utils::vec_64_to_32(bezier.1.derivative(0.0)),
+                utils::vec_64_to_32(bezier.1.derivative(1.0 / 3.0)),
+                utils::vec_64_to_32(bezier.1.derivative(2.0 / 3.0)),
+                utils::vec_64_to_32(bezier.1.derivative(1.0)),
+            ],
+        ]
+    }
+
+    pub fn points_v(&self) -> [[Point3<f32>; 4]; 2] {
+        let bezier = self.subdivide();
+
+        [
+            [
+                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(0.0))),
+                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(1.0 / 3.0))),
+                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(2.0 / 3.0))),
+                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(1.0))),
+            ],
+            [
+                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(0.0))),
+                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(1.0 / 3.0))),
+                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(2.0 / 3.0))),
+                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(1.0))),
             ],
         ]
     }
 }
 
-pub struct GregoryTriangle(pub [GregoryPatch; 3]);
+pub struct GregoryTriangle {
+    pub patches: [GregoryPatch; 3],
+    // indexed as [patch][subpatch][point]
+    pub v_diff: [[[Vector3<f32>; 4]; 2]; 3],
+    pub v_diff_p: [[[Point3<f32>; 4]; 2]; 3],
+    // indexed as [patch][point]
+    pub u_diff: [[Vector3<f32>; 3]; 3],
+    pub twist: [[Vector3<f32>; 3]; 3],
+    pub twist_u_p: [[Point3<f32>; 3]; 3],
+}
 
 impl GregoryTriangle {
     /// `border_patches` are assumed to be orderded in the same way as in `graph::C0EdgeGraph`
@@ -184,63 +218,76 @@ impl GregoryTriangle {
         let w1 = border_patches[1].twist();
         let w2 = border_patches[2].twist();
 
-        // TODO: Twist is 0 at p
-
-        Self([
-            GregoryPatch {
-                top: [p, p10, p20, p30],
-                top_sides: [p12, points00[2]],
-                bottom_sides: [p22, points00[1]],
-                bottom: points12,
-                u_inner: [
-                    p + (p12 - p) + (p10 - p),
-                    p30 - u0[1] / 3.0 - v00[3] / 3.0 + w0[1] / 9.0,
-                    points12[0] - u2[1] / 3.0 + v12[0] / 3.0 + w2[1] / 9.0,
-                    points12[3] - u2[2] / 3.0 - v12[3] / 3.0 + w2[2] / 9.0,
-                ],
-                v_inner: [
-                    p + (p12 - p) + (p10 - p),
-                    p30 - u0[1] / 3.0 - v00[3] / 3.0 + w0[1] / 9.0,
-                    points12[0] - u2[1] / 3.0 + v12[0] / 3.0 + w2[1] / 9.0,
-                    points00[0] - u0[0] / 3.0 + v00[0] / 3.0 + w0[0] / 9.0,
-                ],
-            },
-            GregoryPatch {
-                top: [p, p11, p21, p31],
-                top_sides: [p10, points01[2]],
-                bottom_sides: [p20, points01[1]],
-                bottom: points10,
-                u_inner: [
-                    p + (p10 - p) + (p11 - p),
-                    p31 - u1[1] / 3.0 - v01[3] / 3.0 + w1[1] / 9.0,
-                    points10[0] - u0[1] / 3.0 + v10[0] / 3.0 + w0[1] / 9.0,
-                    points10[3] - u0[2] / 3.0 - v10[3] / 3.0 + w0[2] / 9.0,
-                ],
-                v_inner: [
-                    p + (p10 - p) + (p11 - p),
-                    p31 - u1[1] / 3.0 - v01[3] / 3.0 + w1[1] / 9.0,
-                    points10[0] - u0[1] / 3.0 + v10[0] / 3.0 + w0[1] / 9.0,
-                    points01[0] - u1[0] / 3.0 + v01[0] / 3.0 + w1[0] / 9.0,
-                ],
-            },
-            GregoryPatch {
-                top: [p, p12, p22, p32],
-                top_sides: [p11, points02[2]],
-                bottom_sides: [p21, points02[1]],
-                bottom: points11,
-                u_inner: [
-                    p + (p11 - p) + (p12 - p),
-                    p32 - u2[1] / 3.0 - v02[3] / 3.0 + w2[1] / 9.0,
-                    points11[0] - u1[1] / 3.0 + v11[0] / 3.0 + w1[1] / 9.0,
-                    points11[3] - u1[2] / 3.0 - v11[3] / 3.0 + w1[2] / 9.0,
-                ],
-                v_inner: [
-                    p + (p11 - p) + (p12 - p),
-                    p32 - u2[1] / 3.0 - v02[3] / 3.0 + w2[1] / 9.0,
-                    points11[0] - u1[1] / 3.0 + v11[0] / 3.0 + w1[1] / 9.0,
-                    points02[0] - u2[0] / 3.0 + v02[0] / 3.0 + w2[0] / 9.0,
-                ],
-            },
-        ])
+        Self {
+            twist: [w0, w1, w2],
+            twist_u_p: [
+                [points00[0], p30, points10[3]],
+                [points01[0], p31, points11[3]],
+                [points02[0], p32, points12[3]],
+            ],
+            u_diff: [u0, u1, u2],
+            v_diff: [[v00, v10], [v01, v11], [v02, v12]],
+            v_diff_p: [
+                border_patches[0].points_v(),
+                border_patches[1].points_v(),
+                border_patches[2].points_v(),
+            ],
+            patches: [
+                GregoryPatch {
+                    top: [p, p10, p20, p30],
+                    top_sides: [p12, points00[2]],
+                    bottom_sides: [p22, points00[1]],
+                    bottom: points12,
+                    u_inner: [
+                        p + (p12 - p) + (p10 - p),
+                        p30 - u0[1] / 3.0 - v00[3] / 3.0 + w0[1] / 9.0,
+                        points12[0] - u2[1] / 3.0 + v12[0] / 3.0 + w2[1] / 9.0,
+                        points12[3] - u2[2] / 3.0 - v12[3] / 3.0 + w2[2] / 9.0,
+                    ],
+                    v_inner: [
+                        p + (p12 - p) + (p10 - p),
+                        p30 - u0[1] / 3.0 - v00[3] / 3.0 + w0[1] / 9.0,
+                        points12[0] - u2[1] / 3.0 + v12[0] / 3.0 + w2[1] / 9.0,
+                        points00[0] - u0[0] / 3.0 + v00[0] / 3.0 + w0[0] / 9.0,
+                    ],
+                },
+                GregoryPatch {
+                    top: [p, p11, p21, p31],
+                    top_sides: [p10, points01[2]],
+                    bottom_sides: [p20, points01[1]],
+                    bottom: points10,
+                    u_inner: [
+                        p + (p10 - p) + (p11 - p),
+                        p31 - u1[1] / 3.0 - v01[3] / 3.0 + w1[1] / 9.0,
+                        points10[0] - u0[1] / 3.0 + v10[0] / 3.0 + w0[1] / 9.0,
+                        points10[3] - u0[2] / 3.0 - v10[3] / 3.0 + w0[2] / 9.0,
+                    ],
+                    v_inner: [
+                        p + (p10 - p) + (p11 - p),
+                        p31 - u1[1] / 3.0 - v01[3] / 3.0 + w1[1] / 9.0,
+                        points10[0] - u0[1] / 3.0 + v10[0] / 3.0 + w0[1] / 9.0,
+                        points01[0] - u1[0] / 3.0 + v01[0] / 3.0 + w1[0] / 9.0,
+                    ],
+                },
+                GregoryPatch {
+                    top: [p, p12, p22, p32],
+                    top_sides: [p11, points02[2]],
+                    bottom_sides: [p21, points02[1]],
+                    bottom: points11,
+                    u_inner: [
+                        p + (p11 - p) + (p12 - p),
+                        p32 - u2[1] / 3.0 - v02[3] / 3.0 + w2[1] / 9.0,
+                        points11[0] - u1[1] / 3.0 + v11[0] / 3.0 + w1[1] / 9.0,
+                        points11[3] - u1[2] / 3.0 - v11[3] / 3.0 + w1[2] / 9.0,
+                    ],
+                    v_inner: [
+                        p + (p11 - p) + (p12 - p),
+                        p32 - u2[1] / 3.0 - v02[3] / 3.0 + w2[1] / 9.0,
+                        points11[0] - u1[1] / 3.0 + v11[0] / 3.0 + w1[1] / 9.0,
+                        points02[0] - u2[0] / 3.0 + v02[0] / 3.0 + w2[0] / 9.0,
+                    ],
+                },
+            ],
+        }
     }
 }

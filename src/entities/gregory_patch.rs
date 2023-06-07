@@ -10,11 +10,14 @@ use crate::{
     },
     graph::{C0Edge, C0EdgeTriangle},
     math::geometry::gregory::{BorderPatch, GregoryTriangle},
-    primitives::color::Color,
-    render::{bezier_surface_mesh::GregoryMesh, shader_manager::ShaderManager},
+    primitives::{color::Color, vertex::ColoredVertex},
+    render::{
+        bezier_surface_mesh::GregoryMesh, gl_drawable::GlDrawable, mesh::ColoredLineMesh,
+        shader_manager::ShaderManager,
+    },
     repositories::NameRepository,
 };
-use nalgebra::{Matrix4, Point3};
+use nalgebra::{Matrix4, Point3, Vector3};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -32,6 +35,8 @@ pub struct GregoryPatch<'gl> {
 
     triangle: C0EdgeTriangle,
     mesh: GregoryMesh<'gl>,
+    vector_meshes: Vec<ColoredLineMesh<'gl>>,
+    draw_vectors: bool,
 }
 
 impl<'gl> GregoryPatch<'gl> {
@@ -50,10 +55,32 @@ impl<'gl> GregoryPatch<'gl> {
             v_patch_divisions: 3,
             triangle,
             mesh: GregoryMesh::empty(gl),
+            vector_meshes: Vec::new(),
+            draw_vectors: false,
         };
 
         gregory.recalculate_mesh(entities);
         gregory
+    }
+
+    fn add_vector_mesh(&mut self, vec: &Vector3<f32>, point: &Point3<f32>, color: &Color) {
+        self.vector_meshes.push(ColoredLineMesh::new(
+            self.gl,
+            vec![
+                ColoredVertex::new(point.x, point.y, point.z, color.r, color.g, color.b),
+                ColoredVertex::new(
+                    point.x + vec.x,
+                    point.y + vec.y,
+                    point.z + vec.z,
+                    color.r,
+                    color.g,
+                    color.b,
+                ),
+            ],
+            vec![0, 1],
+        ));
+
+        self.vector_meshes.last_mut().unwrap().as_line_mesh_mut().thickness(2.0);
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
@@ -62,8 +89,37 @@ impl<'gl> GregoryPatch<'gl> {
         let patch2 = Self::patch_id_to_points(&self.triangle.0[2], entities);
 
         let triangle = GregoryTriangle::new([patch0, patch1, patch2]);
+        self.vector_meshes.clear();
 
-        self.mesh = GregoryMesh::new(self.gl, triangle.0.into());
+        for (u, p) in triangle
+            .u_diff
+            .iter()
+            .flatten()
+            .zip(triangle.twist_u_p.iter().flatten())
+        {
+            self.add_vector_mesh(u, p, &Color::red());
+        }
+
+        for (v, p) in triangle
+            .v_diff
+            .iter()
+            .flatten()
+            .flatten()
+            .zip(triangle.v_diff_p.iter().flatten().flatten())
+        {
+            self.add_vector_mesh(v, p, &Color::lblue());
+        }
+
+        for (t, p) in triangle
+            .twist
+            .iter()
+            .flatten()
+            .zip(triangle.twist_u_p.iter().flatten())
+        {
+            self.add_vector_mesh(t, p, &Color::lime());
+        }
+
+        self.mesh = GregoryMesh::new(self.gl, triangle.patches.into());
     }
 
     fn patch_id_to_points(patch: &C0Edge, entities: &EntityCollection<'gl>) -> BorderPatch {
@@ -111,6 +167,8 @@ impl<'gl> ReferentialEntity<'gl> for GregoryPatch<'gl> {
         let _token = ui.push_id("gregory_control");
         self.name_control_ui(ui);
 
+        ui.checkbox("Draw vectors", &mut self.draw_vectors);
+
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
         ControlResult::default()
@@ -157,7 +215,22 @@ impl<'gl> Drawable for GregoryPatch<'gl> {
             &color,
             self.u_patch_divisions,
             self.v_patch_divisions,
-        )
+        );
+
+        let program = self.shader_manager.program("cursor");
+        program.enable();
+        program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+        program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+        program.uniform_matrix_4_f32_slice(
+            "projection_transform",
+            camera.projection_transform().as_slice(),
+        );
+
+        if self.draw_vectors {
+            for m in &self.vector_meshes {
+                m.draw()
+            }
+        }
     }
 }
 

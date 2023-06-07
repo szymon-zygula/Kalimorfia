@@ -29,6 +29,22 @@ impl Color {
         Self::new(0.0, 1.0, 0.0)
     }
 
+    pub fn red() -> Self {
+        Self::new(1.0, 0.0, 0.0)
+    }
+
+    pub fn blue() -> Self {
+        Self::new(0.0, 0.0, 1.0)
+    }
+
+    pub fn lblue() -> Self {
+        Self::new(0.4, 0.7, 1.0)
+    }
+
+    pub fn lime() -> Self {
+        Self::new(0.5, 1.0, 0.3)
+    }
+
     pub fn for_draw_type(draw_type: &DrawType) -> Self {
         match draw_type {
             DrawType::Regular => Self::white(),
