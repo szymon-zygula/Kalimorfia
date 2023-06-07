@@ -87,8 +87,8 @@ impl Xyz {
 
     pub fn rotation(&self) -> Orientation {
         let rotation = transforms::rotate_z(self.z)
-            * transforms::rotate_y(self.y)
-            * transforms::rotate_x(self.x);
+            * transforms::rotate_y(self.y.to_radians())
+            * transforms::rotate_x(self.x.to_radians());
         let decomp = AxisAngleDecomposition::decompose(&rotation);
 
         Orientation {
@@ -626,8 +626,8 @@ fn camera_json(camera: &mut Camera, json: Option<&serde_json::Value>) -> Result<
 
     camera.set_linear_distance(jcamera.distance);
     camera.center = jcamera.focus_point.point();
-    camera.altitude = jcamera.rotation.x;
-    camera.azimuth = jcamera.rotation.y;
+    camera.altitude = jcamera.rotation.x.to_radians();
+    camera.azimuth = jcamera.rotation.y.to_radians();
 
     Ok(())
 }

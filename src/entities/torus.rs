@@ -152,9 +152,9 @@ impl<'gl> NamedEntity for Torus<'gl> {
                 "z": self.linear_transform.translation.translation.z
             },
             "rotation": {
-                "x": decomposition.x,
-                "y": decomposition.y,
-                "z": decomposition.z
+                "x": decomposition.x.to_degrees(),
+                "y": decomposition.y.to_degrees(),
+                "z": decomposition.z.to_degrees()
             },
             "scale": {
                 "x": self.linear_transform.scale.scale.x,

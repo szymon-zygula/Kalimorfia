@@ -250,8 +250,8 @@ impl Camera {
             },
             "distance": self.linear_distance(),
             "rotation": {
-                "x": self.altitude,
-                "y": self.azimuth
+                "x": self.altitude.to_degrees(),
+                "y": self.azimuth.to_degrees()
             }
         })
     }
