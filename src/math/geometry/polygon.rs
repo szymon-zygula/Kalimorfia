@@ -13,7 +13,9 @@ impl Polygon {
 }
 
 impl ParametricForm<1, 3> for Polygon {
-    const PARAMETER_BOUNDS: Vector1<(f64, f64)> = Vector1::new((0.0, 1.0));
+    fn bounds(&self) -> Vector1<(f64, f64)> {
+        Vector1::new((0.0, 1.0))
+    }
 
     fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
         let line_idx = if vec.x == 1.0 {

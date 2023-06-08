@@ -5,4 +5,5 @@ pub mod gridable;
 pub mod interpolating_spline;
 pub mod parametric_form;
 pub mod polygon;
+pub mod surfaces;
 pub mod torus;

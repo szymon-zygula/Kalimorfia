@@ -63,7 +63,9 @@ impl BezierCurve {
 }
 
 impl ParametricForm<1, 3> for BezierCurve {
-    const PARAMETER_BOUNDS: Vector1<(f64, f64)> = Vector1::new((0.0, 1.0));
+    fn bounds(&self) -> Vector1<(f64, f64)> {
+        Vector1::new((0.0, 1.0))
+    }
 
     fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
         Point3::new(
@@ -114,7 +116,9 @@ impl BezierCubicSplineC0 {
 }
 
 impl ParametricForm<1, 3> for BezierCubicSplineC0 {
-    const PARAMETER_BOUNDS: Vector1<(f64, f64)> = Vector1::new((0.0, 1.0));
+    fn bounds(&self) -> Vector1<(f64, f64)> {
+        Vector1::new((0.0, 1.0))
+    }
 
     fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
         let curve_idx = if vec.x == 1.0 {
@@ -197,7 +201,9 @@ impl BezierBSpline {
 }
 
 impl ParametricForm<1, 3> for BezierBSpline {
-    const PARAMETER_BOUNDS: Vector1<(f64, f64)> = Vector1::new((0.0, 1.0));
+    fn bounds(&self) -> Vector1<(f64, f64)> {
+        Vector1::new((0.0, 1.0))
+    }
 
     fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
         Point3::new(

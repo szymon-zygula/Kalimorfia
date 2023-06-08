@@ -1,5 +1,5 @@
-use super::{basic::LinearTransformEntity, point::Point, bezier_surface_c0::BezierSurfaceC0};
-use crate::camera::Camera;
+use super::{basic::LinearTransformEntity, bezier_surface_c0::BezierSurfaceC0, point::Point};
+use crate::{camera::Camera, math::geometry::parametric_form::ParametricForm};
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
     cell::RefCell,
@@ -135,6 +135,10 @@ pub trait SceneObject {
         None
     }
 
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+        None
+    }
+
     fn set_ndc(&mut self, _ndc: &Point2<f32>, _camera: &Camera) {}
 
     fn model_transform(&self) -> Matrix4<f32> {
@@ -185,6 +189,10 @@ pub trait ReferentialSceneObject<'gl> {
     }
 
     fn location(&self) -> Option<Point3<f32>> {
+        None
+    }
+
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
         None
     }
 
@@ -241,6 +249,10 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
 
     fn location(&self) -> Option<Point3<f32>> {
         self.location()
+    }
+
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+        self.as_parametric_2_to_3()
     }
 
     fn model_transform(&self) -> Matrix4<f32> {

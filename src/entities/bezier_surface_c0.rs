@@ -11,6 +11,7 @@ use crate::{
         utils,
     },
     graph::C0Edge,
+    math::geometry::{parametric_form::ParametricForm, surfaces::SurfaceC0},
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
@@ -38,6 +39,8 @@ pub struct BezierSurfaceC0<'gl> {
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
 
+    surface: SurfaceC0,
+
     is_cylinder: bool,
 }
 
@@ -63,12 +66,14 @@ impl<'gl> BezierSurfaceC0<'gl> {
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
+            surface: SurfaceC0::null(),
             is_cylinder,
         }
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
         let bezier_surface = create_bezier_surface(&self.points, entities, self.is_cylinder);
+        self.surface = SurfaceC0::from_bezier_surface(bezier_surface.clone());
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
         self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
     }
@@ -285,6 +290,10 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
 impl<'gl> SceneObject for BezierSurfaceC0<'gl> {
     fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
         Some(self)
+    }
+
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+        Some(Box::new(self.surface.clone()))
     }
 }
 

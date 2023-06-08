@@ -10,7 +10,11 @@ use crate::{
         },
         utils,
     },
-    math::geometry::bezier::{deboor_surface_to_bernstein, BezierSurface},
+    math::geometry::{
+        bezier::{deboor_surface_to_bernstein, BezierSurface},
+        parametric_form::ParametricForm,
+        surfaces::SurfaceC2,
+    },
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
@@ -40,6 +44,8 @@ pub struct BezierSurfaceC2<'gl> {
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
 
+    pub surface: SurfaceC2,
+
     is_cylinder: bool,
 }
 
@@ -65,6 +71,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
+            surface: SurfaceC2::null(),
             is_cylinder,
         };
 
@@ -88,6 +95,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
         let wrapped_points = self.wrapped_points();
         let deboor_points = point_ids_to_f64(&wrapped_points, entities);
+        self.surface = SurfaceC2::from_points(deboor_points.clone());
         let bernstein_points = deboor_surface_to_bernstein(deboor_points);
         let bezier_surface = BezierSurface::new(bernstein_points);
 
@@ -228,7 +236,11 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
     }
 }
 
-impl<'gl> SceneObject for BezierSurfaceC2<'gl> {}
+impl<'gl> SceneObject for BezierSurfaceC2<'gl> {
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+        Some(Box::new(self.surface.clone()))
+    }
+}
 
 impl<'gl> NamedEntity for BezierSurfaceC2<'gl> {
     fn name(&self) -> String {

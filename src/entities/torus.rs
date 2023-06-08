@@ -7,7 +7,8 @@ use crate::{
     camera::Camera,
     math::{
         decompositions::tait_bryan::TaitBryanDecomposition,
-        geometry::{self, gridable::Gridable},
+        geometry::{self, gridable::Gridable, parametric_form::ParametricForm},
+        utils::mat_32_to_64,
     },
     primitives::color::Color,
     render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
@@ -117,6 +118,13 @@ impl<'gl> Drawable for Torus<'gl> {
 impl<'gl> SceneObject for Torus<'gl> {
     fn location(&self) -> Option<Point3<f32>> {
         Some(self.linear_transform.translation.translation.into())
+    }
+
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+        Some(Box::new(geometry::torus::AffineTorus::new(
+            self.torus,
+            mat_32_to_64(self.linear_transform.matrix()),
+        )))
     }
 
     fn model_transform(&self) -> Matrix4<f32> {

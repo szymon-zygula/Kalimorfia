@@ -16,6 +16,7 @@ use kalimorfia::{
         torus::Torus,
     },
     graph::C0EdgeGraph,
+    math::geometry::parametric_form::ParametricForm,
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
     ui::selector::Selector,
@@ -33,8 +34,16 @@ pub struct MainControl<'gl, 'a> {
     shader_manager: Rc<ShaderManager<'gl>>,
     bezier_surface_args: Option<BezierSurfaceArgs>,
     added_surface_type: Option<BezierSurfaceType>,
+    intersection_parameters: Option<IntersetionParameters>,
     filepath: String,
     gl: &'gl glow::Context,
+}
+
+struct IntersetionParameters {
+    use_cursor: bool,
+    search_step: f64,
+    target0: (String, Box<dyn ParametricForm<2, 3>>),
+    target1: (String, Box<dyn ParametricForm<2, 3>>),
 }
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
@@ -51,6 +60,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             added_surface_type: None,
             entity_manager,
             gl,
+            intersection_parameters: None,
             shader_manager,
             bezier_surface_args: None,
         }
@@ -197,7 +207,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         });
     }
 
-    fn additional_control(&self, ui: &imgui::Ui, state: &mut State) {
+    fn additional_control(&mut self, ui: &imgui::Ui, state: &mut State) {
         ui.columns(3, "additional columns", false);
         self.select_deselect_all(ui, state);
         ui.next_column();
@@ -205,6 +215,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.merge_points(ui, state);
         ui.next_column();
         self.select_children(ui, state);
+        self.generate_intersections(ui, state);
         ui.next_column();
         ui.columns(1, "additional columns clear", false);
     }
@@ -282,6 +293,97 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             for subscribee in subscriptions {
                 state.selector.select(subscribee);
             }
+        }
+    }
+
+    fn generate_intersections(&mut self, ui: &imgui::Ui, state: &mut State) {
+        if ui.button("Intersections") {
+            let Some((target0, target1)) = self.intersection_targets(state) else {
+                ui.open_popup("intersection_selection_error");
+                return;
+            };
+
+            self.intersection_parameters.replace(IntersetionParameters {
+                use_cursor: false,
+                search_step: 0.001,
+                target0,
+                target1,
+            });
+        }
+
+        ui.popup("intersection_selection_error", || {
+            ui.text("To generate an intersection, exactly 1 or 2 surface entities are required.");
+        });
+
+        if self.intersection_parameters.is_some() {
+            ui.window("Intersection generation")
+                .size([350.0, 200.0], imgui::Condition::FirstUseEver)
+                .position([300.0, 300.0], imgui::Condition::FirstUseEver)
+                .build(|| {
+                    let target0 = &self.intersection_parameters.as_ref().unwrap().target0;
+                    let target1 = &self.intersection_parameters.as_ref().unwrap().target1;
+
+                    if target0.0 == target1.0 {
+                        ui.text(format!("Intersecting {} with itself", target0.0));
+                    } else {
+                        ui.text(format!("Intersecting {} and {}", target0.0, target1.0));
+                    }
+
+                    let params = self.intersection_parameters.as_mut().unwrap();
+
+                    ui.slider_config("Search step", 0.00001, 0.1)
+                        .flags(imgui::SliderFlags::LOGARITHMIC)
+                        .build(&mut params.search_step);
+                    params.search_step = params.search_step.clamp(0.00001, 0.1);
+
+                    ui.checkbox("Use cursor as starting point", &mut params.use_cursor);
+
+                    ui.columns(2, "Intersection columns", false);
+                    if ui.button("Ok") {}
+
+                    ui.next_column();
+                    if ui.button("Cancel") {
+                        self.intersection_parameters = None;
+                    }
+
+                    ui.next_column();
+                    ui.columns(1, "clear_columns_intersect", false);
+                });
+        }
+    }
+
+    fn intersection_targets(
+        &self,
+        state: &State,
+    ) -> Option<(
+        (String, Box<dyn ParametricForm<2, 3>>),
+        (String, Box<dyn ParametricForm<2, 3>>),
+    )> {
+        let manager = self.entity_manager.borrow();
+
+        let targets: Vec<_> = state
+            .selector
+            .selected()
+            .iter()
+            .copied()
+            .filter(|&id| manager.get_entity(id).as_parametric_2_to_3().is_some())
+            .collect();
+
+        if targets.len() == 2 {
+            let target0 = manager.get_entity(targets[0]);
+            let target1 = manager.get_entity(targets[1]);
+            Some((
+                (target0.name(), target0.as_parametric_2_to_3().unwrap()),
+                (target1.name(), target1.as_parametric_2_to_3().unwrap()),
+            ))
+        } else if targets.len() == 1 {
+            let target = manager.get_entity(targets[0]);
+            Some((
+                (target.name(), target.as_parametric_2_to_3().unwrap()),
+                (target.name(), target.as_parametric_2_to_3().unwrap()),
+            ))
+        } else {
+            None
         }
     }
 
