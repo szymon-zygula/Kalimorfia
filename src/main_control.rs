@@ -16,7 +16,7 @@ use kalimorfia::{
         torus::Torus,
     },
     graph::C0EdgeGraph,
-    math::geometry::parametric_form::ParametricForm,
+    math::geometry::parametric_form::DifferentialParametricForm,
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
     ui::selector::Selector,
@@ -42,8 +42,8 @@ pub struct MainControl<'gl, 'a> {
 struct IntersetionParameters {
     use_cursor: bool,
     search_step: f64,
-    target0: (String, Box<dyn ParametricForm<2, 3>>),
-    target1: (String, Box<dyn ParametricForm<2, 3>>),
+    target0: (String, Box<dyn DifferentialParametricForm<2, 3>>),
+    target1: (String, Box<dyn DifferentialParametricForm<2, 3>>),
 }
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
@@ -356,8 +356,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         &self,
         state: &State,
     ) -> Option<(
-        (String, Box<dyn ParametricForm<2, 3>>),
-        (String, Box<dyn ParametricForm<2, 3>>),
+        (String, Box<dyn DifferentialParametricForm<2, 3>>),
+        (String, Box<dyn DifferentialParametricForm<2, 3>>),
     )> {
         let manager = self.entity_manager.borrow();
 

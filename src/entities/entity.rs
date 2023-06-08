@@ -1,5 +1,5 @@
 use super::{basic::LinearTransformEntity, bezier_surface_c0::BezierSurfaceC0, point::Point};
-use crate::{camera::Camera, math::geometry::parametric_form::ParametricForm};
+use crate::{camera::Camera, math::geometry::parametric_form::DifferentialParametricForm};
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
     cell::RefCell,
@@ -135,7 +135,7 @@ pub trait SceneObject {
         None
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
         None
     }
 
@@ -192,7 +192,7 @@ pub trait ReferentialSceneObject<'gl> {
         None
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
         None
     }
 
@@ -251,7 +251,7 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
         self.location()
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
         self.as_parametric_2_to_3()
     }
 

@@ -12,7 +12,7 @@ use crate::{
     },
     math::geometry::{
         bezier::{deboor_surface_to_bernstein, BezierSurface},
-        parametric_form::ParametricForm,
+        parametric_form::DifferentialParametricForm,
         surfaces::SurfaceC2,
     },
     render::{
@@ -237,7 +237,7 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
 }
 
 impl<'gl> SceneObject for BezierSurfaceC2<'gl> {
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
         Some(Box::new(self.surface.clone()))
     }
 }

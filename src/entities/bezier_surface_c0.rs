@@ -11,7 +11,7 @@ use crate::{
         utils,
     },
     graph::C0Edge,
-    math::geometry::{parametric_form::ParametricForm, surfaces::SurfaceC0},
+    math::geometry::{parametric_form::DifferentialParametricForm, surfaces::SurfaceC0},
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
@@ -292,7 +292,7 @@ impl<'gl> SceneObject for BezierSurfaceC0<'gl> {
         Some(self)
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn ParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
         Some(Box::new(self.surface.clone()))
     }
 }

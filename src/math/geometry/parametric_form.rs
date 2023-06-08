@@ -1,9 +1,27 @@
 use super::{curvable::Curvable, gridable::Gridable};
-use nalgebra::{Point, Point3, SVector, Vector1, Vector2};
+use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2};
 
 pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
     fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
+}
+
+pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
+    fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
+    fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
+    fn jacobian(&self, vec: &SVector<f64, IN_DIM>) -> SMatrix<f64, OUT_DIM, IN_DIM>;
+}
+
+impl<const IN_DIM: usize, const OUT_DIM: usize, T: DifferentialParametricForm<IN_DIM, OUT_DIM>>
+    ParametricForm<IN_DIM, OUT_DIM> for T
+{
+    fn bounds(&self) -> SVector<(f64, f64), IN_DIM> {
+        self.bounds()
+    }
+
+    fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM> {
+        self.parametric(vec)
+    }
 }
 
 fn filtered_curve_thread<F: Fn(&Point3<f32>) -> bool + Send + Copy, P: ParametricForm<1, 3>>(

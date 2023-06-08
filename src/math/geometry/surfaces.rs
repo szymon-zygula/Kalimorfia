@@ -1,8 +1,8 @@
 use super::{
     bezier::{deboor_surface_to_bernstein, BezierCurve, BezierSurface},
-    parametric_form::ParametricForm,
+    parametric_form::{DifferentialParametricForm, ParametricForm},
 };
-use nalgebra::{Point3, Vector1, Vector2};
+use nalgebra::{Matrix3x2, Point3, Vector1, Vector2};
 
 type ControlPatch = [[Point3<f64>; 4]; 4];
 
@@ -15,7 +15,7 @@ impl PatchC0 {
     }
 }
 
-impl ParametricForm<2, 3> for PatchC0 {
+impl DifferentialParametricForm<2, 3> for PatchC0 {
     fn bounds(&self) -> Vector2<(f64, f64)> {
         Vector2::new((0.0, 1.0), (0.0, 1.0))
     }
@@ -30,6 +30,10 @@ impl ParametricForm<2, 3> for PatchC0 {
             .collect();
 
         BezierCurve::through_points(&bezier_points).parametric(&Vector1::new(vec.x))
+    }
+
+    fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
+        todo!()
     }
 }
 
@@ -120,7 +124,7 @@ impl SurfaceC0 {
     }
 }
 
-impl ParametricForm<2, 3> for SurfaceC0 {
+impl DifferentialParametricForm<2, 3> for SurfaceC0 {
     fn bounds(&self) -> Vector2<(f64, f64)> {
         Vector2::new((0.0, 1.0), (0.0, 1.0))
     }
@@ -132,7 +136,11 @@ impl ParametricForm<2, 3> for SurfaceC0 {
         let u = Self::patch_parameter(vec.x, self.u_patches());
         let v = Self::patch_parameter(vec.y, self.v_patches());
 
-        self.0[u_patch][v_patch].parametric(&Vector2::new(u, v))
+        DifferentialParametricForm::parametric(&self.0[u_patch][v_patch], &Vector2::new(u, v))
+    }
+
+    fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
+        todo!()
     }
 }
 
@@ -150,12 +158,16 @@ impl SurfaceC2 {
     }
 }
 
-impl ParametricForm<2, 3> for SurfaceC2 {
+impl DifferentialParametricForm<2, 3> for SurfaceC2 {
     fn bounds(&self) -> Vector2<(f64, f64)> {
         Vector2::new((0.0, 1.0), (0.0, 1.0))
     }
 
     fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
-        self.0.parametric(vec)
+        DifferentialParametricForm::parametric(&self.0, vec)
+    }
+
+    fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
+        self.0.jacobian(vec)
     }
 }

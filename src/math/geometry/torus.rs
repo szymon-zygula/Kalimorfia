@@ -1,5 +1,5 @@
-use super::parametric_form::ParametricForm;
-use nalgebra::{Matrix4, Point3, Vector2};
+use super::parametric_form::DifferentialParametricForm;
+use nalgebra::{Matrix3x2, Matrix4, Point3, Vector2, Vector3};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Torus {
@@ -16,7 +16,7 @@ impl Torus {
     }
 }
 
-impl ParametricForm<2, 3> for Torus {
+impl DifferentialParametricForm<2, 3> for Torus {
     fn bounds(&self) -> Vector2<(f64, f64)> {
         Vector2::new(
             (0.0, 2.0 * std::f64::consts::PI),
@@ -30,6 +30,21 @@ impl ParametricForm<2, 3> for Torus {
             self.tube_radius * vec.y.sin(),
             (self.inner_radius + self.tube_radius * vec.y.cos()) * vec.x.sin(),
         )
+    }
+
+    fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
+        Matrix3x2::from_columns(&[
+            Vector3::new(
+                -(self.inner_radius + self.tube_radius * vec.y.cos()) * vec.x.sin(),
+                0.0,
+                (self.inner_radius + self.tube_radius * vec.y.cos()) * vec.x.cos(),
+            ),
+            Vector3::new(
+                -self.tube_radius * vec.y.sin() * vec.x.cos(),
+                self.tube_radius * vec.y.cos(),
+                -self.tube_radius * vec.y.sin() * vec.x.sin(),
+            ),
+        ])
     }
 }
 
@@ -45,7 +60,7 @@ impl AffineTorus {
     }
 }
 
-impl ParametricForm<2, 3> for AffineTorus {
+impl DifferentialParametricForm<2, 3> for AffineTorus {
     fn bounds(&self) -> Vector2<(f64, f64)> {
         self.torus.bounds()
     }
@@ -53,5 +68,9 @@ impl ParametricForm<2, 3> for AffineTorus {
     fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
         Point3::from_homogeneous(self.transform * self.torus.parametric(vec).to_homogeneous())
             .unwrap_or(Point3::origin())
+    }
+
+    fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
+        self.transform.fixed_view::<3, 3>(0, 0) * self.torus.jacobian(vec)
     }
 }
