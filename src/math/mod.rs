@@ -5,3 +5,4 @@ pub mod bspline;
 pub mod decompositions;
 pub mod geometry;
 pub mod utils;
+pub mod gradient_descent;
