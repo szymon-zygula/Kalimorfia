@@ -1,3 +1,11 @@
+use crate::{
+    camera::Camera,
+    primitives::color::Color,
+    render::{gl_drawable::GlDrawable, point_cloud::PointCloud, shader_manager::ShaderManager},
+};
+use glow::HasContext;
+use nalgebra::{Matrix4, Point3};
+
 pub fn slice_as_raw<T>(slice: &[T]) -> &[u8] {
     unsafe {
         core::slice::from_raw_parts(
@@ -33,4 +41,27 @@ pub fn transpose_vector<T: Clone>(vec: &Vec<Vec<T>>) -> Vec<Vec<T>> {
         .into_iter()
         .map(|v| v.into_iter().map(|e| e.unwrap()).collect())
         .collect()
+}
+
+pub fn debug_point(
+    gl: &glow::Context,
+    camera: &Camera,
+    point: Point3<f32>,
+    shader_manager: &ShaderManager,
+) {
+    let program = shader_manager.program("point");
+    program.enable();
+    program.uniform_matrix_4_f32_slice("model_transform", Matrix4::identity().as_slice());
+    program.uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+    program.uniform_matrix_4_f32_slice(
+        "projection_transform",
+        camera.projection_transform().as_slice(),
+    );
+
+    unsafe { gl.enable(glow::PROGRAM_POINT_SIZE) };
+    program.uniform_f32("point_size", 7.0);
+
+    program.uniform_color("point_color", &Color::red());
+
+    PointCloud::new(gl, vec![point]).draw();
 }
