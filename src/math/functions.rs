@@ -64,18 +64,18 @@ impl<'f> DifferentiableScalarFunction<4> for SurfaceSurfaceL2DistanceSquared<'f>
     }
 
     fn val(&self, x: &Vector4<f64>) -> f64 {
-        let val_0 = self.surface_0.value(&Vector2::new(x.x, x.y));
-        let val_1 = self.surface_1.value(&Vector2::new(x.z, x.w));
+        let val_0 = self.surface_0.value(&vector!(x.x, x.y));
+        let val_1 = self.surface_1.value(&vector!(x.z, x.w));
 
         (val_0 - val_1).norm_squared()
     }
 
     fn grad(&self, x: &Vector4<f64>) -> Vector4<f64> {
-        let arg_0 = Vector2::new(x.x, x.y);
-        let arg_1 = Vector2::new(x.z, x.w);
+        let arg_0 = vector!(x.x, x.y);
+        let arg_1 = vector!(x.z, x.w);
 
         let jacobian_0 = self.surface_0.jacobian(&arg_0);
-        let jacobian_1 = self.surface_1.jacobian(&arg_1);
+        let jacobian_1 = -self.surface_1.jacobian(&arg_1);
 
         let combined_jacobian = Matrix3x4::from_columns(&[
             jacobian_0.fixed_view::<3, 1>(0, 0),

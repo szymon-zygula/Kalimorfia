@@ -67,7 +67,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
             points,
             draw_deboor_polygon: false,
             draw_bernstein_polygon: false,
-            name: ChangeableName::new("Bezier Surface C0", name_repo),
+            name: ChangeableName::new("Bezier Surface C2", name_repo),
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,

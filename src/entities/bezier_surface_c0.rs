@@ -56,9 +56,9 @@ impl<'gl> BezierSurfaceC0<'gl> {
         let is_cylinder = matches!(args, BezierSurfaceArgs::Cylinder(..));
         let bezier_surface = create_bezier_surface(&points, entities, is_cylinder);
 
-        Self {
+        let mut surface = Self {
             gl,
-            mesh: BezierSurfaceMesh::new(gl, bezier_surface.clone()),
+            mesh: BezierSurfaceMesh::empty(gl),
             points,
             bernstein_polygon_mesh: grid_mesh(gl, bezier_surface.grid()),
             draw_bernstein_polygon: false,
@@ -68,7 +68,10 @@ impl<'gl> BezierSurfaceC0<'gl> {
             v_patch_divisions: 3,
             surface: SurfaceC0::null(),
             is_cylinder,
-        }
+        };
+
+        surface.recalculate_mesh(entities);
+        surface
     }
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {

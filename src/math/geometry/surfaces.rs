@@ -2,6 +2,7 @@ use super::{
     bezier::{deboor_surface_to_bernstein, BezierCurve, BezierSurface},
     parametric_form::{DifferentialParametricForm, ParametricForm},
 };
+use itertools::Itertools;
 use nalgebra::{Matrix3x2, Point3, Vector1, Vector2};
 
 #[derive(Clone, Debug)]
@@ -17,27 +18,48 @@ impl PatchC0 {
             let u_degree = control_points.len() - 1;
             let v_degree = control_points[0].len() - 1;
 
-            let mut u_control_points = Vec::new();
+            // let mut u_control_points = Vec::new();
 
-            for i in 0..u_degree {
-                u_control_points.push(Vec::new());
-                for j in 0..=v_degree {
-                    u_control_points.last_mut().unwrap().push(Point3::from(
-                        (control_points[i + 1][j] - control_points[i][j]) * (u_degree + 1) as f64,
-                    ))
-                }
-            }
+            // for i in 0..u_degree {
+            //     u_control_points.push(Vec::new());
+            //     for j in 0..=v_degree {
+            //         u_control_points.last_mut().unwrap().push(Point3::from(
+            //             (control_points[i + 1][j] - control_points[i][j]) * u_degree as f64,
+            //         ))
+            //     }
+            // }
 
-            let mut v_control_points = Vec::new();
+            let v_control_points = control_points
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .tuple_windows()
+                        .map(|(p0, p1)| ((p1 - p0) * v_degree as f64).into())
+                        .collect()
+                })
+                .collect();
 
-            for i in 0..=u_degree {
-                v_control_points.push(Vec::new());
-                for j in 0..v_degree {
-                    v_control_points.last_mut().unwrap().push(Point3::from(
-                        (control_points[i][j + 1] - control_points[i][j]) * (v_degree + 1) as f64,
-                    ))
-                }
-            }
+            let u_control_points = control_points
+                .iter()
+                .tuple_windows()
+                .map(|(row0, row1)| {
+                    row0.iter()
+                        .zip(row1.iter())
+                        .map(|(p0, p1)| ((p1 - p0) * u_degree as f64).into())
+                        .collect()
+                })
+                .collect();
+
+            // let mut v_control_points = Vec::new();
+
+            // for i in 0..=u_degree {
+            //     v_control_points.push(Vec::new());
+            //     for j in 0..v_degree {
+            //         v_control_points.last_mut().unwrap().push(Point3::from(
+            //             (control_points[i][j + 1] - control_points[i][j]) * v_degree as f64,
+            //         ))
+            //     }
+            // }
 
             (
                 Some(Box::new(PatchC0::new(u_control_points, false))),
@@ -68,9 +90,7 @@ impl DifferentialParametricForm<2, 3> for PatchC0 {
         let bezier_points: Vec<_> = self
             .control_points
             .iter()
-            .map(|patch_row| {
-                BezierCurve::through_points(patch_row).value(&Vector1::new(vec.y))
-            })
+            .map(|patch_row| BezierCurve::through_points(patch_row).value(&Vector1::new(vec.y)))
             .collect();
 
         BezierCurve::through_points(&bezier_points).value(&Vector1::new(vec.x))
@@ -78,10 +98,8 @@ impl DifferentialParametricForm<2, 3> for PatchC0 {
 
     fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
         Matrix3x2::from_columns(&[
-            DifferentialParametricForm::value(&**self.u_derivative.as_ref().unwrap(), vec)
-                .coords,
-            DifferentialParametricForm::value(&**self.v_derivative.as_ref().unwrap(), vec)
-                .coords,
+            DifferentialParametricForm::value(&**self.u_derivative.as_ref().unwrap(), vec).coords,
+            DifferentialParametricForm::value(&**self.v_derivative.as_ref().unwrap(), vec).coords,
         ])
     }
 }
@@ -166,7 +184,7 @@ impl SurfaceC0 {
     }
 
     fn v_patches(&self) -> usize {
-        if self.patches.len() == 0 {
+        if self.patches.is_empty() {
             0
         } else {
             self.patches[0].len()
@@ -184,7 +202,11 @@ impl SurfaceC0 {
 
     /// Returns u or v parameter of a patch with `val` as u or v parameter of the surface
     fn patch_parameter(val: f64, count: usize) -> f64 {
-        (val * count as f64).fract()
+        if val == 1.0 {
+            val
+        } else {
+            (val * count as f64).fract()
+        }
     }
 
     fn patch_for_param(&self, vec: &Vector2<f64>) -> &PatchC0 {
@@ -215,10 +237,7 @@ impl DifferentialParametricForm<2, 3> for SurfaceC0 {
     }
 
     fn value(&self, vec: &Vector2<f64>) -> Point3<f64> {
-        DifferentialParametricForm::value(
-            self.patch_for_param(vec),
-            &self.param_for_param(vec),
-        )
+        DifferentialParametricForm::value(self.patch_for_param(vec), &self.param_for_param(vec))
     }
 
     fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {

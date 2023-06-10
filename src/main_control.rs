@@ -16,7 +16,10 @@ use kalimorfia::{
         torus::Torus,
     },
     graph::C0EdgeGraph,
-    math::geometry::{intersection::Intersection, parametric_form::DifferentialParametricForm},
+    math::{
+        geometry::{intersection::IntersectionFinder, parametric_form::DifferentialParametricForm},
+        utils::{point_32_to_64, point_64_to_32},
+    },
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
     ui::selector::Selector,
@@ -47,6 +50,8 @@ struct IntersetionParameters {
 }
 
 type IntersectionTarget = (String, Box<dyn DifferentialParametricForm<2, 3>>);
+const GRADINT_DESCENT_STEP_MIN: f64 = 0.001;
+const GRADINT_DESCENT_STEP_MAX: f64 = 0.01;
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
     pub fn new(
@@ -307,7 +312,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
             self.intersection_parameters.replace(IntersetionParameters {
                 use_cursor: false,
-                search_step: 0.001,
+                search_step: GRADINT_DESCENT_STEP_MIN * 5.0,
                 target_0: target0,
                 target_1: target1,
             });
@@ -333,16 +338,51 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
                     let params = self.intersection_parameters.as_mut().unwrap();
 
-                    ui.slider_config("Search step", 0.00001, 0.1)
-                        .flags(imgui::SliderFlags::LOGARITHMIC)
-                        .build(&mut params.search_step);
-                    params.search_step = params.search_step.clamp(0.00001, 0.1);
+                    ui.slider_config(
+                        "Gradient descent step",
+                        GRADINT_DESCENT_STEP_MIN,
+                        GRADINT_DESCENT_STEP_MAX,
+                    )
+                    .flags(imgui::SliderFlags::LOGARITHMIC)
+                    .build(&mut params.search_step);
+                    params.search_step = params
+                        .search_step
+                        .clamp(GRADINT_DESCENT_STEP_MIN, GRADINT_DESCENT_STEP_MAX);
 
                     ui.checkbox("Use cursor as starting point", &mut params.use_cursor);
 
                     ui.columns(2, "Intersection columns", false);
                     if ui.button("Ok") {
-                        Intersection::new(&*params.target_0.1, &*params.target_1.1);
+                        let guide = params
+                            .use_cursor
+                            .then_some(state.cursor.location())
+                            .flatten()
+                            .map(point_32_to_64);
+
+                        let mut intersection_finder =
+                            IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1);
+                        intersection_finder.guide_point = guide;
+                        intersection_finder.step = params.search_step;
+
+                        let found = intersection_finder.find();
+                        println!("{:?}", found);
+
+                        // DEBUG
+                        if found.is_some() {
+                            let mut point = Box::new(Point::with_position(
+                                self.gl,
+                                point_64_to_32(found.unwrap().points[0].point),
+                                Rc::clone(&state.name_repo),
+                                Rc::clone(&self.shader_manager),
+                            ));
+
+                            point.color = kalimorfia::primitives::color::Color::red();
+
+                            let id = self.entity_manager.borrow_mut().add_entity(point);
+                            state.selector.add_selectable(id);
+                        }
+
+                        self.intersection_parameters = None;
                     }
 
                     ui.next_column();
