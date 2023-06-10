@@ -6,6 +6,7 @@ use crate::math::{
     utils::point_avg,
 };
 use nalgebra::{point, vector, Point2, Point3};
+use rand::distributions::{Distribution, Uniform};
 
 #[derive(Debug, Clone, Copy)]
 pub struct IntersectionPoint {
@@ -28,6 +29,8 @@ pub struct IntersectionFinder<'f> {
 }
 
 impl<'f> IntersectionFinder<'f> {
+    const STOCHASTIC_FIRST_POINT_TRIES: usize = 10;
+
     pub fn new(
         surface_0: &'f dyn DifferentialParametricForm<2, 3>,
         surface_1: &'f dyn DifferentialParametricForm<2, 3>,
@@ -65,7 +68,28 @@ impl<'f> IntersectionFinder<'f> {
     }
 
     fn find_common_point_stochastic(&self) -> Option<IntersectionPoint> {
-        todo!()
+        let bounds = self.surface_0.bounds();
+        let mut rng = rand::thread_rng();
+        let u_distribution = Uniform::new_inclusive(bounds.x.0, bounds.x.1);
+        let v_distribution = Uniform::new_inclusive(bounds.y.0, bounds.y.1);
+
+        for _ in 0..Self::STOCHASTIC_FIRST_POINT_TRIES {
+            let point_0 = point![
+                u_distribution.sample(&mut rng),
+                v_distribution.sample(&mut rng)
+            ];
+
+            let surface_0_point = self.surface_0.value(&point_0.coords);
+            let point_1 = self.find_point_projection(self.surface_1, surface_0_point);
+
+            let common_point = self.find_common_surface_point(point_0, point_1);
+
+            if common_point.is_some() {
+                return common_point;
+            }
+        }
+
+        None
     }
 
     fn find_point_projection(
