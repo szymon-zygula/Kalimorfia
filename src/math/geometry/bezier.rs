@@ -67,7 +67,7 @@ impl ParametricForm<1, 3> for BezierCurve {
         Vector1::new((0.0, 1.0))
     }
 
-    fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
+    fn value(&self, vec: &Vector1<f64>) -> Point3<f64> {
         Point3::new(
             self.x_t.value(vec.x),
             self.y_t.value(vec.x),
@@ -120,7 +120,7 @@ impl ParametricForm<1, 3> for BezierCubicSplineC0 {
         Vector1::new((0.0, 1.0))
     }
 
-    fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
+    fn value(&self, vec: &Vector1<f64>) -> Point3<f64> {
         let curve_idx = if vec.x == 1.0 {
             self.curves.len() - 1
         } else {
@@ -128,7 +128,7 @@ impl ParametricForm<1, 3> for BezierCubicSplineC0 {
         };
 
         let curve_t = self.curves.len() as f64 * vec.x - curve_idx as f64;
-        self.curves[curve_idx].parametric(&Vector1::new(curve_t))
+        self.curves[curve_idx].value(&Vector1::new(curve_t))
     }
 }
 
@@ -205,7 +205,7 @@ impl ParametricForm<1, 3> for BezierBSpline {
         Vector1::new((0.0, 1.0))
     }
 
-    fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
+    fn value(&self, vec: &Vector1<f64>) -> Point3<f64> {
         Point3::new(
             self.x_t.value(vec.x),
             self.y_t.value(vec.x),

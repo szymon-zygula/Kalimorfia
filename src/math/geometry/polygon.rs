@@ -17,7 +17,7 @@ impl ParametricForm<1, 3> for Polygon {
         Vector1::new((0.0, 1.0))
     }
 
-    fn parametric(&self, vec: &Vector1<f64>) -> Point3<f64> {
+    fn value(&self, vec: &Vector1<f64>) -> Point3<f64> {
         let line_idx = if vec.x == 1.0 {
             self.points.len() - 2
         } else {

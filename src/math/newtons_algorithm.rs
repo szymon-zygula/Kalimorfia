@@ -27,7 +27,7 @@ impl<'f> NewtonsAlgorithm<'f, 4> {
             let system = LU::new(self.function.jacobian(&current_arg));
 
             // The solution is (x_{n+1} - x_n)
-            let Some(solution) = system.solve(&-self.function.parametric(&current_arg).coords)
+            let Some(solution) = system.solve(&-self.function.value(&current_arg).coords)
             else {
                 return None;
             };
@@ -46,7 +46,7 @@ impl<'f> NewtonsAlgorithm<'f, 4> {
 
             current_arg = new_arg;
 
-            if self.function.parametric(&current_arg).coords.norm_squared() < self.accuracy {
+            if self.function.value(&current_arg).coords.norm_squared() < self.accuracy {
                 return Some(current_arg);
             }
         }

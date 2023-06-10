@@ -16,7 +16,7 @@ use kalimorfia::{
         torus::Torus,
     },
     graph::C0EdgeGraph,
-    math::geometry::parametric_form::DifferentialParametricForm,
+    math::geometry::{intersection::Intersection, parametric_form::DifferentialParametricForm},
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
     ui::selector::Selector,
@@ -42,9 +42,11 @@ pub struct MainControl<'gl, 'a> {
 struct IntersetionParameters {
     use_cursor: bool,
     search_step: f64,
-    target0: (String, Box<dyn DifferentialParametricForm<2, 3>>),
-    target1: (String, Box<dyn DifferentialParametricForm<2, 3>>),
+    target_0: (String, Box<dyn DifferentialParametricForm<2, 3>>),
+    target_1: (String, Box<dyn DifferentialParametricForm<2, 3>>),
 }
+
+type IntersectionTarget = (String, Box<dyn DifferentialParametricForm<2, 3>>);
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
     pub fn new(
@@ -306,8 +308,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             self.intersection_parameters.replace(IntersetionParameters {
                 use_cursor: false,
                 search_step: 0.001,
-                target0,
-                target1,
+                target_0: target0,
+                target_1: target1,
             });
         }
 
@@ -320,8 +322,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 .size([350.0, 200.0], imgui::Condition::FirstUseEver)
                 .position([300.0, 300.0], imgui::Condition::FirstUseEver)
                 .build(|| {
-                    let target0 = &self.intersection_parameters.as_ref().unwrap().target0;
-                    let target1 = &self.intersection_parameters.as_ref().unwrap().target1;
+                    let target0 = &self.intersection_parameters.as_ref().unwrap().target_0;
+                    let target1 = &self.intersection_parameters.as_ref().unwrap().target_1;
 
                     if target0.0 == target1.0 {
                         ui.text(format!("Intersecting {} with itself", target0.0));
@@ -339,7 +341,9 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                     ui.checkbox("Use cursor as starting point", &mut params.use_cursor);
 
                     ui.columns(2, "Intersection columns", false);
-                    if ui.button("Ok") {}
+                    if ui.button("Ok") {
+                        Intersection::new(&*params.target_0.1, &*params.target_1.1);
+                    }
 
                     ui.next_column();
                     if ui.button("Cancel") {
@@ -355,10 +359,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     fn intersection_targets(
         &self,
         state: &State,
-    ) -> Option<(
-        (String, Box<dyn DifferentialParametricForm<2, 3>>),
-        (String, Box<dyn DifferentialParametricForm<2, 3>>),
-    )> {
+    ) -> Option<(IntersectionTarget, IntersectionTarget)> {
         let manager = self.entity_manager.borrow();
 
         let targets: Vec<_> = state

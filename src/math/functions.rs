@@ -22,7 +22,7 @@ where
     }
 
     fn val(&self, x: &SVector<f64, DIM>) -> f64 {
-        self.parametric(x).x
+        self.value(x).x
     }
 
     fn grad(&self, x: &SVector<f64, DIM>) -> SVector<f64, DIM> {
@@ -64,8 +64,8 @@ impl<'f> DifferentiableScalarFunction<4> for SurfaceSurfaceL2DistanceSquared<'f>
     }
 
     fn val(&self, x: &Vector4<f64>) -> f64 {
-        let val_0 = self.surface_0.parametric(&Vector2::new(x.x, x.y));
-        let val_1 = self.surface_1.parametric(&Vector2::new(x.z, x.w));
+        let val_0 = self.surface_0.value(&Vector2::new(x.x, x.y));
+        let val_1 = self.surface_1.value(&Vector2::new(x.z, x.w));
 
         (val_0 - val_1).norm_squared()
     }
@@ -85,7 +85,7 @@ impl<'f> DifferentiableScalarFunction<4> for SurfaceSurfaceL2DistanceSquared<'f>
         ]);
 
         2.0 * combined_jacobian.transpose()
-            * (self.surface_0.parametric(&arg_0) - self.surface_1.parametric(&arg_1))
+            * (self.surface_0.value(&arg_0) - self.surface_1.value(&arg_1))
     }
 }
 
@@ -109,10 +109,10 @@ impl<'f> DifferentiableScalarFunction<2> for SurfacePointL2DistanceSquared<'f> {
         self.surface.wrapped(dim)
     }
     fn val(&self, x: &Vector2<f64>) -> f64 {
-        (self.surface.parametric(x) - self.point).norm_squared()
+        (self.surface.value(x) - self.point).norm_squared()
     }
 
     fn grad(&self, x: &Vector2<f64>) -> Vector2<f64> {
-        2.0 * self.surface.jacobian(x).transpose() * (self.surface.parametric(x) - self.point)
+        2.0 * self.surface.jacobian(x).transpose() * (self.surface.value(x) - self.point)
     }
 }

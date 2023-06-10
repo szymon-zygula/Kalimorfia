@@ -64,23 +64,23 @@ impl DifferentialParametricForm<2, 3> for PatchC0 {
         false
     }
 
-    fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
+    fn value(&self, vec: &Vector2<f64>) -> Point3<f64> {
         let bezier_points: Vec<_> = self
             .control_points
             .iter()
             .map(|patch_row| {
-                BezierCurve::through_points(patch_row).parametric(&Vector1::new(vec.y))
+                BezierCurve::through_points(patch_row).value(&Vector1::new(vec.y))
             })
             .collect();
 
-        BezierCurve::through_points(&bezier_points).parametric(&Vector1::new(vec.x))
+        BezierCurve::through_points(&bezier_points).value(&Vector1::new(vec.x))
     }
 
     fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {
         Matrix3x2::from_columns(&[
-            DifferentialParametricForm::parametric(&**self.u_derivative.as_ref().unwrap(), vec)
+            DifferentialParametricForm::value(&**self.u_derivative.as_ref().unwrap(), vec)
                 .coords,
-            DifferentialParametricForm::parametric(&**self.v_derivative.as_ref().unwrap(), vec)
+            DifferentialParametricForm::value(&**self.v_derivative.as_ref().unwrap(), vec)
                 .coords,
         ])
     }
@@ -214,8 +214,8 @@ impl DifferentialParametricForm<2, 3> for SurfaceC0 {
         }
     }
 
-    fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
-        DifferentialParametricForm::parametric(
+    fn value(&self, vec: &Vector2<f64>) -> Point3<f64> {
+        DifferentialParametricForm::value(
             self.patch_for_param(vec),
             &self.param_for_param(vec),
         )
@@ -258,8 +258,8 @@ impl DifferentialParametricForm<2, 3> for SurfaceC2 {
         self.0.wrapped(dim)
     }
 
-    fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
-        DifferentialParametricForm::parametric(&self.0, vec)
+    fn value(&self, vec: &Vector2<f64>) -> Point3<f64> {
+        DifferentialParametricForm::value(&self.0, vec)
     }
 
     fn jacobian(&self, vec: &Vector2<f64>) -> Matrix3x2<f64> {

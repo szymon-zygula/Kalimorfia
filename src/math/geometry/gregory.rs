@@ -80,8 +80,8 @@ impl BorderPatch {
         ]);
 
         // https://www.rose-hulman.edu/~finn/CCLI/Notes/day27.pdf
-        let front_val = bezier_front.parametric(&Vector1::new(0.5));
-        let back_val = bezier_back.parametric(&Vector1::new(0.5));
+        let front_val = bezier_front.value(&Vector1::new(0.5));
+        let back_val = bezier_back.value(&Vector1::new(0.5));
 
         [
             utils::vec_64_to_32(bezier0.derivative(0.0)),
@@ -101,9 +101,9 @@ impl BorderPatch {
         }
 
         let twist_bezier = BezierCurve::through_points(&coeffs);
-        let w0 = utils::vec_64_to_32(twist_bezier.parametric(&Vector1::new(0.0)).coords);
-        let w1 = utils::vec_64_to_32(twist_bezier.parametric(&Vector1::new(0.5)).coords);
-        let w2 = utils::vec_64_to_32(twist_bezier.parametric(&Vector1::new(1.0)).coords);
+        let w0 = utils::vec_64_to_32(twist_bezier.value(&Vector1::new(0.0)).coords);
+        let w1 = utils::vec_64_to_32(twist_bezier.value(&Vector1::new(0.5)).coords);
+        let w2 = utils::vec_64_to_32(twist_bezier.value(&Vector1::new(1.0)).coords);
 
         [w0, w1, w2]
     }
@@ -152,16 +152,16 @@ impl BorderPatch {
 
         [
             [
-                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(0.0))),
-                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(1.0 / 3.0))),
-                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(2.0 / 3.0))),
-                utils::point_64_to_32(bezier.0.parametric(&Vector1::new(1.0))),
+                utils::point_64_to_32(bezier.0.value(&Vector1::new(0.0))),
+                utils::point_64_to_32(bezier.0.value(&Vector1::new(1.0 / 3.0))),
+                utils::point_64_to_32(bezier.0.value(&Vector1::new(2.0 / 3.0))),
+                utils::point_64_to_32(bezier.0.value(&Vector1::new(1.0))),
             ],
             [
-                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(0.0))),
-                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(1.0 / 3.0))),
-                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(2.0 / 3.0))),
-                utils::point_64_to_32(bezier.1.parametric(&Vector1::new(1.0))),
+                utils::point_64_to_32(bezier.1.value(&Vector1::new(0.0))),
+                utils::point_64_to_32(bezier.1.value(&Vector1::new(1.0 / 3.0))),
+                utils::point_64_to_32(bezier.1.value(&Vector1::new(2.0 / 3.0))),
+                utils::point_64_to_32(bezier.1.value(&Vector1::new(1.0))),
             ],
         ]
     }

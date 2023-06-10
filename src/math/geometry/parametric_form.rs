@@ -3,13 +3,13 @@ use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2};
 
 pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
-    fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
+    fn value(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
 }
 
 pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
     fn wrapped(&self, dim: usize) -> bool;
-    fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
+    fn value(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
     fn jacobian(&self, vec: &SVector<f64, IN_DIM>) -> SMatrix<f64, OUT_DIM, IN_DIM>;
 }
 
@@ -20,8 +20,8 @@ impl<const IN_DIM: usize, const OUT_DIM: usize, T: DifferentialParametricForm<IN
         self.bounds()
     }
 
-    fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM> {
-        self.parametric(vec)
+    fn value(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM> {
+        self.value(vec)
     }
 }
 
@@ -42,7 +42,7 @@ fn filtered_curve_thread<F: Fn(&Point3<f32>) -> bool + Send + Copy, P: Parametri
         let range = form.bounds().x.1 - form.bounds().x.0;
         let t = i as f64 / (samples - 1) as f64 * range + form.bounds().x.0;
 
-        let point = form.parametric(&Vector1::new(t));
+        let point = form.value(&Vector1::new(t));
         let point = Point3::new(point.x as f32, point.y as f32, point.z as f32);
         if filter(&point) {
             let idx = points.len();
@@ -117,7 +117,7 @@ impl<T: ParametricForm<2, 3>> Gridable for T {
                 let y_range = self.bounds().y.1 - self.bounds().y.0;
                 let y = y_idx as f64 / points_y as f64 * y_range + self.bounds().y.0;
 
-                let point = self.parametric(&Vector2::new(x, y));
+                let point = self.value(&Vector2::new(x, y));
                 let point_idx = points.len() as u32;
                 points.push(Point3::new(point.x as f32, point.y as f32, point.z as f32));
 
