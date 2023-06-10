@@ -20,6 +20,7 @@ pub struct Point<'gl> {
     size: f32,
     name: ChangeableName,
     shader_manager: Rc<ShaderManager<'gl>>,
+    pub color: Color,
 }
 
 impl<'gl> Point<'gl> {
@@ -38,6 +39,7 @@ impl<'gl> Point<'gl> {
             position: Translation::with(position.coords),
             point_cloud: PointCloud::new(gl, vec![Point3::new(0.0, 0.0, 0.0)]),
             name: ChangeableName::new("Point", name_repo),
+            color: Color::white(),
         }
     }
 
@@ -48,11 +50,20 @@ impl<'gl> Point<'gl> {
     pub fn set_position(&mut self, new_position: Vector3<f32>) {
         self.position.translation = new_position;
     }
+
+    fn color_control(&mut self, ui: &imgui::Ui) {
+        let mut color = [self.color.r, self.color.g, self.color.b];
+        ui.color_edit3("Color", &mut color);
+        self.color.r = color[0];
+        self.color.g = color[1];
+        self.color.b = color[2];
+    }
 }
 
 impl<'gl> Entity for Point<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         self.name_control_ui(ui);
+        self.color_control(ui);
         self.position.control_ui(ui)
     }
 }
@@ -74,7 +85,12 @@ impl<'gl> Drawable for Point<'gl> {
         unsafe { self.gl.enable(glow::PROGRAM_POINT_SIZE) };
         program.uniform_f32("point_size", self.size);
 
-        program.uniform_color("point_color", &Color::for_draw_type(&draw_type));
+        let color = match draw_type {
+            DrawType::Regular => self.color,
+            _ => Color::for_draw_type(&draw_type),
+        };
+
+        program.uniform_color("point_color", &color);
 
         self.point_cloud.draw();
     }
