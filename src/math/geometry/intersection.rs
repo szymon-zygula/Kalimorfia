@@ -7,7 +7,7 @@ use crate::math::{
     newtons_algorithm::NewtonsAlgorithm,
     utils::point_avg,
 };
-use nalgebra::{point, vector, Point2, Point3, Vector3};
+use nalgebra::{point, vector, Point2, Point3, Vector2, Vector3};
 use rand::distributions::{Distribution, Uniform};
 
 #[derive(Debug, Clone, Copy)]
@@ -33,6 +33,7 @@ pub struct IntersectionFinder<'f> {
 
 impl<'f> IntersectionFinder<'f> {
     const STOCHASTIC_FIRST_POINT_TRIES: usize = 10;
+    const MAX_POINTS: usize = 1000;
 
     pub fn new(
         surface_0: &'f dyn DifferentialParametricForm<2, 3>,
@@ -51,16 +52,10 @@ impl<'f> IntersectionFinder<'f> {
         let first_point = self.find_first_point()?;
 
         let mut points = vec![first_point];
-        for _ in 0..100 {
-            let Some(next_intersection) = self.next_intersection_point(points.last().unwrap(), false)
-                else { break; };
-            points.push(next_intersection);
-        }
 
-        for _ in 0..200 {
-            let Some(next_intersection) = self.next_intersection_point(points.last().unwrap(), true)
-                else { break; };
-            points.push(next_intersection);
+        if !self.push_points(&mut points, false) {
+            points.reverse();
+            self.push_points(&mut points, true);
         }
 
         Some(Intersection {
@@ -158,10 +153,8 @@ impl<'f> IntersectionFinder<'f> {
     ) -> Option<IntersectionPoint> {
         let surface_0_arg = last_point.surface_0.coords;
         let surface_1_arg = last_point.surface_1.coords;
-        let surface_0_normal = self.surface_0.normal(&surface_0_arg);
-        let surface_1_normal = self.surface_1.normal(&surface_1_arg);
 
-        let direction = Vector3::cross(&surface_0_normal, &surface_1_normal).normalize()
+        let direction = self.common_tangent(&surface_0_arg, &surface_1_arg)
             * if inverse_direction { -1.0 } else { 1.0 };
 
         let step_function = IntersectionStepFunction::new(
@@ -195,5 +188,38 @@ impl<'f> IntersectionFinder<'f> {
                 point: midpoint,
             }
         })
+    }
+
+    fn common_tangent(
+        &self,
+        surface_0_arg: &Vector2<f64>,
+        surface_1_arg: &Vector2<f64>,
+    ) -> Vector3<f64> {
+        let surface_0_normal = self.surface_0.normal(surface_0_arg);
+        let surface_1_normal = self.surface_1.normal(surface_1_arg);
+
+        Vector3::cross(&surface_0_normal, &surface_1_normal).normalize()
+    }
+
+    /// Returns true if the point sequence loops
+    fn push_points(&self, points: &mut Vec<IntersectionPoint>, inverse_direction: bool) -> bool {
+        while points.len() < Self::MAX_POINTS {
+            let Some(next_intersection) =
+                self.next_intersection_point(points.last().unwrap(), inverse_direction) else {
+                    return false;
+                };
+
+            points.push(next_intersection);
+
+            if self.has_looped(&points[0], points.last().unwrap()) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn has_looped(&self, first_point: &IntersectionPoint, last_point: &IntersectionPoint) -> bool {
+        todo!()
     }
 }
