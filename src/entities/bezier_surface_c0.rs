@@ -73,7 +73,8 @@ impl<'gl> BezierSurfaceC0<'gl> {
 
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
         let bezier_surface = create_bezier_surface(&self.points, entities, self.is_cylinder);
-        self.surface = SurfaceC0::from_bezier_surface(bezier_surface.clone());
+        self.surface =
+            SurfaceC0::from_bezier_surface(bezier_surface.clone(), self.is_cylinder, false);
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
         self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
     }

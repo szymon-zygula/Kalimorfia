@@ -95,7 +95,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
         let wrapped_points = self.wrapped_points();
         let deboor_points = point_ids_to_f64(&wrapped_points, entities);
-        self.surface = SurfaceC2::from_points(deboor_points.clone());
+        self.surface = SurfaceC2::from_points(deboor_points.clone(), self.is_cylinder, false);
         let bernstein_points = deboor_surface_to_bernstein(deboor_points);
         let bezier_surface = BezierSurface::new(bernstein_points);
 

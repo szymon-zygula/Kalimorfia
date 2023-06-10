@@ -7,3 +7,4 @@ pub mod parametric_form;
 pub mod polygon;
 pub mod surfaces;
 pub mod torus;
+pub mod intersection;

@@ -8,6 +8,7 @@ pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
 
 pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
+    fn wrapped(&self, dim: usize) -> bool;
     fn parametric(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
     fn jacobian(&self, vec: &SVector<f64, IN_DIM>) -> SMatrix<f64, OUT_DIM, IN_DIM>;
 }

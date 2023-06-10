@@ -24,6 +24,10 @@ impl DifferentialParametricForm<2, 3> for Torus {
         )
     }
 
+    fn wrapped(&self, _dim: usize) -> bool {
+        true
+    }
+
     fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
         Point3::new(
             (self.inner_radius + self.tube_radius * vec.y.cos()) * vec.x.cos(),
@@ -63,6 +67,10 @@ impl AffineTorus {
 impl DifferentialParametricForm<2, 3> for AffineTorus {
     fn bounds(&self) -> Vector2<(f64, f64)> {
         self.torus.bounds()
+    }
+
+    fn wrapped(&self, dim: usize) -> bool {
+        self.torus.wrapped(dim)
     }
 
     fn parametric(&self, vec: &Vector2<f64>) -> Point3<f64> {
