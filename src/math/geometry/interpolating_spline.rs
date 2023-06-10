@@ -1,4 +1,4 @@
-use crate::math::decompositions::tridiagonal;
+use crate::math::{decompositions::tridiagonal, geometry::bezier::BezierBSpline};
 use itertools::Itertools;
 use nalgebra::{Point3, RealField, Vector3};
 
@@ -85,4 +85,44 @@ pub fn interpolating_spline_c2<T: RealField + Copy>(
             )
         })
         .collect()
+}
+
+pub fn c1_glue<T: RealField + Copy>(
+    first: BernsteinTuple<T>,
+    last: BernsteinTuple<T>,
+) -> BernsteinTuple<T> {
+    (
+        last.3,
+        Point3::from(last.3 * T::from_f64(2.0).unwrap() - last.2),
+        Point3::from(first.0 * T::from_f64(2.0).unwrap() - first.1),
+        first.0,
+    )
+}
+
+pub fn c2_glue(first: BernsteinTuple<f64>, last: BernsteinTuple<f64>) -> [BernsteinTuple<f64>; 3] {
+    let last_1_2 = last.2 - last.1;
+    let first_2_1 = first.1 - first.2;
+    let next_last = 2.0 * last.3 - last.2;
+    let next_first = 2.0 * first.0 - first.1;
+    let deboor_second_last = last.2 + last_1_2;
+    let deboor_second_first = first.1 + first_2_1;
+
+    let de_boor = vec![
+        last.1 - last_1_2,
+        deboor_second_last,
+        Point3::from(3.0 * next_last - 2.0 * deboor_second_last.coords),
+        Point3::from(3.0 * next_first - 2.0 * deboor_second_first.coords),
+        deboor_second_first,
+        first.2 - first_2_1,
+    ];
+
+    let bezier = BezierBSpline::through_points(de_boor).bernstein_points();
+
+    assert_eq!(bezier.len(), 10);
+
+    [
+        (bezier[0], bezier[1], bezier[2], bezier[3]),
+        (bezier[3], bezier[4], bezier[5], bezier[6]),
+        (bezier[6], bezier[7], bezier[8], bezier[9]),
+    ]
 }

@@ -10,7 +10,10 @@ use crate::{
     },
     math::{
         self,
-        geometry::{bezier::BezierCubicSplineC0, interpolating_spline::interpolating_spline_c2},
+        geometry::{
+            bezier::BezierCubicSplineC0,
+            interpolating_spline::{c1_glue, c2_glue, interpolating_spline_c2},
+        },
     },
     primitives::color::Color,
     render::{
@@ -42,6 +45,9 @@ pub struct InterpolatingSpline<'gl> {
     bernstein_points: Vec<Point3<f32>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
+
+    looped: bool,
+    use_c2_glue: bool,
 }
 
 impl<'gl> InterpolatingSpline<'gl> {
@@ -66,6 +72,9 @@ impl<'gl> InterpolatingSpline<'gl> {
             bernstein_points: Vec::new(),
             shader_manager,
             name: ChangeableName::new("Interpolating Spline", name_repo),
+
+            looped: false,
+            use_c2_glue: false,
         };
 
         spline.recalculate_bernstein(entities);
@@ -101,7 +110,25 @@ impl<'gl> InterpolatingSpline<'gl> {
                 .map(math::utils::point_64_to_32)
                 .collect(),
             points => {
-                let bernstein_tuples = interpolating_spline_c2(points);
+                let mut bernstein_tuples = interpolating_spline_c2(points);
+
+                if self.looped {
+                    if self.use_c2_glue {
+                        let [b1, b2, b3] = c2_glue(
+                            *bernstein_tuples.first().unwrap(),
+                            *bernstein_tuples.last().unwrap(),
+                        );
+
+                        bernstein_tuples.push(b1);
+                        bernstein_tuples.push(b2);
+                        bernstein_tuples.push(b3);
+                    } else {
+                        bernstein_tuples.push(c1_glue(
+                            *bernstein_tuples.first().unwrap(),
+                            *bernstein_tuples.last().unwrap(),
+                        ))
+                    }
+                }
 
                 let mut bernstein_points: Vec<_> = bernstein_tuples
                     .iter()
@@ -198,6 +225,14 @@ impl<'gl> ReferentialEntity<'gl> for InterpolatingSpline<'gl> {
             &mut self.draw_interpolating_polygon,
         );
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
+
+        if ui.checkbox("Looped", &mut self.looped) {
+            self.recalculate_bernstein(entities);
+        }
+
+        if self.looped && ui.checkbox("C2 loop glue", &mut self.use_c2_glue) {
+            self.recalculate_bernstein(entities);
+        }
 
         let points_names_selections = utils::segregate_points(entities, &self.points);
 
