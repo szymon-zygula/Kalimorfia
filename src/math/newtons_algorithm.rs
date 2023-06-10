@@ -2,7 +2,7 @@ use super::geometry::parametric_form::DifferentialParametricForm;
 use nalgebra::{SVector, Vector4, LU};
 
 pub struct NewtonsAlgorithm<'f, const DIM: usize> {
-    pub function: &'f dyn DifferentialParametricForm<DIM, DIM>,
+    function: &'f dyn DifferentialParametricForm<DIM, DIM>,
     pub starting_point: SVector<f64, DIM>,
     pub max_iterations: usize,
     pub accuracy: f64,
@@ -14,7 +14,7 @@ impl<'f> NewtonsAlgorithm<'f, 4> {
         Self {
             function,
             starting_point: SVector::zeros(),
-            max_iterations: 100,
+            max_iterations: 20,
             accuracy: 0.0001,
         }
     }
@@ -24,13 +24,18 @@ impl<'f> NewtonsAlgorithm<'f, 4> {
         let bounds = self.function.bounds();
 
         for _ in 0..self.max_iterations {
-            let system = LU::new(self.function.jacobian(&current_arg));
+            let jacobian = self.function.jacobian(&current_arg);
+            let system = LU::new(jacobian);
 
             // The solution is (x_{n+1} - x_n)
-            let Some(solution) = system.solve(&-self.function.value(&current_arg).coords)
+            let free_vector = -self.function.value(&current_arg).coords;
+            println!("free: {:?}", free_vector);
+            println!("mat: {}", jacobian);
+            let Some(solution) = system.solve(&free_vector)
             else {
                 return None;
             };
+            println!("solution: {}", solution);
 
             let mut new_arg = solution + current_arg;
 

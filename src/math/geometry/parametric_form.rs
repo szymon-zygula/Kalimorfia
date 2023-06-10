@@ -1,5 +1,5 @@
 use super::{curvable::Curvable, gridable::Gridable};
-use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2};
+use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2, Vector3};
 
 pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
@@ -11,6 +11,22 @@ pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> 
     fn wrapped(&self, dim: usize) -> bool;
     fn value(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
     fn jacobian(&self, vec: &SVector<f64, IN_DIM>) -> SMatrix<f64, OUT_DIM, IN_DIM>;
+}
+
+pub trait WithNormals {
+    fn normal(&self, vec: &Vector2<f64>) -> Vector3<f64>;
+}
+
+impl<T: ?Sized> WithNormals for T
+where
+    T: DifferentialParametricForm<2, 3>,
+{
+    fn normal(&self, vec: &Vector2<f64>) -> Vector3<f64> {
+        let jacobian = self.jacobian(vec);
+        jacobian
+            .fixed_view::<3, 1>(0, 0)
+            .cross(&jacobian.fixed_view::<3, 1>(0, 1))
+    }
 }
 
 impl<const IN_DIM: usize, const OUT_DIM: usize, T: DifferentialParametricForm<IN_DIM, OUT_DIM>>

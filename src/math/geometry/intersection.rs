@@ -1,11 +1,13 @@
-use super::parametric_form::DifferentialParametricForm;
+use super::parametric_form::{DifferentialParametricForm, WithNormals};
 use crate::math::{
-    functions::{SurfacePointL2DistanceSquared, SurfaceSurfaceL2DistanceSquared},
+    functions::{
+        IntersectionStepFunction, SurfacePointL2DistanceSquared, SurfaceSurfaceL2DistanceSquared,
+    },
     gradient_descent::GradientDescent,
     newtons_algorithm::NewtonsAlgorithm,
     utils::point_avg,
 };
-use nalgebra::{point, vector, Point2, Point3};
+use nalgebra::{point, vector, Point2, Point3, Vector3};
 use rand::distributions::{Distribution, Uniform};
 
 #[derive(Debug, Clone, Copy)]
@@ -25,7 +27,8 @@ pub struct IntersectionFinder<'f> {
     surface_0: &'f dyn DifferentialParametricForm<2, 3>,
     surface_1: &'f dyn DifferentialParametricForm<2, 3>,
     pub guide_point: Option<Point3<f64>>,
-    pub step: f64,
+    pub numerical_step: f64,
+    pub intersection_step: f64,
 }
 
 impl<'f> IntersectionFinder<'f> {
@@ -39,16 +42,30 @@ impl<'f> IntersectionFinder<'f> {
             surface_0,
             surface_1,
             guide_point: None,
-            step: 0.0001,
+            numerical_step: 0.0001,
+            intersection_step: 0.01,
         }
     }
 
     pub fn find(&self) -> Option<Intersection> {
         let first_point = self.find_first_point()?;
 
+        let mut points = vec![first_point];
+        for _ in 0..100 {
+            let Some(next_intersection) = self.next_intersection_point(points.last().unwrap(), false)
+                else { break; };
+            points.push(next_intersection);
+        }
+
+        for _ in 0..200 {
+            let Some(next_intersection) = self.next_intersection_point(points.last().unwrap(), true)
+                else { break; };
+            points.push(next_intersection);
+        }
+
         Some(Intersection {
             wrapped: false,
-            points: vec![first_point],
+            points,
         })
     }
 
@@ -100,7 +117,7 @@ impl<'f> IntersectionFinder<'f> {
         let surface_point_distance = SurfacePointL2DistanceSquared::new(surface, point);
 
         let mut gradient_descent = GradientDescent::new(&surface_point_distance);
-        gradient_descent.step = self.step;
+        gradient_descent.step = self.numerical_step;
         gradient_descent.calculate().into()
     }
 
@@ -113,7 +130,7 @@ impl<'f> IntersectionFinder<'f> {
             SurfaceSurfaceL2DistanceSquared::new(self.surface_0, self.surface_1);
 
         let mut gradient_descent = GradientDescent::new(&surface_surface_distance);
-        gradient_descent.step = self.step;
+        gradient_descent.step = self.numerical_step;
         gradient_descent.starting_point = vector![start_0.x, start_0.y, start_1.x, start_1.y];
 
         let minimum = gradient_descent.calculate();
@@ -122,7 +139,7 @@ impl<'f> IntersectionFinder<'f> {
         let surface_0_val = self.surface_0.value(&surface_0_minimum);
         let surface_1_val = self.surface_1.value(&surface_1_minimum);
 
-        if (surface_0_val - surface_1_val).norm() > self.step {
+        if (surface_0_val - surface_1_val).norm() > self.numerical_step {
             return None;
         }
 
@@ -131,6 +148,52 @@ impl<'f> IntersectionFinder<'f> {
             surface_0: surface_0_minimum.into(),
             surface_1: surface_1_minimum.into(),
             point: midpoint,
+        })
+    }
+
+    fn next_intersection_point(
+        &self,
+        last_point: &IntersectionPoint,
+        inverse_direction: bool,
+    ) -> Option<IntersectionPoint> {
+        let surface_0_arg = last_point.surface_0.coords;
+        let surface_1_arg = last_point.surface_1.coords;
+        let surface_0_normal = self.surface_0.normal(&surface_0_arg);
+        let surface_1_normal = self.surface_1.normal(&surface_1_arg);
+
+        let direction = Vector3::cross(&surface_0_normal, &surface_1_normal).normalize()
+            * if inverse_direction { -1.0 } else { 1.0 };
+
+        let step_function = IntersectionStepFunction::new(
+            self.surface_0,
+            self.surface_1,
+            last_point.point,
+            direction,
+            self.intersection_step,
+        );
+
+        let mut newtons_algorithm = NewtonsAlgorithm::new(&step_function);
+        newtons_algorithm.starting_point = vector![
+            surface_0_arg.x,
+            surface_0_arg.y,
+            surface_1_arg.x,
+            surface_1_arg.y
+        ];
+        newtons_algorithm.accuracy = self.numerical_step;
+
+        newtons_algorithm.calculate().map(|solution| {
+            let surface_0_arg = point![solution.x, solution.y];
+            let surface_1_arg = point![solution.z, solution.w];
+            let surface_0_point = self.surface_0.value(&surface_0_arg.coords);
+            let surface_1_point = self.surface_1.value(&surface_1_arg.coords);
+
+            let midpoint = point_avg(surface_0_point, surface_1_point);
+
+            IntersectionPoint {
+                surface_0: surface_0_arg,
+                surface_1: surface_1_arg,
+                point: midpoint,
+            }
         })
     }
 }

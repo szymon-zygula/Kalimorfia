@@ -44,14 +44,17 @@ pub struct MainControl<'gl, 'a> {
 
 struct IntersetionParameters {
     use_cursor: bool,
+    numerical_step: f64,
     search_step: f64,
     target_0: (String, Box<dyn DifferentialParametricForm<2, 3>>),
     target_1: (String, Box<dyn DifferentialParametricForm<2, 3>>),
 }
 
 type IntersectionTarget = (String, Box<dyn DifferentialParametricForm<2, 3>>);
-const GRADINT_DESCENT_STEP_MIN: f64 = 0.001;
-const GRADINT_DESCENT_STEP_MAX: f64 = 0.01;
+const NUMERICAL_STEP_MIN: f64 = 0.001;
+const NUMERICAL_STEP_MAX: f64 = 0.01;
+const INTERSECTION_STEP_MIN: f64 = 0.01;
+const INTERSECTION_STEP_MAX: f64 = 1.0;
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
     pub fn new(
@@ -312,7 +315,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
             self.intersection_parameters.replace(IntersetionParameters {
                 use_cursor: false,
-                search_step: GRADINT_DESCENT_STEP_MIN * 5.0,
+                numerical_step: NUMERICAL_STEP_MIN * 5.0,
+                search_step: INTERSECTION_STEP_MIN * 10.0,
                 target_0: target0,
                 target_1: target1,
             });
@@ -338,16 +342,25 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
                     let params = self.intersection_parameters.as_mut().unwrap();
 
+                    ui.slider_config("Numerical step", NUMERICAL_STEP_MIN, NUMERICAL_STEP_MAX)
+                        .flags(imgui::SliderFlags::LOGARITHMIC)
+                        .build(&mut params.numerical_step);
+
+                    params.numerical_step = params
+                        .numerical_step
+                        .clamp(NUMERICAL_STEP_MIN, NUMERICAL_STEP_MAX);
+
                     ui.slider_config(
-                        "Gradient descent step",
-                        GRADINT_DESCENT_STEP_MIN,
-                        GRADINT_DESCENT_STEP_MAX,
+                        "Intersection step",
+                        INTERSECTION_STEP_MIN,
+                        INTERSECTION_STEP_MAX,
                     )
                     .flags(imgui::SliderFlags::LOGARITHMIC)
                     .build(&mut params.search_step);
+
                     params.search_step = params
                         .search_step
-                        .clamp(GRADINT_DESCENT_STEP_MIN, GRADINT_DESCENT_STEP_MAX);
+                        .clamp(INTERSECTION_STEP_MIN, INTERSECTION_STEP_MAX);
 
                     ui.checkbox("Use cursor as starting point", &mut params.use_cursor);
 
@@ -362,24 +375,27 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                         let mut intersection_finder =
                             IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1);
                         intersection_finder.guide_point = guide;
-                        intersection_finder.step = params.search_step;
+                        intersection_finder.numerical_step = params.numerical_step;
+                        intersection_finder.intersection_step = params.search_step;
 
                         let found = intersection_finder.find();
                         println!("{:?}", found);
 
                         // DEBUG
                         if found.is_some() {
-                            let mut point = Box::new(Point::with_position(
-                                self.gl,
-                                point_64_to_32(found.unwrap().points[0].point),
-                                Rc::clone(&state.name_repo),
-                                Rc::clone(&self.shader_manager),
-                            ));
+                            for point in found.unwrap().points {
+                                let mut point = Box::new(Point::with_position(
+                                    self.gl,
+                                    point_64_to_32(point.point),
+                                    Rc::clone(&state.name_repo),
+                                    Rc::clone(&self.shader_manager),
+                                ));
 
-                            point.color = kalimorfia::primitives::color::Color::red();
+                                point.color = kalimorfia::primitives::color::Color::red();
 
-                            let id = self.entity_manager.borrow_mut().add_entity(point);
-                            state.selector.add_selectable(id);
+                                let id = self.entity_manager.borrow_mut().add_entity(point);
+                                state.selector.add_selectable(id);
+                            }
                         }
 
                         self.intersection_parameters = None;
