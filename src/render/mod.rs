@@ -8,3 +8,5 @@ pub mod shader;
 pub mod shader_manager;
 pub mod stereo;
 pub mod bezier_surface_mesh;
+pub mod texture;
+pub mod gl_texture;
