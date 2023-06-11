@@ -13,6 +13,7 @@ pub struct State<'gl, 'a> {
     pub selector: Selector<'a>,
     pub name_repo: Rc<RefCell<dyn NameRepository>>,
     pub selected_aggregate_id: usize,
+    pub gk_mode: bool,
 }
 
 impl<'gl, 'a> State<'gl, 'a> {
@@ -30,6 +31,7 @@ impl<'gl, 'a> State<'gl, 'a> {
             name_repo: Rc::new(RefCell::new(UniqueNameRepository::new())),
             selector: Self::new_selector(entity_manager, selected_aggregate_id),
             selected_aggregate_id,
+            gk_mode: true,
         }
     }
 

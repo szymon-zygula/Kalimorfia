@@ -72,9 +72,15 @@ fn render_scene(
         gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
     }
 
-    grid.draw_regular(camera);
+    if !state.gk_mode {
+        grid.draw_regular(camera);
+    }
 
     for (&id, &selected) in state.selector.selectables() {
+        if state.gk_mode && entity_manager.borrow().get_entity(id).is_single_point() {
+            continue;
+        }
+
         entity_manager.borrow().draw_referential(
             id,
             camera,

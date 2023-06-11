@@ -22,7 +22,7 @@ use kalimorfia::{
             intersection::{Intersection, IntersectionFinder},
             parametric_form::DifferentialParametricForm,
         },
-        utils::{point_32_to_64, point_64_to_32},
+        utils::point_32_to_64,
     },
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
@@ -232,6 +232,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.generate_intersections(ui, state);
         ui.next_column();
         ui.columns(1, "additional columns clear", false);
+        ui.checkbox("GK mode", &mut state.gk_mode);
     }
 
     fn select_deselect_all(&self, ui: &imgui::Ui, state: &mut State) {

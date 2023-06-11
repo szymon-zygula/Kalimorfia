@@ -21,6 +21,7 @@ pub struct BezierSurfaceMesh<'gl> {
     vertex_buffer: u32,
     vertex_array: u32,
     vertex_count: i32,
+    pub wireframe: bool,
 }
 
 impl<'gl> BezierSurfaceMesh<'gl> {
@@ -30,6 +31,7 @@ impl<'gl> BezierSurfaceMesh<'gl> {
             vertex_buffer: 0,
             vertex_array: 0,
             vertex_count: 0,
+            wireframe: true,
         }
     }
 
@@ -75,6 +77,7 @@ impl<'gl> BezierSurfaceMesh<'gl> {
             vertex_array,
             vertex_buffer,
             vertex_count: (16 * surface.u_patches() * surface.v_patches()) as i32,
+            wireframe: true,
         }
     }
 
@@ -107,7 +110,10 @@ impl<'gl> BezierSurfaceMesh<'gl> {
 impl<'gl> GlDrawable for BezierSurfaceMesh<'gl> {
     fn draw(&self) {
         opengl::with_vao(self.gl, self.vertex_array, || unsafe {
-            self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
+            if self.wireframe {
+                self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
+            }
+
             self.gl.patch_parameter_i32(glow::PATCH_VERTICES, 16);
             self.gl.draw_arrays(glow::PATCHES, 0, self.vertex_count);
             self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
@@ -181,7 +187,6 @@ impl<'gl> GregoryMesh<'gl> {
 impl<'gl> GlDrawable for GregoryMesh<'gl> {
     fn draw(&self) {
         opengl::with_vao(self.gl, self.vertex_array, || unsafe {
-            self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::LINE);
             self.gl.patch_parameter_i32(glow::PATCH_VERTICES, 20);
             self.gl.draw_arrays(glow::PATCHES, 0, self.vertex_count);
             self.gl.polygon_mode(glow::FRONT_AND_BACK, glow::FILL);
