@@ -146,6 +146,9 @@ fn main() {
 
     unsafe {
         gl.clear_color(CLEAR_COLOR.r, CLEAR_COLOR.g, CLEAR_COLOR.b, CLEAR_COLOR.a);
+        gl.clear_depth_f32(-10000000000000.0);
+        gl.enable(glow::DEPTH_TEST);
+        gl.depth_func(glow::GREATER);
     }
 
     use glutin::event::{Event, WindowEvent};
