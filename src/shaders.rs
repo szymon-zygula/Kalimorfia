@@ -9,6 +9,7 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let fragment_uniform = shader(gl, "uniform_fragment", glow::FRAGMENT_SHADER);
 
     let pass_through_vertex = shader(gl, "pass_through_vertex", glow::VERTEX_SHADER);
+    let perspective_vertex = shader(gl, "perspective_vertex", glow::VERTEX_SHADER);
     let perspective_vertex_colored = shader(gl, "perspective_vertex_colored", glow::VERTEX_SHADER);
     let perspective_vertex_colored_uniform =
         shader(gl, "perspective_vertex_uniform_color", glow::VERTEX_SHADER);
@@ -34,6 +35,10 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     );
 
     Rc::new(ShaderManager::new(vec![
+        (
+            "line_mesh",
+            GlProgram::with_shaders(gl, &[&perspective_vertex, &fragment_uniform]),
+        ),
         (
             "point",
             GlProgram::with_shaders(gl, &[&point_cloud_vertex, &fragment_colored]),

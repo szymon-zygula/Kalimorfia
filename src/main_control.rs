@@ -11,13 +11,17 @@ use kalimorfia::{
         entity::{Entity, EntityCollection, ReferentialSceneEntity, SceneObject},
         gregory_patch::GregoryPatch,
         interpolating_spline::InterpolatingSpline,
+        intersection::IntersectionCurve,
         manager::EntityManager,
         point::Point,
         torus::Torus,
     },
     graph::C0EdgeGraph,
     math::{
-        geometry::{intersection::IntersectionFinder, parametric_form::DifferentialParametricForm},
+        geometry::{
+            intersection::{Intersection, IntersectionFinder},
+            parametric_form::DifferentialParametricForm,
+        },
         utils::{point_32_to_64, point_64_to_32},
     },
     render::shader_manager::ShaderManager,
@@ -307,6 +311,10 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     }
 
     fn generate_intersections(&mut self, ui: &imgui::Ui, state: &mut State) {
+        ui.popup("intersection_selection_error", || {
+            ui.text("To generate an intersection, exactly 1 or 2 surface entities are required.");
+        });
+
         if ui.button("Intersections") {
             let Some((target0, target1)) = self.intersection_targets(state) else {
                 ui.open_popup("intersection_selection_error");
@@ -320,95 +328,81 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 target_0: target0,
                 target_1: target1,
             });
+
+            ui.open_popup("intersection_window")
         }
 
-        ui.popup("intersection_selection_error", || {
-            ui.text("To generate an intersection, exactly 1 or 2 surface entities are required.");
-        });
-
         if self.intersection_parameters.is_some() {
-            ui.window("Intersection generation")
-                .size([350.0, 200.0], imgui::Condition::FirstUseEver)
-                .position([300.0, 300.0], imgui::Condition::FirstUseEver)
-                .build(|| {
-                    let target0 = &self.intersection_parameters.as_ref().unwrap().target_0;
-                    let target1 = &self.intersection_parameters.as_ref().unwrap().target_1;
-
-                    if target0.0 == target1.0 {
-                        ui.text(format!("Intersecting {} with itself", target0.0));
-                    } else {
-                        ui.text(format!("Intersecting {} and {}", target0.0, target1.0));
-                    }
-
-                    let params = self.intersection_parameters.as_mut().unwrap();
-
-                    ui.slider_config("Numerical step", NUMERICAL_STEP_MIN, NUMERICAL_STEP_MAX)
-                        .flags(imgui::SliderFlags::LOGARITHMIC)
-                        .build(&mut params.numerical_step);
-
-                    params.numerical_step = params
-                        .numerical_step
-                        .clamp(NUMERICAL_STEP_MIN, NUMERICAL_STEP_MAX);
-
-                    ui.slider_config(
-                        "Intersection step",
-                        INTERSECTION_STEP_MIN,
-                        INTERSECTION_STEP_MAX,
-                    )
-                    .flags(imgui::SliderFlags::LOGARITHMIC)
-                    .build(&mut params.search_step);
-
-                    params.search_step = params
-                        .search_step
-                        .clamp(INTERSECTION_STEP_MIN, INTERSECTION_STEP_MAX);
-
-                    ui.checkbox("Use cursor as starting point", &mut params.use_cursor);
-
-                    ui.columns(2, "Intersection columns", false);
-                    if ui.button("Ok") {
-                        let guide = params
-                            .use_cursor
-                            .then_some(state.cursor.location())
-                            .flatten()
-                            .map(point_32_to_64);
-
-                        let mut intersection_finder =
-                            IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1);
-                        intersection_finder.guide_point = guide;
-                        intersection_finder.numerical_step = params.numerical_step;
-                        intersection_finder.intersection_step = params.search_step;
-
-                        let found = intersection_finder.find();
-
-                        // DEBUG
-                        if let Some(found) = found {
-                            println!("Loop: {}", found.looped);
-                            for point in found.points {
-                                let mut point = Box::new(Point::with_position(
-                                    self.gl,
-                                    point_64_to_32(point.point),
-                                    Rc::clone(&state.name_repo),
-                                    Rc::clone(&self.shader_manager),
-                                ));
-
-                                point.color = kalimorfia::primitives::color::Color::red();
-
-                                let id = self.entity_manager.borrow_mut().add_entity(point);
-                                state.selector.add_selectable(id);
-                            }
-                        }
-
-                        self.intersection_parameters = None;
-                    }
-
-                    ui.next_column();
-                    if ui.button("Cancel") {
-                        self.intersection_parameters = None;
-                    }
-
-                    ui.next_column();
-                    ui.columns(1, "clear_columns_intersect", false);
+            ui.popup("intersection_window", || {
+                ui.popup("intersection_not_found", || {
+                    ui.text("No intersection found between selected surfaces");
                 });
+
+                let target0 = &self.intersection_parameters.as_ref().unwrap().target_0;
+                let target1 = &self.intersection_parameters.as_ref().unwrap().target_1;
+
+                if target0.0 == target1.0 {
+                    ui.text(format!("Intersecting {} with itself", target0.0));
+                } else {
+                    ui.text(format!("Intersecting {} and {}", target0.0, target1.0));
+                }
+
+                let params = self.intersection_parameters.as_mut().unwrap();
+
+                ui.slider_config("Numerical step", NUMERICAL_STEP_MIN, NUMERICAL_STEP_MAX)
+                    .flags(imgui::SliderFlags::LOGARITHMIC)
+                    .build(&mut params.numerical_step);
+
+                params.numerical_step = params
+                    .numerical_step
+                    .clamp(NUMERICAL_STEP_MIN, NUMERICAL_STEP_MAX);
+
+                ui.slider_config(
+                    "Intersection step",
+                    INTERSECTION_STEP_MIN,
+                    INTERSECTION_STEP_MAX,
+                )
+                .flags(imgui::SliderFlags::LOGARITHMIC)
+                .build(&mut params.search_step);
+
+                params.search_step = params
+                    .search_step
+                    .clamp(INTERSECTION_STEP_MIN, INTERSECTION_STEP_MAX);
+
+                ui.checkbox("Use cursor as starting point", &mut params.use_cursor);
+
+                ui.columns(2, "Intersection columns", false);
+                if ui.button("Ok") {
+                    let guide = params
+                        .use_cursor
+                        .then_some(state.cursor.location())
+                        .flatten()
+                        .map(point_32_to_64);
+
+                    let mut intersection_finder =
+                        IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1);
+                    intersection_finder.guide_point = guide;
+                    intersection_finder.numerical_step = params.numerical_step;
+                    intersection_finder.intersection_step = params.search_step;
+
+                    let intersection = intersection_finder.find();
+
+                    if let Some(intersection) = intersection {
+                        self.add_intersection_curve(state, intersection);
+                        self.intersection_parameters = None;
+                    } else {
+                        ui.open_popup("intersection_not_found");
+                    }
+                }
+
+                ui.next_column();
+                if ui.button("Cancel") {
+                    self.intersection_parameters = None;
+                }
+
+                ui.next_column();
+                ui.columns(1, "clear_columns_intersect", false);
+            });
         }
     }
 
@@ -867,6 +861,22 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 }
             }
         }
+    }
+
+    fn add_intersection_curve(&self, state: &mut State, intersection: Intersection) {
+        let intersection_curve = Box::new(IntersectionCurve::new(
+            self.gl,
+            Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
+            self.entity_manager.borrow().entities(),
+            intersection,
+        ));
+
+        let id = self
+            .entity_manager
+            .borrow_mut()
+            .add_entity(intersection_curve);
+        state.selector.add_selectable(id);
     }
 
     fn selected_points(&self, selector: &Selector) -> Vec<usize> {
