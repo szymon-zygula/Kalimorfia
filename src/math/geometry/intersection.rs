@@ -12,8 +12,8 @@ use rand::distributions::{Distribution, Uniform};
 
 #[derive(Debug, Clone, Copy)]
 pub struct IntersectionPoint {
-    pub surface_0: Point2<f64>,
-    pub surface_1: Point2<f64>,
+    pub surface_0: Vector2<f64>,
+    pub surface_1: Vector2<f64>,
     pub point: Point3<f64>,
 }
 
@@ -21,6 +21,7 @@ pub struct IntersectionPoint {
 pub struct Intersection {
     pub wrapped: bool,
     pub points: Vec<IntersectionPoint>,
+    pub looped: bool,
 }
 
 pub struct IntersectionFinder<'f> {
@@ -53,7 +54,8 @@ impl<'f> IntersectionFinder<'f> {
 
         let mut points = vec![first_point];
 
-        if !self.push_points(&mut points, false) {
+        let looped = self.push_points(&mut points, false);
+        if !looped {
             points.reverse();
             self.push_points(&mut points, true);
         }
@@ -61,6 +63,7 @@ impl<'f> IntersectionFinder<'f> {
         Some(Intersection {
             wrapped: false,
             points,
+            looped,
         })
     }
 
@@ -140,8 +143,8 @@ impl<'f> IntersectionFinder<'f> {
 
         let midpoint = point_avg(surface_0_val, surface_1_val);
         Some(IntersectionPoint {
-            surface_0: surface_0_minimum.into(),
-            surface_1: surface_1_minimum.into(),
+            surface_0: surface_0_minimum,
+            surface_1: surface_1_minimum,
             point: midpoint,
         })
     }
@@ -151,8 +154,8 @@ impl<'f> IntersectionFinder<'f> {
         last_point: &IntersectionPoint,
         inverse_direction: bool,
     ) -> Option<IntersectionPoint> {
-        let surface_0_arg = last_point.surface_0.coords;
-        let surface_1_arg = last_point.surface_1.coords;
+        let surface_0_arg = last_point.surface_0;
+        let surface_1_arg = last_point.surface_1;
 
         let direction = self.common_tangent(&surface_0_arg, &surface_1_arg)
             * if inverse_direction { -1.0 } else { 1.0 };
@@ -175,10 +178,10 @@ impl<'f> IntersectionFinder<'f> {
         newtons_algorithm.accuracy = self.numerical_step;
 
         newtons_algorithm.calculate().map(|solution| {
-            let surface_0_arg = point![solution.x, solution.y];
-            let surface_1_arg = point![solution.z, solution.w];
-            let surface_0_point = self.surface_0.value(&surface_0_arg.coords);
-            let surface_1_point = self.surface_1.value(&surface_1_arg.coords);
+            let surface_0_arg = vector![solution.x, solution.y];
+            let surface_1_arg = vector![solution.z, solution.w];
+            let surface_0_point = self.surface_0.value(&surface_0_arg);
+            let surface_1_point = self.surface_1.value(&surface_1_arg);
 
             let midpoint = point_avg(surface_0_point, surface_1_point);
 
@@ -201,17 +204,35 @@ impl<'f> IntersectionFinder<'f> {
         Vector3::cross(&surface_0_normal, &surface_1_normal).normalize()
     }
 
-    /// Returns true if the point sequence loops
+    /// Returns true if the point sequence loops, expects `points` to contain the first
+    /// intersection point
     fn push_points(&self, points: &mut Vec<IntersectionPoint>, inverse_direction: bool) -> bool {
+        let loop_distances = self.parameter_space_backward_distances(&points[0]);
+
+        if let Some(loop_distances) = (!inverse_direction).then_some(loop_distances).flatten() {
+            self.push_points_with_loop_check(points, loop_distances)
+        } else {
+            self.push_points_without_loop_check(points, inverse_direction);
+            false
+        }
+    }
+
+    fn push_points_with_loop_check(
+        &self,
+        points: &mut Vec<IntersectionPoint>,
+        loop_distances: (f64, f64),
+    ) -> bool {
         while points.len() < Self::MAX_POINTS {
             let Some(next_intersection) =
-                self.next_intersection_point(points.last().unwrap(), inverse_direction) else {
+                self.next_intersection_point(points.last().unwrap(), false) else {
                     return false;
                 };
 
             points.push(next_intersection);
 
-            if self.has_looped(&points[0], points.last().unwrap()) {
+            if points.len() >= 4
+                && self.has_looped(&points[0], points.last().unwrap(), loop_distances)
+            {
                 return true;
             }
         }
@@ -219,7 +240,57 @@ impl<'f> IntersectionFinder<'f> {
         false
     }
 
-    fn has_looped(&self, first_point: &IntersectionPoint, last_point: &IntersectionPoint) -> bool {
-        todo!()
+    fn push_points_without_loop_check(
+        &self,
+        points: &mut Vec<IntersectionPoint>,
+        inverse_direction: bool,
+    ) {
+        while points.len() < Self::MAX_POINTS {
+            let Some(next_intersection) =
+                self.next_intersection_point(points.last().unwrap(), inverse_direction) else {
+                    return;
+                };
+
+            points.push(next_intersection);
+        }
+    }
+
+    /// Previous intersection points (when goint in the regular direction) in parameter space for both surfaces
+    fn parameter_space_backward_distances(&self, point: &IntersectionPoint) -> Option<(f64, f64)> {
+        let backward_point = self.next_intersection_point(point, true);
+        backward_point.map(
+            |IntersectionPoint {
+                 surface_0,
+                 surface_1,
+                 ..
+             }| {
+                let distance_0 = self
+                    .surface_0
+                    .parameter_distance(&surface_0, &point.surface_0);
+
+                let distance_1 = self
+                    .surface_1
+                    .parameter_distance(&surface_1, &point.surface_1);
+
+                (distance_0, distance_1)
+            },
+        )
+    }
+
+    fn has_looped(
+        &self,
+        first_point: &IntersectionPoint,
+        last_point: &IntersectionPoint,
+        loop_distances: (f64, f64),
+    ) -> bool {
+        let distance_0 = self
+            .surface_0
+            .parameter_distance(&first_point.surface_0, &last_point.surface_0);
+
+        let distance_1 = self
+            .surface_1
+            .parameter_distance(&first_point.surface_1, &last_point.surface_1);
+
+        loop_distances.0 > distance_0 && loop_distances.1 > distance_1
     }
 }

@@ -29,13 +29,10 @@ impl<'f> NewtonsAlgorithm<'f, 4> {
 
             // The solution is (x_{n+1} - x_n)
             let free_vector = -self.function.value(&current_arg).coords;
-            println!("free: {:?}", free_vector);
-            println!("mat: {}", jacobian);
             let Some(solution) = system.solve(&free_vector)
             else {
                 return None;
             };
-            println!("solution: {}", solution);
 
             let mut new_arg = solution + current_arg;
 

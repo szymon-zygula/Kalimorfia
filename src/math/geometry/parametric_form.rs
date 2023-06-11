@@ -1,4 +1,5 @@
 use super::{curvable::Curvable, gridable::Gridable};
+use itertools::Itertools;
 use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2, Vector3};
 
 pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
@@ -11,6 +12,34 @@ pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> 
     fn wrapped(&self, dim: usize) -> bool;
     fn value(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
     fn jacobian(&self, vec: &SVector<f64, IN_DIM>) -> SMatrix<f64, OUT_DIM, IN_DIM>;
+
+    fn parameter_distance(
+        &self,
+        first: &SVector<f64, IN_DIM>,
+        second: &SVector<f64, IN_DIM>,
+    ) -> f64 {
+        let bounds_range = self.bounds().map(|coord| coord.1 - coord.0);
+
+        (0..IN_DIM)
+            .map(|dim| {
+                if self.wrapped(dim) {
+                    vec![-1.0, 0.0, 1.0]
+                } else {
+                    vec![0.0]
+                }
+            })
+            .multi_cartesian_product()
+            .map(|shifts| {
+                let mut second_shifted = *second;
+                for (dim, shift) in shifts.iter().enumerate() {
+                    *second_shifted.get_mut(dim).unwrap() += shift * bounds_range[dim];
+                }
+
+                SVector::metric_distance(first, &second_shifted)
+            })
+            .min_by(f64::total_cmp)
+            .unwrap()
+    }
 }
 
 pub trait WithNormals {
@@ -29,8 +58,9 @@ where
     }
 }
 
-impl<const IN_DIM: usize, const OUT_DIM: usize, T: DifferentialParametricForm<IN_DIM, OUT_DIM>>
-    ParametricForm<IN_DIM, OUT_DIM> for T
+impl<const IN_DIM: usize, const OUT_DIM: usize, T> ParametricForm<IN_DIM, OUT_DIM> for T
+where
+    T: DifferentialParametricForm<IN_DIM, OUT_DIM>,
 {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM> {
         self.bounds()

@@ -379,11 +379,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                         intersection_finder.intersection_step = params.search_step;
 
                         let found = intersection_finder.find();
-                        println!("{:?}", found);
 
                         // DEBUG
-                        if found.is_some() {
-                            for point in found.unwrap().points {
+                        if let Some(found) = found {
+                            println!("Loop: {}", found.looped);
+                            for point in found.points {
                                 let mut point = Box::new(Point::with_position(
                                     self.gl,
                                     point_64_to_32(point.point),
