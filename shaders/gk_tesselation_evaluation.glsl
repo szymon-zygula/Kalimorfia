@@ -7,6 +7,8 @@ uniform mat4 view;
 uniform mat4 projection;
 
 out vec3 normal;
+out vec3 world;
+out vec3 to_cam;
 
 // Control point
 vec3 p(uint up, uint vp) {
@@ -48,7 +50,7 @@ vec3 derivative_u(float u, float v) {
     vec3 dp[3][4];
 
     for(int i = 0; i < 3; ++i) {
-        for(int j = 0; i < 4; ++i) {
+        for(int j = 0; j < 4; ++j) {
             dp[i][j] = 3.0 * (p(i + 1, j) - p(i, j));
         }
     }
@@ -64,7 +66,7 @@ vec3 derivative_v(float u, float v) {
     vec3 dp[4][3];
 
     for(int i = 0; i < 4; ++i) {
-        for(int j = 0; i < 3; ++i) {
+        for(int j = 0; j < 3; ++j) {
             dp[i][j] = 3.0 * (p(i, j + 1) - p(i, j));
         }
     }
@@ -85,8 +87,9 @@ void main() {
     vec3 deriv_u = derivative_u(u, v);
     vec3 deriv_v = derivative_v(u, v);
     vec4 norm = vec4(cross(deriv_u, deriv_v), 0.0);
-    /* norm = transpose(inverse(model)) * norm; */
-    normal = normalize(norm.xyz);
+    norm = transpose(inverse(model)) * norm;
+    normal = -normalize(norm.xyz);
+    world = (model * position).xyz;
 
-    gl_Position = projection * view * model * position;
+    gl_Position = projection * view *vec4(world, 1.0);
 }

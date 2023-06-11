@@ -4,12 +4,13 @@ layout (vertices=16) out;
 
 uniform mat4 model;
 uniform mat4 view;
+uniform uint subdivisions;
 
 const uint MIN_TESS_LEVEL = 2;
 const uint MAX_TESS_LEVEL = 32;
 
 uint factor(float dist) {
-    float tess = -16.0 * log(dist * 0.05) / log(10.0);
+    float tess = -log(dist * 0.1) / log(10.0) * subdivisions;
     return uint(round(clamp(tess, MIN_TESS_LEVEL, MAX_TESS_LEVEL)));
 }
 

@@ -119,12 +119,13 @@ pub fn grid_mesh<'gl>(gl: &'gl glow::Context, grid: &PointsGrid) -> LinesMesh<'g
     LinesMesh::new(gl, vertices, indices)
 }
 
-pub fn uv_subdivision_ui(ui: &imgui::Ui, u_patch_divisions: &mut u32, v_patch_divisions: &mut u32) {
-    ui.slider_config("U patch subdivisions", MIN_SUBDIVISIONS, MAX_SUBDIVISIONS)
+pub fn subdivision_ui(ui: &imgui::Ui, patch_divisions: &mut u32, name: &str) {
+    ui.slider_config(name, MIN_SUBDIVISIONS, MAX_SUBDIVISIONS)
         .flags(imgui::SliderFlags::NO_INPUT)
-        .build(u_patch_divisions);
+        .build(patch_divisions);
+}
 
-    ui.slider_config("V patch subdivisions", MIN_SUBDIVISIONS, MAX_SUBDIVISIONS)
-        .flags(imgui::SliderFlags::NO_INPUT)
-        .build(v_patch_divisions);
+pub fn uv_subdivision_ui(ui: &imgui::Ui, u_patch_divisions: &mut u32, v_patch_divisions: &mut u32) {
+    subdivision_ui(ui, u_patch_divisions, "U patch subdivisions");
+    subdivision_ui(ui, v_patch_divisions, "V patch subdivisions");
 }

@@ -86,6 +86,10 @@ impl<'gl> BezierSurfaceC0<'gl> {
             SurfaceC0::from_bezier_surface(bezier_surface.clone(), self.is_cylinder, false);
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
         self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
+
+        if !self.wireframe {
+            self.mesh.wireframe = false;
+        }
     }
 
     fn u_patches(&self) -> usize {
@@ -229,12 +233,6 @@ impl<'gl> BezierSurfaceC0<'gl> {
 
     fn gk_control(&mut self, ui: &imgui::Ui) {
         ui.checkbox("Wireframe", &mut self.wireframe);
-
-        if self.wireframe {
-            self.mesh.wireframe = true;
-        } else {
-            self.mesh.wireframe = false;
-        }
     }
 
     fn draw_gk(&self, premul: &Matrix4<f32>, camera: &Camera) {
@@ -243,6 +241,13 @@ impl<'gl> BezierSurfaceC0<'gl> {
         program.uniform_matrix_4_f32_slice("model", premul.as_slice());
         program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
         program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
+        program.uniform_u32("subdivisions", self.u_patch_divisions);
+        program.uniform_3_f32(
+            "cam_pos",
+            camera.position().x,
+            camera.position().y,
+            camera.position().z,
+        );
 
         self.mesh.draw();
     }
@@ -263,8 +268,15 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
 
         if self.gk_mode {
             self.gk_control(ui);
+            subdivision_ui(ui, &mut self.u_patch_divisions, "Detail");
         } else {
             uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
+        }
+
+        if self.wireframe {
+            self.mesh.wireframe = true;
+        } else {
+            self.mesh.wireframe = false;
         }
 
         ControlResult::default()
