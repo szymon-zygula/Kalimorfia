@@ -60,6 +60,10 @@ impl<'f> IntersectionFinder<'f> {
             self.push_points(&mut points, true);
         }
 
+        if points.len() < 2 {
+            return None;
+        }
+
         Some(Intersection {
             wrapped: false,
             points,
