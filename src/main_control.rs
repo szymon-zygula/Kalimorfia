@@ -11,7 +11,7 @@ use kalimorfia::{
         entity::{Entity, EntityCollection, ReferentialSceneEntity, SceneObject},
         gregory_patch::GregoryPatch,
         interpolating_spline::InterpolatingSpline,
-        intersection::IntersectionCurve,
+        intersection_curve::IntersectionCurve,
         manager::EntityManager,
         point::Point,
         torus::Torus,
@@ -22,13 +22,13 @@ use kalimorfia::{
             intersection::{Intersection, IntersectionFinder},
             parametric_form::DifferentialParametricForm,
         },
-        utils::point_32_to_64,
+        utils::{point_32_to_64, point_64_to_32},
     },
     render::shader_manager::ShaderManager,
     repositories::NameRepository,
     ui::selector::Selector,
 };
-use nalgebra::Vector3;
+use nalgebra::{Point3, Vector3};
 use std::{cell::RefCell, io::Write, rc::Rc, str::FromStr};
 
 enum BezierSurfaceType {
@@ -106,7 +106,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 ui.separator();
                 self.cursor_control(ui, state);
                 ui.separator();
-                self.stereoscopy_control(ui, state);
+                self.display_control(ui, state);
                 ui.separator();
                 self.file_control(ui, state);
                 ui.separator();
@@ -147,8 +147,9 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn stereoscopy_control(&self, ui: &imgui::Ui, state: &mut State) {
+    fn display_control(&self, ui: &imgui::Ui, state: &mut State) {
         let _token = ui.push_id("stereoscopy");
+        ui.checkbox("GK mode", &mut state.gk_mode);
         let mut stereoscopy = state.camera.stereo.is_some();
 
         if ui.checkbox("Stereoscopy", &mut stereoscopy) {
@@ -207,23 +208,28 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     fn file_control(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
         ui.input_text("Filepath", &mut self.filepath).build();
 
-        if ui.button("Save to file") && self.save_scene(state).is_err() {
+        ui.columns(2, "file_columns", false);
+        if ui.button("Load file") && self.load_scene(state).is_err() {
+            self.reset_scene(state);
             ui.open_popup("file_io_error");
         }
 
-        if ui.button("Load file") && self.load_scene(state).is_err() {
-            self.reset_scene(state);
+        ui.next_column();
+        if ui.button("Save to file") && self.save_scene(state).is_err() {
             ui.open_popup("file_io_error");
         }
 
         ui.popup("file_io_error", || {
             ui.text("Error while performing file IO");
         });
+        ui.next_column();
+        ui.columns(1, "file_reset_columns", false);
     }
 
     fn additional_control(&mut self, ui: &imgui::Ui, state: &mut State) {
         ui.columns(3, "additional columns", false);
         self.select_deselect_all(ui, state);
+        self.convert_intersection_to_interpolation(ui, state);
         ui.next_column();
         self.remove_selected(ui, state);
         self.merge_points(ui, state);
@@ -232,7 +238,6 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.generate_intersections(ui, state);
         ui.next_column();
         ui.columns(1, "additional columns clear", false);
-        ui.checkbox("GK mode", &mut state.gk_mode);
     }
 
     fn select_deselect_all(&self, ui: &imgui::Ui, state: &mut State) {
@@ -260,6 +265,42 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
         self.entity_manager.borrow_mut().merge_points(points);
         state.selector.deselect_all();
+    }
+
+    fn convert_intersection_to_interpolation(&self, ui: &imgui::Ui, state: &mut State) {
+        ui.popup("inter_inter_conv_fail", || {
+            ui.text("Select exactly one intersection to convert it to an interpolating spline!");
+        });
+
+        if !ui.button("Intersect.->interpol.") {
+            return;
+        }
+
+        let Some(only_selected) = state.selector.only_selected() else {
+            ui.open_popup("inter_inter_conv_fail");
+            return;
+        };
+
+        let manager = self.entity_manager.borrow();
+        let selected_entity = manager.get_entity(only_selected);
+        let Some(intersection_curve) = selected_entity
+            .as_intersection()
+        else {
+            ui.open_popup("inter_inter_conv_fail");
+            return;
+        };
+
+        let intersection = intersection_curve.intersection().clone();
+        std::mem::drop(selected_entity);
+        std::mem::drop(manager);
+
+        let point_ids: Vec<_> = intersection
+            .points
+            .iter()
+            .map(|point| self.add_point_at(state, point_64_to_32(point.point)))
+            .collect();
+
+        self.add_interpolating_spline_through(state, point_ids, intersection.looped);
     }
 
     fn remove_selected(&self, ui: &imgui::Ui, state: &mut State) {
@@ -487,11 +528,10 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         ui.columns(1, "clear_columns", false);
     }
 
-    /// Adds a point without adding it to the only selected entity if such an entity exists
-    fn quietly_add_point(&self, state: &mut State) -> usize {
+    fn add_point_at(&self, state: &mut State, position: Point3<f32>) -> usize {
         let point = Box::new(Point::with_position(
             self.gl,
-            state.cursor.location().unwrap(),
+            position,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
         ));
@@ -499,6 +539,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         let id = self.entity_manager.borrow_mut().add_entity(point);
         state.selector.add_selectable(id);
         id
+    }
+
+    /// Adds a point without adding it to the only selected entity if such an entity exists
+    fn quietly_add_point(&self, state: &mut State) -> usize {
+        self.add_point_at(state, state.cursor.location().unwrap())
     }
 
     /// Adds a point and adds it to the only currently selected entity if only one entity is
@@ -535,11 +580,11 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
-            selected_points,
+            selected_points.clone(),
             self.entity_manager.borrow().entities(),
         );
 
-        self.add_spline(state, spline);
+        self.add_spline(state, spline, &selected_points);
     }
 
     fn add_cubic_spline_c2(&self, state: &mut State) {
@@ -548,33 +593,48 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
-            selected_points,
+            selected_points.clone(),
             self.entity_manager.borrow().entities(),
         );
 
-        self.add_spline(state, spline);
+        self.add_spline(state, spline, &selected_points);
+    }
+
+    fn add_interpolating_spline_through(
+        &self,
+        state: &mut State,
+        point_ids: Vec<usize>,
+        looped: bool,
+    ) {
+        let mut spline = InterpolatingSpline::through_points(
+            self.gl,
+            Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
+            point_ids.clone(),
+            self.entity_manager.borrow().entities(),
+        );
+
+        spline.looped = looped;
+        self.add_spline(state, spline, &point_ids);
     }
 
     fn add_interpolating_spline(&self, state: &mut State) {
         let selected_points = self.selected_points(&state.selector);
-        let spline = InterpolatingSpline::through_points(
-            self.gl,
-            Rc::clone(&state.name_repo),
-            Rc::clone(&self.shader_manager),
-            selected_points,
-            self.entity_manager.borrow().entities(),
-        );
-
-        self.add_spline(state, spline);
+        self.add_interpolating_spline_through(state, selected_points, false);
     }
 
-    fn add_spline<T: ReferentialSceneEntity<'gl> + 'gl>(&self, state: &mut State, spline: T) {
+    fn add_spline<T: ReferentialSceneEntity<'gl> + 'gl>(
+        &self,
+        state: &mut State,
+        spline: T,
+        points: &[usize],
+    ) {
         let boxed_spline = Box::new(spline);
 
         let id = self.entity_manager.borrow_mut().add_entity(boxed_spline);
 
-        for selected in self.selected_points(&state.selector) {
-            self.entity_manager.borrow_mut().subscribe(id, selected);
+        for &point in points {
+            self.entity_manager.borrow_mut().subscribe(id, point);
         }
 
         state.selector.add_selectable(id);

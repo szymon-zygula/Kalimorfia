@@ -17,7 +17,7 @@ pub struct IntersectionPoint {
     pub point: Point3<f64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Intersection {
     pub wrapped: bool,
     pub points: Vec<IntersectionPoint>,

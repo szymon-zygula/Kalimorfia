@@ -46,7 +46,7 @@ pub struct InterpolatingSpline<'gl> {
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
 
-    looped: bool,
+    pub looped: bool,
     use_c2_glue: bool,
 }
 

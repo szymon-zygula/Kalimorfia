@@ -1,4 +1,7 @@
-use super::{basic::LinearTransformEntity, bezier_surface_c0::BezierSurfaceC0, point::Point};
+use super::{
+    basic::LinearTransformEntity, bezier_surface_c0::BezierSurfaceC0,
+    intersection_curve::IntersectionCurve, point::Point,
+};
 use crate::{camera::Camera, math::geometry::parametric_form::DifferentialParametricForm};
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
@@ -162,6 +165,10 @@ pub trait SceneObject {
     fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
         None
     }
+
+    fn as_intersection(&self) -> Option<&IntersectionCurve> {
+        None
+    }
 }
 
 pub trait ReferentialSceneObject<'gl> {
@@ -215,6 +222,10 @@ pub trait ReferentialSceneObject<'gl> {
     fn map_point_mut(&mut self, mut _map: Box<dyn FnMut(&mut Point)>) {}
 
     fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
+        None
+    }
+
+    fn as_intersection(&self) -> Option<&IntersectionCurve> {
         None
     }
 }
@@ -277,6 +288,10 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
 
     fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
         self.as_c0_surface()
+    }
+
+    fn as_intersection(&self) -> Option<&IntersectionCurve> {
+        self.as_intersection()
     }
 }
 

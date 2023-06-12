@@ -17,4 +17,4 @@ pub mod scene_grid;
 pub mod screen_coordinates;
 pub mod torus;
 pub mod utils;
-pub mod intersection;
+pub mod intersection_curve;

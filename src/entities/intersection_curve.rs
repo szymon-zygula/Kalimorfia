@@ -56,6 +56,10 @@ impl<'gl> IntersectionCurve<'gl> {
             name: ChangeableName::new("Intersection Curve", name_repo),
         }
     }
+
+    pub fn intersection(&self) -> &Intersection {
+        &self.intersection
+    }
 }
 
 impl<'gl> ReferentialEntity<'gl> for IntersectionCurve<'gl> {
@@ -107,7 +111,11 @@ impl<'gl> Drawable for IntersectionCurve<'gl> {
     }
 }
 
-impl<'gl> SceneObject for IntersectionCurve<'gl> {}
+impl<'gl> SceneObject for IntersectionCurve<'gl> {
+    fn as_intersection(&self) -> Option<&IntersectionCurve> {
+        Some(self)
+    }
+}
 
 impl<'gl> NamedEntity for IntersectionCurve<'gl> {
     fn name(&self) -> String {
