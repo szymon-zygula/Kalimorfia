@@ -929,7 +929,6 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             self.gl,
             Rc::clone(&state.name_repo),
             Rc::clone(&self.shader_manager),
-            self.entity_manager.borrow().entities(),
             intersection,
         ));
 

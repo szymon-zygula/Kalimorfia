@@ -13,8 +13,7 @@ use crate::{
     graph::C0Edge,
     math::geometry::{parametric_form::DifferentialParametricForm, surfaces::SurfaceC0},
     render::{
-        bezier_surface_mesh::BezierSurfaceMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
-        shader_manager::ShaderManager,
+        bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
     },
     repositories::NameRepository,
 };
@@ -43,9 +42,6 @@ pub struct BezierSurfaceC0<'gl> {
     surface: SurfaceC0,
 
     is_cylinder: bool,
-
-    gk_mode: bool,
-    wireframe: bool,
 }
 
 impl<'gl> BezierSurfaceC0<'gl> {
@@ -72,8 +68,6 @@ impl<'gl> BezierSurfaceC0<'gl> {
             v_patch_divisions: 3,
             surface: SurfaceC0::null(),
             is_cylinder,
-            gk_mode: false,
-            wireframe: true,
         };
 
         surface.recalculate_mesh(entities);
@@ -86,10 +80,6 @@ impl<'gl> BezierSurfaceC0<'gl> {
             SurfaceC0::from_bezier_surface(bezier_surface.clone(), self.is_cylinder, false);
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
         self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
-
-        if !self.wireframe {
-            self.mesh.wireframe = false;
-        }
     }
 
     fn u_patches(&self) -> usize {
@@ -230,27 +220,6 @@ impl<'gl> BezierSurfaceC0<'gl> {
 
         edges
     }
-
-    fn gk_control(&mut self, ui: &imgui::Ui) {
-        ui.checkbox("Wireframe", &mut self.wireframe);
-    }
-
-    fn draw_gk(&self, premul: &Matrix4<f32>, camera: &Camera) {
-        let program = self.shader_manager.program("gk_mode");
-        program.enable();
-        program.uniform_matrix_4_f32_slice("model", premul.as_slice());
-        program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
-        program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
-        program.uniform_u32("subdivisions", self.u_patch_divisions);
-        program.uniform_3_f32(
-            "cam_pos",
-            camera.position().x,
-            camera.position().y,
-            camera.position().z,
-        );
-
-        self.mesh.draw();
-    }
 }
 
 impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
@@ -264,20 +233,8 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
         let _token = ui.push_id("c0_surface_control");
         self.name_control_ui(ui);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
-        ui.checkbox("GK2 mode", &mut self.gk_mode);
 
-        if self.gk_mode {
-            self.gk_control(ui);
-            subdivision_ui(ui, &mut self.u_patch_divisions, "Detail");
-        } else {
-            uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
-        }
-
-        if self.wireframe {
-            self.mesh.wireframe = true;
-        } else {
-            self.mesh.wireframe = false;
-        }
+        uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
         ControlResult::default()
     }
@@ -312,19 +269,15 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
 
 impl<'gl> Drawable for BezierSurfaceC0<'gl> {
     fn draw(&self, camera: &Camera, premul: &Matrix4<f32>, draw_type: DrawType) {
-        if self.gk_mode {
-            self.draw_gk(premul, camera);
-        } else {
-            draw_bezier_surface(
-                &self.mesh,
-                self.u_patch_divisions,
-                self.v_patch_divisions,
-                &self.shader_manager,
-                camera,
-                premul,
-                draw_type,
-            );
-        }
+        draw_bezier_surface(
+            &self.mesh,
+            self.u_patch_divisions,
+            self.v_patch_divisions,
+            &self.shader_manager,
+            camera,
+            premul,
+            draw_type,
+        );
 
         if self.draw_bernstein_polygon {
             draw_polygon(

@@ -20,7 +20,6 @@ use std::{
 };
 
 pub struct IntersectionCurve<'gl> {
-    gl: &'gl glow::Context,
     mesh: LinesMesh<'gl>,
     intersection: Intersection,
     shader_manager: Rc<ShaderManager<'gl>>,
@@ -32,7 +31,6 @@ impl<'gl> IntersectionCurve<'gl> {
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
         shader_manager: Rc<ShaderManager<'gl>>,
-        entities: &EntityCollection<'gl>,
         intersection: Intersection,
     ) -> Self {
         let mut points: Vec<_> = intersection
@@ -49,7 +47,6 @@ impl<'gl> IntersectionCurve<'gl> {
         mesh.thickness(3.0);
 
         Self {
-            gl,
             mesh,
             intersection,
             shader_manager,
