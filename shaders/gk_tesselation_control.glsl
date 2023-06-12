@@ -7,7 +7,7 @@ uniform mat4 view;
 uniform uint subdivisions;
 
 const uint MIN_TESS_LEVEL = 2;
-const uint MAX_TESS_LEVEL = 32;
+const uint MAX_TESS_LEVEL = 64;
 
 uint factor(float dist) {
     float tess = -log(dist * 0.1) / log(10.0) * subdivisions;

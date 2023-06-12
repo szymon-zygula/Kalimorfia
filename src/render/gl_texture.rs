@@ -51,6 +51,13 @@ impl<'gl> GlTexture<'gl> {
         unsafe { self.gl.bind_texture(glow::TEXTURE_2D, Some(self.handle)) }
     }
 
+    pub fn bind_to_image_unit(&self, image_unit: u32) {
+        unsafe {
+            self.gl.active_texture(glow::TEXTURE0 + image_unit);
+        }
+        self.bind();
+    }
+
     pub fn load(&self, texture: &Texture) {
         let format = texture_format(texture);
 

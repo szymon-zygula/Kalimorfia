@@ -71,6 +71,13 @@ impl<'gl> GlProgram<'gl> {
         }
     }
 
+    pub fn uniform_i32(&self, name: &str, data: i32) {
+        unsafe {
+            let location = self.gl.get_uniform_location(self.handle, name).unwrap();
+            self.gl.uniform_1_i32(Some(&location), data);
+        }
+    }
+
     pub fn uniform_3_f32(&self, name: &str, x: f32, y: f32, z: f32) {
         unsafe {
             let location = self.gl.get_uniform_location(self.handle, name).unwrap();

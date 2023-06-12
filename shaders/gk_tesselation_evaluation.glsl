@@ -5,10 +5,25 @@ layout (quads, equal_spacing, ccw) in;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+layout(binding = 0) uniform sampler2D displacement_texture;
+uniform uint v_patches;
+uniform uint u_patches;
+uniform uint subdivisions;
 
 out vec3 normal;
+out vec3 u_derivative;
+out vec3 v_derivative;
 out vec3 world;
-out vec3 to_cam;
+out float u_glob;
+out float v_glob;
+out float lod;
+
+const uint MIN_TESS_LEVEL = 2;
+const uint MAX_TESS_LEVEL = 64;
+
+float factor(float dist) {
+    return -float(subdivisions) * log(dist * 0.1) / log(10.0);
+}
 
 // Control point
 vec3 p(uint up, uint vp) {
@@ -83,12 +98,22 @@ void main() {
     float u = gl_TessCoord.x;
     float v = gl_TessCoord.y;
 
-    vec4 position = vec4(bicubic_bezier(u, v), 1.0f);
-    vec3 deriv_u = derivative_u(u, v);
-    vec3 deriv_v = derivative_v(u, v);
-    vec4 norm = vec4(cross(deriv_u, deriv_v), 0.0);
+    u_glob = (gl_PrimitiveID / v_patches + u) / u_patches;
+    v_glob = (gl_PrimitiveID % v_patches + v) / v_patches;
+
+    u_derivative = normalize(derivative_u(u, v));
+    v_derivative = normalize(derivative_v(u, v));
+    vec4 norm = vec4(cross(u_derivative, v_derivative), 0.0);
     norm = transpose(inverse(model)) * norm;
     normal = -normalize(norm.xyz);
+
+    vec3 bez = bicubic_bezier(u, v);
+    vec3 view_bez = (view * model * vec4(bez, 1.0)).xyz;
+    lod = 6 - log2(max(factor(-view_bez.z / 5.0), 1));
+    float displacement =
+        textureLod(displacement_texture, vec2(u_glob, v_glob), lod).x;
+
+    vec4 position = vec4(bez + displacement * normal * 0.05, 1.0f);
     world = (model * position).xyz;
 
     gl_Position = projection * view *vec4(world, 1.0);

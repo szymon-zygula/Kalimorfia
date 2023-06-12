@@ -16,15 +16,17 @@ use crate::{
         surfaces::SurfaceC2,
     },
     render::{
-        bezier_surface_mesh::BezierSurfaceMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
-        shader_manager::ShaderManager,
+        bezier_surface_mesh::BezierSurfaceMesh, gl_drawable::GlDrawable, gl_texture::GlTexture,
+        mesh::LinesMesh, shader_manager::ShaderManager, texture::Texture,
     },
     repositories::NameRepository,
 };
+use glow::HasContext;
 use nalgebra::Matrix4;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    path::Path,
     rc::Rc,
 };
 
@@ -51,6 +53,10 @@ pub struct BezierSurfaceC2<'gl> {
 
     gk_mode: bool,
     wireframe: bool,
+
+    displacement_texture: GlTexture<'gl>,
+    color_texture: GlTexture<'gl>,
+    normal_texture: GlTexture<'gl>,
 }
 
 impl<'gl> BezierSurfaceC2<'gl> {
@@ -63,6 +69,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
         args: BezierSurfaceArgs,
     ) -> Self {
         let is_cylinder = matches!(args, BezierSurfaceArgs::Cylinder(..));
+        let [displacement_texture, color_texture, normal_texture] = Self::load_textures(gl);
         let mut s = Self {
             gl,
             mesh: BezierSurfaceMesh::empty(gl),
@@ -79,11 +86,23 @@ impl<'gl> BezierSurfaceC2<'gl> {
             is_cylinder,
             gk_mode: false,
             wireframe: true,
+            displacement_texture,
+            color_texture,
+            normal_texture,
         };
 
         s.recalculate_mesh(entities);
 
         s
+    }
+
+    fn load_textures(gl: &glow::Context) -> [GlTexture; 3] {
+        [
+            "textures/height.png",
+            "textures/diffuse.png",
+            "textures/normals.png",
+        ]
+        .map(|path| GlTexture::new(gl, &Texture::from_file(Path::new(path))))
     }
 
     pub fn wrapped_points(&self) -> Vec<Vec<usize>> {
@@ -177,12 +196,22 @@ impl<'gl> BezierSurfaceC2<'gl> {
         program.uniform_matrix_4_f32_slice("view", camera.view_transform().as_slice());
         program.uniform_matrix_4_f32_slice("projection", camera.projection_transform().as_slice());
         program.uniform_u32("subdivisions", self.u_patch_divisions);
+        program.uniform_u32("u_patches", self.u_patches() as u32);
+        program.uniform_u32("v_patches", self.v_patches() as u32);
         program.uniform_3_f32(
             "cam_pos",
             camera.position().x,
             camera.position().y,
             camera.position().z,
         );
+
+        self.displacement_texture.bind_to_image_unit(0);
+        self.color_texture.bind_to_image_unit(1);
+        self.normal_texture.bind_to_image_unit(2);
+
+        unsafe {
+            self.gl.active_texture(glow::TEXTURE0);
+        }
 
         self.mesh.draw();
     }
