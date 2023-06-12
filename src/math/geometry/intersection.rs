@@ -7,8 +7,42 @@ use crate::math::{
     newtons_algorithm::NewtonsAlgorithm,
     utils::point_avg,
 };
-use nalgebra::{point, vector, Point2, Point3, Vector2, Vector3};
+use nalgebra::{vector, Point3, Vector2, Vector3};
 use rand::distributions::{Distribution, Uniform};
+
+macro_rules! tighten {
+    (
+        $self:ident,
+        $point:ident,
+        $tightening:ident,
+        $surface:ident,
+        $surface_other:ident
+    ) => {
+        let surface_val = $self.$surface.value(&$tightening.$surface);
+        let surface_other_arg = $self.find_point_projection($self.$surface_other, surface_val);
+        let surface_other_val = $self.$surface_other.value(&surface_other_arg);
+        $tightening.$surface_other = surface_other_arg;
+        $tightening.point = point_avg(surface_val, surface_other_val);
+
+        if Vector3::metric_distance(&$tightening.point.coords, &$point.point.coords)
+            < $self.intersection_step
+        {
+            return Some($tightening);
+        }
+    };
+}
+
+macro_rules! tighten_1_dim {
+    ($self:ident, $point:ident, $surface:ident, $dim:expr, $surface_other:ident) => {
+        if !$self.$surface.wrapped($dim) {
+            let mut new_point = $point;
+            new_point.$surface[$dim] = $self.$surface.bounds()[$dim].0;
+            tighten!($self, $point, new_point, $surface, $surface_other);
+            new_point.$surface[$dim] = $self.$surface.bounds()[$dim].1;
+            tighten!($self, $point, new_point, $surface, $surface_other);
+        }
+    };
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct IntersectionPoint {
@@ -34,7 +68,7 @@ pub struct IntersectionFinder<'f> {
 
 impl<'f> IntersectionFinder<'f> {
     const STOCHASTIC_FIRST_POINT_TRIES: usize = 10;
-    const MAX_POINTS: usize = 1000;
+    const MAX_POINTS: usize = 10000;
 
     pub fn new(
         surface_0: &'f dyn DifferentialParametricForm<2, 3>,
@@ -58,6 +92,7 @@ impl<'f> IntersectionFinder<'f> {
         if !looped {
             points.reverse();
             self.push_points(&mut points, true);
+            self.adjust_intersection_at_edges(&mut points);
         }
 
         if points.len() < 2 {
@@ -93,12 +128,12 @@ impl<'f> IntersectionFinder<'f> {
         let v_distribution = Uniform::new_inclusive(bounds.y.0, bounds.y.1);
 
         for _ in 0..Self::STOCHASTIC_FIRST_POINT_TRIES {
-            let point_0 = point![
+            let point_0 = vector![
                 u_distribution.sample(&mut rng),
                 v_distribution.sample(&mut rng)
             ];
 
-            let surface_0_point = self.surface_0.value(&point_0.coords);
+            let surface_0_point = self.surface_0.value(&point_0);
             let point_1 = self.find_point_projection(self.surface_1, surface_0_point);
 
             let common_point = self.find_common_surface_point(point_0, point_1);
@@ -115,18 +150,18 @@ impl<'f> IntersectionFinder<'f> {
         &self,
         surface: &dyn DifferentialParametricForm<2, 3>,
         point: Point3<f64>,
-    ) -> Point2<f64> {
+    ) -> Vector2<f64> {
         let surface_point_distance = SurfacePointL2DistanceSquared::new(surface, point);
 
         let mut gradient_descent = GradientDescent::new(&surface_point_distance);
         gradient_descent.step = self.numerical_step;
-        gradient_descent.calculate().into()
+        gradient_descent.calculate()
     }
 
     fn find_common_surface_point(
         &self,
-        start_0: Point2<f64>,
-        start_1: Point2<f64>,
+        start_0: Vector2<f64>,
+        start_1: Vector2<f64>,
     ) -> Option<IntersectionPoint> {
         let surface_surface_distance =
             SurfaceSurfaceL2DistanceSquared::new(self.surface_0, self.surface_1);
@@ -296,5 +331,46 @@ impl<'f> IntersectionFinder<'f> {
             .parameter_distance(&first_point.surface_1, &last_point.surface_1);
 
         loop_distances.0 > distance_0 && loop_distances.1 > distance_1
+    }
+
+    fn adjust_intersection_at_edges(&self, points: &mut Vec<IntersectionPoint>) {
+        let new_first = self.tightening_point(points[0]);
+        let new_last = self.tightening_point(*points.last().unwrap());
+
+        if let Some(new_first) = new_first {
+            if Vector3::metric_distance(&new_first.point.coords, &points[0].point.coords)
+                < self.intersection_step / 3.0
+            {
+                points[0] = new_first;
+            } else {
+                points.insert(0, new_first);
+            }
+        }
+
+        if let Some(new_last) = new_last {
+            if Vector3::metric_distance(&new_last.point.coords, &points[0].point.coords)
+                < self.intersection_step / 3.0
+            {
+                let last_idx = points.len() - 1;
+                points[last_idx] = new_last;
+            } else {
+                points.push(new_last);
+            }
+        }
+    }
+
+    fn tightening_point(&self, point: IntersectionPoint) -> Option<IntersectionPoint> {
+        if !self.surface_0.wrapped(0)
+            && !self.surface_0.wrapped(1)
+            && self.surface_1.wrapped(0)
+            && self.surface_1.wrapped(1)
+        {}
+
+        tighten_1_dim!(self, point, surface_0, 0, surface_1);
+        tighten_1_dim!(self, point, surface_0, 1, surface_1);
+        tighten_1_dim!(self, point, surface_1, 0, surface_0);
+        tighten_1_dim!(self, point, surface_1, 1, surface_0);
+
+        None
     }
 }

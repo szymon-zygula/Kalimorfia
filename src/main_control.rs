@@ -57,7 +57,7 @@ struct IntersetionParameters {
 type IntersectionTarget = (String, Box<dyn DifferentialParametricForm<2, 3>>);
 const NUMERICAL_STEP_MIN: f64 = 0.001;
 const NUMERICAL_STEP_MAX: f64 = 0.01;
-const INTERSECTION_STEP_MIN: f64 = 0.01;
+const INTERSECTION_STEP_MIN: f64 = 0.001;
 const INTERSECTION_STEP_MAX: f64 = 1.0;
 
 impl<'gl, 'a> MainControl<'gl, 'a> {
