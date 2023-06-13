@@ -1,13 +1,17 @@
 use std::cell::RefCell;
 
 use super::parametric_form::{DifferentialParametricForm, WithNormals};
-use crate::math::{
-    functions::{
-        IntersectionStepFunction, SurfacePointL2DistanceSquared, SurfaceSurfaceL2DistanceSquared,
+use crate::{
+    math::{
+        functions::{
+            IntersectionStepFunction, SurfacePointL2DistanceSquared,
+            SurfaceSurfaceL2DistanceSquared,
+        },
+        gradient_descent::GradientDescent,
+        newtons_algorithm::NewtonsAlgorithm,
+        utils::point_avg,
     },
-    gradient_descent::GradientDescent,
-    newtons_algorithm::NewtonsAlgorithm,
-    utils::point_avg,
+    render::gl_texture::GlTexture,
 };
 use nalgebra::{vector, Point3, Vector2, Vector3};
 

@@ -24,7 +24,7 @@ use kalimorfia::{
         },
         utils::{point_32_to_64, point_64_to_32},
     },
-    render::shader_manager::ShaderManager,
+    render::{shader_manager::ShaderManager, texture::Texture},
     repositories::NameRepository,
     ui::selector::Selector,
 };
@@ -436,6 +436,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                     let intersection = intersection_finder.find();
 
                     if let Some(intersection) = intersection {
+                        Texture::intersection_texture(
+                            &intersection,
+                            &*params.target_0.1,
+                            &*params.target_1.1,
+                            1000,
+                        );
                         self.add_intersection_curve(state, intersection);
                         self.intersection_parameters = None;
                     } else {
