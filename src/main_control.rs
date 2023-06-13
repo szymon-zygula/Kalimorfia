@@ -383,7 +383,9 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 let target0 = &self.intersection_parameters.as_ref().unwrap().target_0;
                 let target1 = &self.intersection_parameters.as_ref().unwrap().target_1;
 
-                if target0.0 == target1.0 {
+                let self_intersection = target0.0 == target1.0;
+
+                if self_intersection {
                     ui.text(format!("Intersecting {} with itself", target0.0));
                 } else {
                     ui.text(format!("Intersecting {} and {}", target0.0, target1.0));
@@ -421,8 +423,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                         .flatten()
                         .map(point_32_to_64);
 
-                    let mut intersection_finder =
-                        IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1);
+                    let mut intersection_finder = if self_intersection {
+                        IntersectionFinder::new_same(&*params.target_0.1)
+                    } else {
+                        IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1)
+                    };
+
                     intersection_finder.guide_point = guide;
                     intersection_finder.numerical_step = params.numerical_step;
                     intersection_finder.intersection_step = params.search_step;

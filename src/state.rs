@@ -31,7 +31,7 @@ impl<'gl, 'a> State<'gl, 'a> {
             name_repo: Rc::new(RefCell::new(UniqueNameRepository::new())),
             selector: Self::new_selector(entity_manager, selected_aggregate_id),
             selected_aggregate_id,
-            gk_mode: true,
+            gk_mode: false,
         }
     }
 

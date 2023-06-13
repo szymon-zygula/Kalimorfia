@@ -1,6 +1,7 @@
 use super::{curvable::Curvable, gridable::Gridable};
 use itertools::Itertools;
 use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2, Vector3};
+use rand::{distributions::Uniform, prelude::Distribution, Rng};
 
 pub trait ParametricForm<const IN_DIM: usize, const OUT_DIM: usize> {
     fn bounds(&self) -> SVector<(f64, f64), IN_DIM>;
@@ -39,6 +40,22 @@ pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> 
             })
             .min_by(f64::total_cmp)
             .unwrap()
+    }
+
+    fn parameter_distribution(&self) -> ParameterDistribution<IN_DIM> {
+        ParameterDistribution {
+            distribution: self.bounds().map(|b| Uniform::new_inclusive(b.0, b.1)),
+        }
+    }
+}
+
+pub struct ParameterDistribution<const IN_DIM: usize> {
+    distribution: SVector<Uniform<f64>, IN_DIM>,
+}
+
+impl<const IN_DIM: usize> ParameterDistribution<IN_DIM> {
+    pub fn sample(&self, rng: &mut impl Rng) -> SVector<f64, IN_DIM> {
+        self.distribution.map(|d| d.sample(rng))
     }
 }
 

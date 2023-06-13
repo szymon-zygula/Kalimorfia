@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use super::parametric_form::{DifferentialParametricForm, WithNormals};
 use crate::math::{
     functions::{
@@ -8,7 +10,6 @@ use crate::math::{
     utils::point_avg,
 };
 use nalgebra::{vector, Point3, Vector2, Vector3};
-use rand::distributions::{Distribution, Uniform};
 
 macro_rules! tighten {
     (
@@ -44,6 +45,19 @@ macro_rules! tighten_1_dim {
     };
 }
 
+macro_rules! check_stochastic_points {
+    ($self:ident, $common_point:ident) => {
+        if let Some(common_point) = $common_point {
+            // If this condition is not fulfilled, we've just found the same point twice
+            if Vector2::metric_distance(&common_point.surface_0, &common_point.surface_1)
+                >= $self.numerical_step
+            {
+                return Some(common_point);
+            }
+        }
+    };
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct IntersectionPoint {
     pub surface_0: Vector2<f64>,
@@ -64,10 +78,12 @@ pub struct IntersectionFinder<'f> {
     pub guide_point: Option<Point3<f64>>,
     pub numerical_step: f64,
     pub intersection_step: f64,
+    rng: RefCell<rand::rngs::ThreadRng>,
+    same: bool,
 }
 
 impl<'f> IntersectionFinder<'f> {
-    const STOCHASTIC_FIRST_POINT_TRIES: usize = 10;
+    const STOCHASTIC_FIRST_POINT_TRIES: usize = 500;
     const MAX_POINTS: usize = 10000;
 
     pub fn new(
@@ -80,6 +96,20 @@ impl<'f> IntersectionFinder<'f> {
             guide_point: None,
             numerical_step: 0.0001,
             intersection_step: 0.01,
+            rng: RefCell::new(rand::thread_rng()),
+            same: false,
+        }
+    }
+
+    pub fn new_same(surface: &'f dyn DifferentialParametricForm<2, 3>) -> Self {
+        Self {
+            surface_0: surface,
+            surface_1: surface,
+            guide_point: None,
+            numerical_step: 0.0001,
+            intersection_step: 0.01,
+            rng: RefCell::new(rand::thread_rng()),
+            same: true,
         }
     }
 
@@ -107,31 +137,47 @@ impl<'f> IntersectionFinder<'f> {
     }
 
     fn find_first_point(&self) -> Option<IntersectionPoint> {
-        if let Some(guide) = self.guide_point {
-            self.find_common_point_with_guide(guide)
-        } else {
-            self.find_common_point_stochastic()
+        match (self.same, self.guide_point) {
+            (false, None) => self.find_common_point_stochastic_distinct(),
+            (false, Some(guide)) => self.find_common_point_with_guide_distinct(guide),
+            (true, None) => self.find_common_point_stochastic_same(),
+            (true, Some(guide)) => self.find_common_point_with_guide_same(guide),
         }
     }
 
-    fn find_common_point_with_guide(&self, guide: Point3<f64>) -> Option<IntersectionPoint> {
+    fn find_common_point_with_guide_distinct(
+        &self,
+        guide: Point3<f64>,
+    ) -> Option<IntersectionPoint> {
         let projection_0 = self.find_point_projection(self.surface_0, guide);
         let projection_1 = self.find_point_projection(self.surface_1, guide);
 
         self.find_common_surface_point(projection_0, projection_1)
     }
 
-    fn find_common_point_stochastic(&self) -> Option<IntersectionPoint> {
-        let bounds = self.surface_0.bounds();
-        let mut rng = rand::thread_rng();
-        let u_distribution = Uniform::new_inclusive(bounds.x.0, bounds.x.1);
-        let v_distribution = Uniform::new_inclusive(bounds.y.0, bounds.y.1);
+    fn find_common_point_with_guide_same(&self, guide: Point3<f64>) -> Option<IntersectionPoint> {
+        let point_0 = self.find_point_projection(self.surface_0, guide);
+        let surface_1_distribution = self.surface_1.parameter_distribution();
+
+        let mut rng = self.rng.borrow_mut();
 
         for _ in 0..Self::STOCHASTIC_FIRST_POINT_TRIES {
-            let point_0 = vector![
-                u_distribution.sample(&mut rng),
-                v_distribution.sample(&mut rng)
-            ];
+            let point_1 = surface_1_distribution.sample(&mut *rng);
+
+            let common_point = self.find_common_surface_point(point_0, point_1);
+
+            check_stochastic_points!(self, common_point);
+        }
+
+        None
+    }
+
+    fn find_common_point_stochastic_distinct(&self) -> Option<IntersectionPoint> {
+        let surface_0_distribution = self.surface_0.parameter_distribution();
+        let mut rng = self.rng.borrow_mut();
+
+        for _ in 0..Self::STOCHASTIC_FIRST_POINT_TRIES {
+            let point_0 = surface_0_distribution.sample(&mut *rng);
 
             let surface_0_point = self.surface_0.value(&point_0);
             let point_1 = self.find_point_projection(self.surface_1, surface_0_point);
@@ -141,6 +187,24 @@ impl<'f> IntersectionFinder<'f> {
             if common_point.is_some() {
                 return common_point;
             }
+        }
+
+        None
+    }
+
+    fn find_common_point_stochastic_same(&self) -> Option<IntersectionPoint> {
+        let surface_0_distribution = self.surface_0.parameter_distribution();
+        let surface_1_distribution = self.surface_1.parameter_distribution();
+
+        let mut rng = self.rng.borrow_mut();
+
+        for _ in 0..Self::STOCHASTIC_FIRST_POINT_TRIES {
+            let point_0 = surface_0_distribution.sample(&mut *rng);
+            let point_1 = surface_1_distribution.sample(&mut *rng);
+
+            let common_point = self.find_common_surface_point(point_0, point_1);
+
+            check_stochastic_points!(self, common_point);
         }
 
         None
