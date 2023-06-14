@@ -77,6 +77,10 @@ impl<'gl> GlTexture<'gl> {
             self.gl.generate_mipmap(glow::TEXTURE_2D);
         }
     }
+
+    pub fn handle(&self) -> u32 {
+        self.handle
+    }
 }
 
 impl<'gl> Drop for GlTexture<'gl> {

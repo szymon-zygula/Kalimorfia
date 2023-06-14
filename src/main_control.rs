@@ -46,15 +46,20 @@ pub struct MainControl<'gl, 'a> {
     gl: &'gl glow::Context,
 }
 
+struct IntersectionTarget {
+    name: String,
+    surface: Box<dyn DifferentialParametricForm<2, 3>>,
+    id: usize,
+}
+
 struct IntersetionParameters {
     use_cursor: bool,
     numerical_step: f64,
     search_step: f64,
-    target_0: (String, Box<dyn DifferentialParametricForm<2, 3>>),
-    target_1: (String, Box<dyn DifferentialParametricForm<2, 3>>),
+    target_0: IntersectionTarget,
+    target_1: IntersectionTarget,
 }
 
-type IntersectionTarget = (String, Box<dyn DifferentialParametricForm<2, 3>>);
 const NUMERICAL_STEP_MIN: f64 = 0.001;
 const NUMERICAL_STEP_MAX: f64 = 0.01;
 const INTERSECTION_STEP_MIN: f64 = 0.001;
@@ -383,12 +388,15 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 let target0 = &self.intersection_parameters.as_ref().unwrap().target_0;
                 let target1 = &self.intersection_parameters.as_ref().unwrap().target_1;
 
-                let self_intersection = target0.0 == target1.0;
+                let self_intersection = target0.id == target1.id;
 
                 if self_intersection {
-                    ui.text(format!("Intersecting {} with itself", target0.0));
+                    ui.text(format!("Intersecting {} with itself", target0.name));
                 } else {
-                    ui.text(format!("Intersecting {} and {}", target0.0, target1.0));
+                    ui.text(format!(
+                        "Intersecting {} and {}",
+                        target0.name, target1.name
+                    ));
                 }
 
                 let params = self.intersection_parameters.as_mut().unwrap();
@@ -424,9 +432,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                         .map(point_32_to_64);
 
                     let mut intersection_finder = if self_intersection {
-                        IntersectionFinder::new_same(&*params.target_0.1)
+                        IntersectionFinder::new_same(&*params.target_0.surface)
                     } else {
-                        IntersectionFinder::new(&*params.target_0.1, &*params.target_1.1)
+                        IntersectionFinder::new(
+                            &*params.target_0.surface,
+                            &*params.target_1.surface,
+                        )
                     };
 
                     intersection_finder.guide_point = guide;
@@ -436,13 +447,25 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                     let intersection = intersection_finder.find();
 
                     if let Some(intersection) = intersection {
-                        Texture::intersection_texture(
+                        let [texture_0, texture_1] = Texture::intersection_texture(
                             &intersection,
-                            &*params.target_0.1,
-                            &*params.target_1.1,
+                            &*params.target_0.surface,
+                            &*params.target_1.surface,
                             1000,
                         );
+
+                        self.entity_manager
+                            .borrow_mut()
+                            .get_entity_mut(params.target_0.id)
+                            .set_intersection_texture(&texture_0);
+
+                        self.entity_manager
+                            .borrow_mut()
+                            .get_entity_mut(params.target_1.id)
+                            .set_intersection_texture(&texture_1);
+
                         self.add_intersection_curve(state, intersection);
+
                         self.intersection_parameters = None;
                     } else {
                         ui.open_popup("intersection_not_found");
@@ -478,14 +501,30 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             let target0 = manager.get_entity(targets[0]);
             let target1 = manager.get_entity(targets[1]);
             Some((
-                (target0.name(), target0.as_parametric_2_to_3().unwrap()),
-                (target1.name(), target1.as_parametric_2_to_3().unwrap()),
+                IntersectionTarget {
+                    name: target0.name(),
+                    surface: target0.as_parametric_2_to_3().unwrap(),
+                    id: targets[0],
+                },
+                IntersectionTarget {
+                    name: target1.name(),
+                    surface: target1.as_parametric_2_to_3().unwrap(),
+                    id: targets[1],
+                },
             ))
         } else if targets.len() == 1 {
             let target = manager.get_entity(targets[0]);
             Some((
-                (target.name(), target.as_parametric_2_to_3().unwrap()),
-                (target.name(), target.as_parametric_2_to_3().unwrap()),
+                IntersectionTarget {
+                    name: target.name(),
+                    surface: target.as_parametric_2_to_3().unwrap(),
+                    id: targets[0],
+                },
+                IntersectionTarget {
+                    name: target.name(),
+                    surface: target.as_parametric_2_to_3().unwrap(),
+                    id: targets[0],
+                },
             ))
         } else {
             None

@@ -75,7 +75,7 @@ impl Texture {
         resolution: u32,
     ) -> Self {
         let mut texture = Self::new_rgba(resolution, resolution);
-        texture.flood_fill(0, 0, Rgba([0, 0, 255, 255]), false, false);
+        texture.fill(Rgba([0, 0, 255, 255]));
         let bounds = surface.bounds();
         let ranges = bounds.map(|b| b.1 - b.0);
 
@@ -104,6 +104,12 @@ impl Texture {
         }
 
         texture
+    }
+
+    pub fn fill(&mut self, color: Rgba<u8>) {
+        for (x, y) in Itertools::cartesian_product(0..self.image.width(), 0..self.image.height()) {
+            self.image.put_pixel(x, y, color);
+        }
     }
 
     pub fn flood_fill(&mut self, x: i32, y: i32, color: Rgba<u8>, wrap_x: bool, wrap_y: bool) {

@@ -30,6 +30,8 @@ use std::{
     rc::Rc,
 };
 
+use super::{basic::IntersectionTexture, entity::Entity};
+
 pub struct BezierSurfaceC2<'gl> {
     gl: &'gl glow::Context,
 
@@ -43,6 +45,7 @@ pub struct BezierSurfaceC2<'gl> {
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
+    intersection_texture: Option<IntersectionTexture<'gl>>,
 
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
@@ -82,6 +85,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
+            intersection_texture: None,
             surface: SurfaceC2::null(),
             is_cylinder,
             gk_mode: false,
@@ -225,7 +229,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
         _entities: &EntityCollection<'gl>,
         _subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
-        let _token = ui.push_id("c2_surface_control");
+        let _token = ui.push_id(self.name());
         self.name_control_ui(ui);
         ui.checkbox("Draw de Boor polygon", &mut self.draw_deboor_polygon);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
@@ -237,6 +241,8 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
         } else {
             uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
         }
+
+        self.intersection_texture.as_mut().map(|t| t.control_ui(ui));
 
         if self.wireframe {
             self.mesh.wireframe = true;
@@ -314,6 +320,14 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
 }
 
 impl<'gl> SceneObject for BezierSurfaceC2<'gl> {
+    fn set_intersection_texture(&mut self, texture: &Texture) {
+        self.intersection_texture = Some(IntersectionTexture::new(self.gl, &texture));
+    }
+
+    fn intersection_texture(&self) -> Option<&IntersectionTexture<'gl>> {
+        self.intersection_texture.as_ref()
+    }
+
     fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
         Some(Box::new(self.surface.clone()))
     }

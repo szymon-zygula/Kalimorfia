@@ -1,5 +1,9 @@
 use super::entity::Entity;
-use crate::{camera::Camera, math::affine::transforms};
+use crate::{
+    camera::Camera,
+    math::affine::transforms,
+    render::{gl_texture::GlTexture, texture::Texture},
+};
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 
 pub struct Orientation {
@@ -303,5 +307,35 @@ impl Entity for LinearTransformEntity {
 impl Default for LinearTransformEntity {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub struct IntersectionTexture<'gl> {
+    pub texture: GlTexture<'gl>,
+}
+
+impl<'gl> IntersectionTexture<'gl> {
+    pub fn new(gl: &'gl glow::Context, texture: &Texture) -> Self {
+        Self {
+            texture: GlTexture::new(gl, texture),
+        }
+    }
+}
+
+impl<'gl> Entity for IntersectionTexture<'gl> {
+    fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        if ui.button("View intersection") {
+            ui.open_popup("intersection_texture_image");
+        }
+
+        ui.popup("intersection_texture_image", || {
+            imgui::Image::new(
+                imgui::TextureId::new(self.texture.handle() as usize),
+                [500.0, 500.0],
+            )
+            .build(ui);
+        });
+
+        false
     }
 }

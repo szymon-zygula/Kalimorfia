@@ -14,6 +14,7 @@ use crate::{
     math::geometry::{parametric_form::DifferentialParametricForm, surfaces::SurfaceC0},
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
+        texture::Texture,
     },
     repositories::NameRepository,
 };
@@ -23,6 +24,8 @@ use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
 };
+
+use super::{basic::IntersectionTexture, entity::Entity};
 
 pub struct BezierSurfaceC0<'gl> {
     gl: &'gl glow::Context,
@@ -35,6 +38,7 @@ pub struct BezierSurfaceC0<'gl> {
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
+    intersection_texture: Option<IntersectionTexture<'gl>>,
 
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
@@ -63,6 +67,7 @@ impl<'gl> BezierSurfaceC0<'gl> {
             bernstein_polygon_mesh: grid_mesh(gl, bezier_surface.grid()),
             draw_bernstein_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
+            intersection_texture: None,
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
@@ -236,6 +241,8 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
+        self.intersection_texture.as_mut().map(|t| t.control_ui(ui));
+
         ControlResult::default()
     }
 
@@ -294,6 +301,14 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
 impl<'gl> SceneObject for BezierSurfaceC0<'gl> {
     fn as_c0_surface(&self) -> Option<&BezierSurfaceC0> {
         Some(self)
+    }
+
+    fn set_intersection_texture(&mut self, texture: &Texture) {
+        self.intersection_texture = Some(IntersectionTexture::new(self.gl, &texture));
+    }
+
+    fn intersection_texture(&self) -> Option<&IntersectionTexture<'gl>> {
+        self.intersection_texture.as_ref()
     }
 
     fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {

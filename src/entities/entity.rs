@@ -1,8 +1,13 @@
 use super::{
-    basic::LinearTransformEntity, bezier_surface_c0::BezierSurfaceC0,
-    intersection_curve::IntersectionCurve, point::Point,
+    basic::{IntersectionTexture, LinearTransformEntity},
+    bezier_surface_c0::BezierSurfaceC0,
+    intersection_curve::IntersectionCurve,
+    point::Point,
 };
-use crate::{camera::Camera, math::geometry::parametric_form::DifferentialParametricForm};
+use crate::{
+    camera::Camera, math::geometry::parametric_form::DifferentialParametricForm,
+    render::texture::Texture,
+};
 use nalgebra::{Matrix4, Point2, Point3, Vector3};
 use std::{
     cell::RefCell,
@@ -169,6 +174,12 @@ pub trait SceneObject {
     fn as_intersection(&self) -> Option<&IntersectionCurve> {
         None
     }
+
+    fn set_intersection_texture(&mut self, _texture: &Texture) {}
+
+    fn intersection_texture(&self) -> Option<&IntersectionTexture> {
+        None
+    }
 }
 
 pub trait ReferentialSceneObject<'gl> {
@@ -226,6 +237,12 @@ pub trait ReferentialSceneObject<'gl> {
     }
 
     fn as_intersection(&self) -> Option<&IntersectionCurve> {
+        None
+    }
+
+    fn set_intersection_texture(&mut self, _texture: &Texture) {}
+
+    fn intersection_texture(&self) -> Option<&IntersectionTexture> {
         None
     }
 }
@@ -292,6 +309,14 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
 
     fn as_intersection(&self) -> Option<&IntersectionCurve> {
         self.as_intersection()
+    }
+
+    fn set_intersection_texture(&mut self, texture: &Texture) {
+        self.set_intersection_texture(texture);
+    }
+
+    fn intersection_texture(&self) -> Option<&IntersectionTexture> {
+        self.intersection_texture()
     }
 }
 

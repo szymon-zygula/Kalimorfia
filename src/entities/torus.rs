@@ -1,5 +1,5 @@
 use super::{
-    basic::LinearTransformEntity,
+    basic::{IntersectionTexture, LinearTransformEntity},
     changeable_name::ChangeableName,
     entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject},
 };
@@ -11,19 +11,23 @@ use crate::{
         utils::mat_32_to_64,
     },
     primitives::color::Color,
-    render::{gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager},
+    render::{
+        gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager, texture::Texture,
+    },
     repositories::NameRepository,
 };
 use nalgebra::{Matrix4, Point3};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Torus<'gl> {
+    gl: &'gl glow::Context,
     pub torus: geometry::torus::Torus,
     mesh: LinesMesh<'gl>,
     pub tube_points: u32,
     pub round_points: u32,
     pub linear_transform: LinearTransformEntity,
     pub name: ChangeableName,
+    intersection_texture: Option<IntersectionTexture<'gl>>,
     shader_manager: Rc<ShaderManager<'gl>>,
 }
 
@@ -42,6 +46,7 @@ impl<'gl> Torus<'gl> {
         let mesh = LinesMesh::new(gl, vertices, topology);
 
         Torus {
+            gl,
             torus,
             mesh,
             tube_points,
@@ -49,6 +54,7 @@ impl<'gl> Torus<'gl> {
             shader_manager,
             linear_transform: LinearTransformEntity::new(),
             name: ChangeableName::new("Torus", name_repo),
+            intersection_texture: None,
         }
     }
 
@@ -79,6 +85,7 @@ macro_rules! safe_slider {
 
 impl<'gl> Entity for Torus<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
+        let _token = ui.push_id(self.name());
         self.name_control_ui(ui);
         let mut torus_changed = false;
         torus_changed |= safe_slider!(ui, "R", 0.1, 10.0, &mut self.torus.inner_radius);
@@ -88,6 +95,8 @@ impl<'gl> Entity for Torus<'gl> {
 
         self.linear_transform.control_ui(ui);
         ui.separator();
+
+        self.intersection_texture.as_mut().map(|t| t.control_ui(ui));
 
         if torus_changed {
             self.regenerate_mesh();
@@ -125,6 +134,14 @@ impl<'gl> SceneObject for Torus<'gl> {
             self.torus,
             mat_32_to_64(self.linear_transform.matrix()),
         )))
+    }
+
+    fn set_intersection_texture(&mut self, texture: &Texture) {
+        self.intersection_texture = Some(IntersectionTexture::new(self.gl, &texture));
+    }
+
+    fn intersection_texture(&self) -> Option<&IntersectionTexture<'gl>> {
+        self.intersection_texture.as_ref()
     }
 
     fn model_transform(&self) -> Matrix4<f32> {
