@@ -68,6 +68,9 @@ pub fn draw_bezier_surface(
     camera: &Camera,
     premul: &Matrix4<f32>,
     draw_type: DrawType,
+    trimmer: u32,
+    u_patches: u32,
+    v_patches: u32,
 ) {
     let program = shader_manager.program("surface");
     let color = Color::for_draw_type(&draw_type);
@@ -78,6 +81,9 @@ pub fn draw_bezier_surface(
         &color,
         u_patch_divisions,
         v_patch_divisions,
+        trimmer,
+        u_patches,
+        v_patches,
     )
 }
 

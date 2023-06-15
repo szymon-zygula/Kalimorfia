@@ -94,6 +94,9 @@ impl<'gl> BezierSurfaceMesh<'gl> {
         color: &Color,
         u_subdivisions: u32,
         v_subdivisions: u32,
+        trimmer: u32,
+        u_patches: u32,
+        v_patches: u32,
     ) {
         program.enable();
         program.uniform_matrix_4_f32_slice("model", premul.as_slice());
@@ -102,6 +105,13 @@ impl<'gl> BezierSurfaceMesh<'gl> {
         program.uniform_color("color", color);
         program.uniform_u32("u_subdivisions", u_subdivisions);
         program.uniform_u32("v_subdivisions", v_subdivisions);
+        program.uniform_u32("u_patches", u_patches);
+        program.uniform_u32("v_patches", v_patches);
+
+        unsafe {
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(trimmer));
+            self.gl.active_texture(glow::TEXTURE0);
+        }
 
         self.draw();
     }

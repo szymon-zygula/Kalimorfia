@@ -1,3 +1,5 @@
+use crate::render::mesh::SurfaceVertex;
+
 use super::{curvable::Curvable, gridable::Gridable};
 use itertools::Itertools;
 use nalgebra::{Point, Point3, SMatrix, SVector, Vector1, Vector2, Vector3};
@@ -167,13 +169,13 @@ impl<T: ParametricForm<1, 3> + Sync> Curvable for T {
 }
 
 impl<T: ParametricForm<2, 3>> Gridable for T {
-    fn grid(&self, points_x: u32, points_y: u32) -> (Vec<Point3<f32>>, Vec<u32>) {
-        let point_count = points_x * points_y;
+    fn grid(&self, points_x: u32, points_y: u32) -> (Vec<SurfaceVertex>, Vec<u32>) {
+        let point_count = (points_x + 1) * (points_y + 1);
         let mut points = Vec::with_capacity(point_count as usize);
         let mut indices = Vec::with_capacity(2 * point_count as usize);
 
-        for x_idx in 0..points_x {
-            for y_idx in 0..points_y {
+        for x_idx in 0..(points_x + 1) {
+            for y_idx in 0..(points_y + 1) {
                 let x_range = self.bounds().x.1 - self.bounds().x.0;
                 let x = x_idx as f64 / points_x as f64 * x_range + self.bounds().x.0;
 
@@ -182,12 +184,15 @@ impl<T: ParametricForm<2, 3>> Gridable for T {
 
                 let point = self.value(&Vector2::new(x, y));
                 let point_idx = points.len() as u32;
-                points.push(Point3::new(point.x as f32, point.y as f32, point.z as f32));
+                points.push(SurfaceVertex {
+                    point: Point3::new(point.x as f32, point.y as f32, point.z as f32),
+                    uv: Vector2::new(x as f32, y as f32),
+                });
 
                 indices.push(point_idx);
-                indices.push((y_idx + 1) % points_y + x_idx * points_y);
+                indices.push((y_idx + 1) % (points_y + 1) + x_idx * (points_y + 1));
                 indices.push(point_idx);
-                indices.push((point_idx + points_y) % point_count);
+                indices.push((point_idx + points_y + 1) % point_count);
             }
         }
 

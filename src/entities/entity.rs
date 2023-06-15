@@ -175,7 +175,7 @@ pub trait SceneObject {
         None
     }
 
-    fn set_intersection_texture(&mut self, _texture: &Texture) {}
+    fn set_intersection_texture(&mut self, _texture: Texture) {}
 
     fn intersection_texture(&self) -> Option<&IntersectionTexture> {
         None
@@ -240,7 +240,7 @@ pub trait ReferentialSceneObject<'gl> {
         None
     }
 
-    fn set_intersection_texture(&mut self, _texture: &Texture) {}
+    fn set_intersection_texture(&mut self, _texture: Texture) {}
 
     fn intersection_texture(&self) -> Option<&IntersectionTexture> {
         None
@@ -311,7 +311,7 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
         self.as_intersection()
     }
 
-    fn set_intersection_texture(&mut self, texture: &Texture) {
+    fn set_intersection_texture(&mut self, texture: Texture) {
         self.set_intersection_texture(texture);
     }
 

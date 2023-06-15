@@ -457,12 +457,12 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                         self.entity_manager
                             .borrow_mut()
                             .get_entity_mut(params.target_0.id)
-                            .set_intersection_texture(&texture_0);
+                            .set_intersection_texture(texture_0);
 
                         self.entity_manager
                             .borrow_mut()
                             .get_entity_mut(params.target_1.id)
-                            .set_intersection_texture(&texture_1);
+                            .set_intersection_texture(texture_1);
 
                         self.add_intersection_curve(state, intersection);
 

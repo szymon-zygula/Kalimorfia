@@ -6,11 +6,13 @@ const SHADERS_EXTENSION: &str = "glsl";
 
 pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let fragment_colored = shader(gl, "fragment_colored", glow::FRAGMENT_SHADER);
+    let fragment_colored_trimmed = shader(gl, "fragment_colored_trimmed", glow::FRAGMENT_SHADER);
     let fragment_uniform = shader(gl, "uniform_fragment", glow::FRAGMENT_SHADER);
     let fragment_gk = shader(gl, "fragment_gk", glow::FRAGMENT_SHADER);
 
     let pass_through_vertex = shader(gl, "pass_through_vertex", glow::VERTEX_SHADER);
     let perspective_vertex = shader(gl, "perspective_vertex", glow::VERTEX_SHADER);
+    let torus_vertex = shader(gl, "torus_vertex", glow::VERTEX_SHADER);
     let perspective_vertex_colored = shader(gl, "perspective_vertex_colored", glow::VERTEX_SHADER);
     let perspective_vertex_colored_uniform =
         shader(gl, "perspective_vertex_uniform_color", glow::VERTEX_SHADER);
@@ -70,10 +72,7 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
         ),
         (
             "torus",
-            GlProgram::with_shaders(
-                gl,
-                &[&perspective_vertex_colored_uniform, &fragment_colored],
-            ),
+            GlProgram::with_shaders(gl, &[&torus_vertex, &fragment_colored_trimmed]),
         ),
         (
             "spline",
@@ -94,7 +93,7 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
                     &pass_through_vertex,
                     &surface_tesselation_control,
                     &surface_tesselation_evaluation,
-                    &fragment_uniform,
+                    &fragment_colored_trimmed,
                 ],
             ),
         ),

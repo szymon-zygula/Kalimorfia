@@ -45,7 +45,7 @@ pub struct BezierSurfaceC2<'gl> {
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
-    intersection_texture: Option<IntersectionTexture<'gl>>,
+    intersection_texture: IntersectionTexture<'gl>,
 
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
@@ -85,7 +85,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
-            intersection_texture: None,
+            intersection_texture: IntersectionTexture::empty(gl, is_cylinder, false),
             surface: SurfaceC2::null(),
             is_cylinder,
             gk_mode: false,
@@ -242,7 +242,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
             uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
         }
 
-        self.intersection_texture.as_mut().map(|t| t.control_ui(ui));
+        self.intersection_texture.control_ui(ui);
 
         if self.wireframe {
             self.mesh.wireframe = true;
@@ -294,6 +294,9 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
                 camera,
                 premul,
                 draw_type,
+                self.intersection_texture.handle(),
+                self.u_patches() as u32,
+                self.v_patches() as u32,
             );
         }
 
@@ -320,12 +323,13 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
 }
 
 impl<'gl> SceneObject for BezierSurfaceC2<'gl> {
-    fn set_intersection_texture(&mut self, texture: &Texture) {
-        self.intersection_texture = Some(IntersectionTexture::new(self.gl, &texture));
+    fn set_intersection_texture(&mut self, texture: Texture) {
+        self.intersection_texture =
+            IntersectionTexture::new(self.gl, texture, self.is_cylinder, false);
     }
 
     fn intersection_texture(&self) -> Option<&IntersectionTexture<'gl>> {
-        self.intersection_texture.as_ref()
+        Some(&self.intersection_texture)
     }
 
     fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {

@@ -311,14 +311,46 @@ impl Default for LinearTransformEntity {
 }
 
 pub struct IntersectionTexture<'gl> {
-    pub texture: GlTexture<'gl>,
+    gl: &'gl glow::Context,
+    gl_texture: GlTexture<'gl>,
+    gl_swap_texture: Option<GlTexture<'gl>>,
+    texture: Texture,
+    wrap_u: bool,
+    wrap_v: bool,
 }
 
 impl<'gl> IntersectionTexture<'gl> {
-    pub fn new(gl: &'gl glow::Context, texture: &Texture) -> Self {
+    const SIZE: f32 = 500.0;
+
+    pub fn empty(gl: &'gl glow::Context, wrap_u: bool, wrap_v: bool) -> Self {
+        let texture = Texture::empty_intersection(1000);
         Self {
-            texture: GlTexture::new(gl, texture),
+            gl,
+            gl_texture: GlTexture::new(gl, &texture),
+            gl_swap_texture: None,
+            texture,
+            wrap_u,
+            wrap_v,
         }
+    }
+
+    pub fn new(gl: &'gl glow::Context, texture: Texture, wrap_u: bool, wrap_v: bool) -> Self {
+        Self {
+            gl,
+            gl_texture: GlTexture::new(gl, &texture),
+            gl_swap_texture: None,
+            texture,
+            wrap_u,
+            wrap_v,
+        }
+    }
+
+    pub fn handle(&self) -> u32 {
+        self.gl_texture.handle()
+    }
+
+    pub fn bind(&self) {
+        self.gl_texture.bind_to_image_unit(0);
     }
 }
 
@@ -329,11 +361,34 @@ impl<'gl> Entity for IntersectionTexture<'gl> {
         }
 
         ui.popup("intersection_texture_image", || {
-            imgui::Image::new(
-                imgui::TextureId::new(self.texture.handle() as usize),
-                [500.0, 500.0],
-            )
-            .build(ui);
+            if let Some(new_texture) = self.gl_swap_texture.take() {
+                self.gl_texture = new_texture;
+            }
+
+            if ui
+                .image_button_config(
+                    "intersection_curve_button",
+                    imgui::TextureId::new(self.gl_texture.handle() as usize),
+                    [Self::SIZE, Self::SIZE],
+                )
+                .build()
+            {
+                let mouse_pos = ui.io().mouse_pos;
+                let window_pos = ui.window_pos();
+                let relative_mouse_pos = [
+                    (mouse_pos[0] - window_pos[0] - 10.0) / Self::SIZE * self.texture.width(),
+                    (mouse_pos[1] - window_pos[1] - 10.0) / Self::SIZE * self.texture.height(),
+                ];
+
+                self.texture.flood_fill_inv(
+                    relative_mouse_pos[0].round() as i32,
+                    relative_mouse_pos[1].round() as i32,
+                    self.wrap_u,
+                    self.wrap_v,
+                );
+
+                self.gl_swap_texture = Some(GlTexture::new(self.gl, &self.texture));
+            }
         });
 
         false

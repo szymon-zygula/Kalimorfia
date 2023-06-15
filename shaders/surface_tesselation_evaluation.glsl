@@ -5,6 +5,10 @@ layout (quads, equal_spacing, ccw) in;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+uniform uint v_patches;
+uniform uint u_patches;
+
+out vec2 trim_coord;
 
 // Control point
 vec3 p(uint up, uint vp) {
@@ -36,6 +40,11 @@ vec3 bicubic_bezier(float u, float v) {
 void main() {
     float u = gl_TessCoord.x;
     float v = gl_TessCoord.y;
+
+    float u_glob = (gl_PrimitiveID / v_patches + u) / u_patches;
+    float v_glob = (gl_PrimitiveID % v_patches + v) / v_patches;
+
+    trim_coord = vec2(u_glob, v_glob);
 
     vec4 position = vec4(bicubic_bezier(u, v), 1.0f);
     gl_Position = projection * view * model * position;

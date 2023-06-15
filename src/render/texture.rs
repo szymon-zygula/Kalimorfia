@@ -37,6 +37,12 @@ impl Texture {
         Self { image }
     }
 
+    pub fn empty_intersection(resolution: u32) -> Self {
+        let mut texture = Self::new_rgba(resolution, resolution);
+        texture.fill(Rgba([0, 0, 255, 255]));
+        texture
+    }
+
     pub fn intersection_texture(
         intersection: &Intersection,
         surface_0: &dyn DifferentialParametricForm<2, 3>,
@@ -74,8 +80,7 @@ impl Texture {
         looped: bool,
         resolution: u32,
     ) -> Self {
-        let mut texture = Self::new_rgba(resolution, resolution);
-        texture.fill(Rgba([0, 0, 255, 255]));
+        let mut texture = Self::empty_intersection(resolution);
         let bounds = surface.bounds();
         let ranges = bounds.map(|b| b.1 - b.0);
 
@@ -104,6 +109,14 @@ impl Texture {
         }
 
         texture
+    }
+
+    pub fn flood_fill_inv(&mut self, x: i32, y: i32, wrap_x: bool, wrap_y: bool) {
+        if self.image.get_pixel(x as u32, y as u32) == Rgba([0, 0, 255, 255]) {
+            self.flood_fill(x, y, Rgba([255, 0, 0, 255]), wrap_x, wrap_y);
+        } else if self.image.get_pixel(x as u32, y as u32) == Rgba([255, 0, 0, 255]) {
+            self.flood_fill(x, y, Rgba([0, 0, 255, 255]), wrap_x, wrap_y);
+        }
     }
 
     pub fn fill(&mut self, color: Rgba<u8>) {
@@ -139,11 +152,11 @@ impl Texture {
         wrap_y: bool,
     ) {
         if wrap_x {
-            x %= self.image.width() as i32;
+            x = x.rem_euclid(self.image.width() as i32);
         }
 
         if wrap_y {
-            y %= self.image.height() as i32;
+            y = y.rem_euclid(self.image.height() as i32);
         }
 
         if self.image.in_bounds(x as u32, y as u32)
@@ -173,8 +186,13 @@ impl Texture {
 
         let mut current = pt_0_img;
         for _ in 0..=((distance * 2.0).round() as u32) {
-            let x = current.x.round() as u32 % self.image.width();
-            let y = current.y.round() as u32 % self.image.height();
+            let x = current.x.floor() as u32 % self.image.width();
+            let y = current.y.floor() as u32 % self.image.height();
+
+            self.image.put_pixel(x, y, Rgba([0, 255, 0, 255]));
+
+            let x = current.x.ceil() as u32 % self.image.width();
+            let y = current.y.ceil() as u32 % self.image.height();
 
             self.image.put_pixel(x, y, Rgba([0, 255, 0, 255]));
 
@@ -210,5 +228,13 @@ impl Texture {
         } else {
             0..=0
         }
+    }
+
+    pub fn width(&self) -> f32 {
+        self.image.width() as f32
+    }
+
+    pub fn height(&self) -> f32 {
+        self.image.height() as f32
     }
 }

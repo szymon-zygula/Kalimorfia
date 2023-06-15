@@ -12,7 +12,7 @@ use crate::{
     },
     primitives::color::Color,
     render::{
-        gl_drawable::GlDrawable, mesh::LinesMesh, shader_manager::ShaderManager, texture::Texture,
+        gl_drawable::GlDrawable, mesh::TorusMesh, shader_manager::ShaderManager, texture::Texture,
     },
     repositories::NameRepository,
 };
@@ -22,12 +22,12 @@ use std::{cell::RefCell, rc::Rc};
 pub struct Torus<'gl> {
     gl: &'gl glow::Context,
     pub torus: geometry::torus::Torus,
-    mesh: LinesMesh<'gl>,
+    mesh: TorusMesh<'gl>,
     pub tube_points: u32,
     pub round_points: u32,
     pub linear_transform: LinearTransformEntity,
     pub name: ChangeableName,
-    intersection_texture: Option<IntersectionTexture<'gl>>,
+    intersection_texture: IntersectionTexture<'gl>,
     shader_manager: Rc<ShaderManager<'gl>>,
 }
 
@@ -43,7 +43,7 @@ impl<'gl> Torus<'gl> {
         let torus = geometry::torus::Torus::with_radii(2.0, 0.5);
         let (vertices, topology) = torus.grid(round_points, tube_points);
 
-        let mesh = LinesMesh::new(gl, vertices, topology);
+        let mesh = TorusMesh::new(gl, vertices, topology);
 
         Torus {
             gl,
@@ -54,7 +54,7 @@ impl<'gl> Torus<'gl> {
             shader_manager,
             linear_transform: LinearTransformEntity::new(),
             name: ChangeableName::new("Torus", name_repo),
-            intersection_texture: None,
+            intersection_texture: IntersectionTexture::empty(gl, true, true),
         }
     }
 
@@ -96,7 +96,7 @@ impl<'gl> Entity for Torus<'gl> {
         self.linear_transform.control_ui(ui);
         ui.separator();
 
-        self.intersection_texture.as_mut().map(|t| t.control_ui(ui));
+        self.intersection_texture.control_ui(ui);
 
         if torus_changed {
             self.regenerate_mesh();
@@ -119,7 +119,8 @@ impl<'gl> Drawable for Torus<'gl> {
             "projection_transform",
             camera.projection_transform().as_slice(),
         );
-        program.uniform_color("vertex_color", &Color::for_draw_type(&draw_type));
+        program.uniform_color("color", &Color::for_draw_type(&draw_type));
+        self.intersection_texture.bind();
         self.mesh.draw();
     }
 }
@@ -136,12 +137,12 @@ impl<'gl> SceneObject for Torus<'gl> {
         )))
     }
 
-    fn set_intersection_texture(&mut self, texture: &Texture) {
-        self.intersection_texture = Some(IntersectionTexture::new(self.gl, &texture));
+    fn set_intersection_texture(&mut self, texture: Texture) {
+        self.intersection_texture = IntersectionTexture::new(self.gl, texture, true, true);
     }
 
     fn intersection_texture(&self) -> Option<&IntersectionTexture<'gl>> {
-        self.intersection_texture.as_ref()
+        Some(&self.intersection_texture)
     }
 
     fn model_transform(&self) -> Matrix4<f32> {

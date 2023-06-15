@@ -38,7 +38,7 @@ pub struct BezierSurfaceC0<'gl> {
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     name: ChangeableName,
-    intersection_texture: Option<IntersectionTexture<'gl>>,
+    intersection_texture: IntersectionTexture<'gl>,
 
     pub u_patch_divisions: u32,
     pub v_patch_divisions: u32,
@@ -67,7 +67,7 @@ impl<'gl> BezierSurfaceC0<'gl> {
             bernstein_polygon_mesh: grid_mesh(gl, bezier_surface.grid()),
             draw_bernstein_polygon: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
-            intersection_texture: None,
+            intersection_texture: IntersectionTexture::empty(gl, is_cylinder, false),
             shader_manager,
             u_patch_divisions: 3,
             v_patch_divisions: 3,
@@ -235,13 +235,13 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
         _entities: &EntityCollection<'gl>,
         _subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
-        let _token = ui.push_id("c0_surface_control");
+        let _token = ui.push_id(self.name());
         self.name_control_ui(ui);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
-        self.intersection_texture.as_mut().map(|t| t.control_ui(ui));
+        self.intersection_texture.control_ui(ui);
 
         ControlResult::default()
     }
@@ -284,6 +284,9 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
             camera,
             premul,
             draw_type,
+            self.intersection_texture.handle(),
+            self.u_patches() as u32,
+            self.v_patches() as u32,
         );
 
         if self.draw_bernstein_polygon {
@@ -303,12 +306,13 @@ impl<'gl> SceneObject for BezierSurfaceC0<'gl> {
         Some(self)
     }
 
-    fn set_intersection_texture(&mut self, texture: &Texture) {
-        self.intersection_texture = Some(IntersectionTexture::new(self.gl, &texture));
+    fn set_intersection_texture(&mut self, texture: Texture) {
+        self.intersection_texture =
+            IntersectionTexture::new(self.gl, texture, self.is_cylinder, false);
     }
 
     fn intersection_texture(&self) -> Option<&IntersectionTexture<'gl>> {
-        self.intersection_texture.as_ref()
+        Some(&self.intersection_texture)
     }
 
     fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {

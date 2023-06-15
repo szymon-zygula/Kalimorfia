@@ -18,17 +18,6 @@ impl PatchC0 {
             let u_degree = control_points.len() - 1;
             let v_degree = control_points[0].len() - 1;
 
-            // let mut u_control_points = Vec::new();
-
-            // for i in 0..u_degree {
-            //     u_control_points.push(Vec::new());
-            //     for j in 0..=v_degree {
-            //         u_control_points.last_mut().unwrap().push(Point3::from(
-            //             (control_points[i + 1][j] - control_points[i][j]) * u_degree as f64,
-            //         ))
-            //     }
-            // }
-
             let v_control_points = control_points
                 .iter()
                 .map(|row| {
@@ -49,17 +38,6 @@ impl PatchC0 {
                         .collect()
                 })
                 .collect();
-
-            // let mut v_control_points = Vec::new();
-
-            // for i in 0..=u_degree {
-            //     v_control_points.push(Vec::new());
-            //     for j in 0..v_degree {
-            //         v_control_points.last_mut().unwrap().push(Point3::from(
-            //             (control_points[i][j + 1] - control_points[i][j]) * v_degree as f64,
-            //         ))
-            //     }
-            // }
 
             (
                 Some(Box::new(PatchC0::new(u_control_points, false))),
