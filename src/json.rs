@@ -447,8 +447,8 @@ fn torus_from_json<'gl>(
         Rc::clone(shader_manager),
     ));
 
-    let mut tref = &mut torus.as_mut();
-    let mut trans = &mut tref.linear_transform;
+    let tref = torus.as_mut();
+    let trans = &mut tref.linear_transform;
     trans.translation = jtorus.position.translation();
     trans.orientation = jtorus.rotation.rotation();
     trans.scale = jtorus.scale.scale();
