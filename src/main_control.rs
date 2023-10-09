@@ -42,7 +42,8 @@ pub struct MainControl<'gl, 'a> {
     bezier_surface_args: Option<BezierSurfaceArgs>,
     added_surface_type: Option<BezierSurfaceType>,
     intersection_parameters: Option<IntersetionParameters>,
-    filepath: String,
+    file_path: String,
+    cnc_file_path: String,
     gl: &'gl glow::Context,
 }
 
@@ -72,10 +73,14 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         gl: &'gl glow::Context,
     ) -> Self {
         Self {
-            filepath: std::env::current_dir()
+            file_path: std::env::current_dir()
                 .map(|p| String::from(p.to_str().unwrap_or("/")))
                 .unwrap_or(String::from("/"))
                 + "/file.json",
+            cnc_file_path: std::env::current_dir()
+                .map(|p| String::from(p.to_str().unwrap_or("/")))
+                .unwrap_or(String::from("/"))
+                + "/file.k01",
             added_surface_type: None,
             entity_manager,
             gl,
@@ -178,7 +183,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
     fn save_scene(&self, state: &State) -> Result<(), ()> {
         let scene_json = json::serialize_scene(&self.entity_manager.borrow(), state).to_string();
-        let mut file = std::fs::File::create(&self.filepath).map_err(|_| ())?;
+        let mut file = std::fs::File::create(&self.file_path).map_err(|_| ())?;
         file.write_all(&scene_json.into_bytes()).map_err(|_| ())?;
         Ok(())
     }
@@ -197,7 +202,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     fn load_scene(&mut self, state: &mut State<'gl, 'a>) -> Result<(), ()> {
         self.reset_scene(state);
 
-        let file_contents = std::fs::read_to_string(&self.filepath).map_err(|_| ())?;
+        let file_contents = std::fs::read_to_string(&self.file_path).map_err(|_| ())?;
         let json = serde_json::Value::from_str(&file_contents).map_err(|_| ())?;
         json::deserialize_scene(
             self.gl,
@@ -211,7 +216,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
     }
 
     fn file_control(&mut self, ui: &imgui::Ui, state: &mut State<'gl, 'a>) {
-        ui.input_text("Filepath", &mut self.filepath).build();
+        ui.input_text("File path", &mut self.file_path).build();
 
         ui.columns(2, "file_columns", false);
         if ui.button("Load file") && self.load_scene(state).is_err() {
@@ -288,9 +293,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
         let manager = self.entity_manager.borrow();
         let selected_entity = manager.get_entity(only_selected);
-        let Some(intersection_curve) = selected_entity
-            .as_intersection()
-        else {
+        let Some(intersection_curve) = selected_entity.as_intersection() else {
             ui.open_popup("inter_inter_conv_fail");
             return;
         };
@@ -574,6 +577,18 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         if ui.button("Gregory patch") {
             self.add_gregory_patch(state);
         }
+
+        ui.next_column();
+        if ui.button("CNC mill") {
+            ui.open_popup("cnc_mill");
+        }
+        ui.popup("cnc_mill", || {
+            ui.input_text("CNC file path", &mut self.cnc_file_path)
+                .build();
+            if ui.button("Open") {
+                self.add_cnc_mill(state);
+            }
+        });
 
         ui.next_column();
         ui.columns(1, "clear_columns", false);
@@ -974,6 +989,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             }
         }
     }
+
+    fn add_cnc_mill(&self, state: &mut State) {}
 
     fn add_intersection_curve(&self, state: &mut State, intersection: Intersection) {
         let intersection_curve = Box::new(IntersectionCurve::new(

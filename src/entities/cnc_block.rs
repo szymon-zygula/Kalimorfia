@@ -1,0 +1,7 @@
+struct CNCBlock {
+
+}
+
+impl CNCBlock {
+
+}

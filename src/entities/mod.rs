@@ -18,3 +18,4 @@ pub mod screen_coordinates;
 pub mod torus;
 pub mod utils;
 pub mod intersection_curve;
+pub mod cnc_block;

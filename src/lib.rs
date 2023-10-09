@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod cnc;
 pub mod constants;
 pub mod entities;
 pub mod graph;
