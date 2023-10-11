@@ -17,6 +17,16 @@ pub enum Winding {
     CW,
 }
 
+pub enum MillType {
+    Ball,
+    Cylinder,
+}
+
+pub struct MillShape {
+    pub type_: MillType,
+    pub diameter: f32,
+}
+
 pub enum Instruction {
     CoordinateSystemType(CoordinateSystemType),
     RotationSpeed(u32),
@@ -40,12 +50,19 @@ pub enum ProgramLine {
     },
 }
 
-pub struct Program(Vec<MillInstruction>);
+pub struct Program {
+    instructions: Vec<MillInstruction>,
+    mill_shape: MillShape,
+}
 
 #[derive(Error, Debug)]
 pub enum ProgramLoadError {
     #[error("IO error")]
     Io(std::io::Error),
+    #[error("file without extension")]
+    NoExtension,
+    #[error("invalid extension")]
+    InvalidExtension,
     #[error("parse error")]
     ParseError(LineParseError),
     #[error("a not numbered line inbetween other lines")]
@@ -66,15 +83,43 @@ pub enum ProgramLoadError {
 
 impl Program {
     pub fn from_file(path: &std::path::Path) -> Result<Self, ProgramLoadError> {
+        let extension = path
+            .extension()
+            .ok_or(ProgramLoadError::NoExtension)?
+            .to_str()
+            .ok_or(ProgramLoadError::InvalidExtension)?;
+
+        let mill_shape = Self::parse_program_extension(extension)?;
         let source = std::fs::read_to_string(path).map_err(ProgramLoadError::Io)?;
         let lines = parser::parse_source(&source).map_err(ProgramLoadError::ParseError)?;
-        Self::from_lines(lines)
+        Self::from_lines(lines, mill_shape)
     }
 
-    pub fn from_lines(lines: Vec<ProgramLine>) -> Result<Self, ProgramLoadError> {
+    pub fn from_lines(
+        lines: Vec<ProgramLine>,
+        mill_shape: MillShape,
+    ) -> Result<Self, ProgramLoadError> {
         let lines = lines;
         Self::validate_lines(&lines)?;
-        Ok(Self(Self::lines_to_mill_instructions(&lines)))
+
+        Ok(Self {
+            instructions: Self::lines_to_mill_instructions(&lines),
+            mill_shape,
+        })
+    }
+
+    fn parse_program_extension(extension: &str) -> Result<MillShape, ProgramLoadError> {
+        let type_ = match extension.as_bytes()[0] as char {
+            'k' => MillType::Ball,
+            'f' => MillType::Cylinder,
+            _ => return Err(ProgramLoadError::InvalidExtension),
+        };
+
+        let diameter = extension[1..]
+            .parse()
+            .map_err(|_| ProgramLoadError::InvalidExtension)?;
+
+        Ok(MillShape { type_, diameter })
     }
 
     fn lines_to_mill_instructions(lines: &[ProgramLine]) -> Vec<MillInstruction> {

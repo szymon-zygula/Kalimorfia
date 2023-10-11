@@ -9,7 +9,7 @@ enum MillingError {
     #[error("moving a mill without rotation speed")]
     NoRotationSpeed,
     #[error("non-cutting part of the mill is being pushed into the material")]
-    NonCuttingCollision,
+    DeadZoneCollision,
     #[error("the mill is lowered too deeply")]
     CutTooDeep,
     #[error("movement speed {0} not in allowed range")]
