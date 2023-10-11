@@ -1,12 +1,13 @@
 pub mod bezier_mesh;
+pub mod bezier_surface_mesh;
+pub mod generic_mesh;
 pub mod gl_drawable;
 pub mod gl_program;
+pub mod gl_texture;
 pub mod mesh;
 pub mod opengl;
 pub mod point_cloud;
 pub mod shader;
 pub mod shader_manager;
 pub mod stereo;
-pub mod bezier_surface_mesh;
 pub mod texture;
-pub mod gl_texture;
