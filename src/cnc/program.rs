@@ -1,6 +1,6 @@
-use crate::cnc::{
+use super::{
     location::Location,
-    mill::MillInstruction,
+    milling_process::MillInstruction,
     parser::{self, LineParseError},
 };
 use thiserror::Error;
@@ -15,16 +15,6 @@ pub enum CoordinateSystemType {
 
 pub enum Winding {
     CW,
-}
-
-pub enum MillType {
-    Ball,
-    Cylinder,
-}
-
-pub struct MillShape {
-    pub type_: MillType,
-    pub diameter: f32,
 }
 
 pub enum Instruction {

@@ -1,78 +1,94 @@
-use crate::cnc::location::Location;
+use super::{
+    block::Block,
+    milling_process::{MillingError, MillingResult},
+};
 use nalgebra::Vector3;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
-enum MillingError {
-    #[error("moving a mill which has no movement speed")]
-    NoMovementSpeed,
-    #[error("moving a mill without rotation speed")]
-    NoRotationSpeed,
-    #[error("non-cutting part of the mill is being pushed into the material")]
-    DeadZoneCollision,
-    #[error("the mill is lowered too deeply")]
-    CutTooDeep,
-    #[error("movement speed {0} not in allowed range")]
-    MovementSpeed(f32),
-    #[error("rotation speed {0} not in allowed range")]
-    RotationSpeed(f32),
+pub enum MillType {
+    Ball,
+    Cylinder,
 }
 
-pub enum MillInstruction {
-    RotationSpeed(f32),
-    MovementSpeed(f32),
-    MoveFast(Location),
-    MoveSlow(Location),
+impl Default for MillType {
+    fn default() -> Self {
+        MillType::Ball
+    }
 }
 
 #[derive(Default)]
-struct Mill {
+pub struct MillShape {
+    pub type_: MillType,
+    pub diameter: f32,
+}
+
+#[derive(Default)]
+pub struct Mill {
     movement_speed: Option<f32>,
     rotation_speed: Option<f32>,
     position: Vector3<f32>,
+    shape: MillShape,
 }
 
 impl Mill {
-    const MIN_MOVEMENT_SPEED: f32 = 2.0;
-    const MAX_MOVEMENT_SPEED: f32 = 60.0;
+    pub const MIN_MOVEMENT_SPEED: f32 = 2.0;
+    pub const MAX_MOVEMENT_SPEED: f32 = 60.0;
 
-    const MIN_ROTATION_SPEED: f32 = 2.0;
-    const MAX_ROTATION_SPEED: f32 = 15.0;
+    pub const MIN_ROTATION_SPEED: f32 = 2.0;
+    pub const MAX_ROTATION_SPEED: f32 = 15.0;
 
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn execute_instruction(&mut self, instruction: &MillInstruction) -> Result<(), MillingError> {
-        match instruction {
-            MillInstruction::RotationSpeed(speed) => {
-                if Self::MIN_ROTATION_SPEED > *speed || *speed > Self::MAX_ROTATION_SPEED {
-                    return Err(MillingError::RotationSpeed(*speed));
-                }
-
-                self.rotation_speed = Some(*speed);
-                Ok(())
-            }
-            MillInstruction::MovementSpeed(speed) => {
-                if Self::MIN_MOVEMENT_SPEED > *speed || *speed > Self::MAX_MOVEMENT_SPEED {
-                    return Err(MillingError::MovementSpeed(*speed));
-                }
-
-                self.movement_speed = Some(*speed);
-                Ok(())
-            }
-            MillInstruction::MoveFast(location) => {
-                self.ensure_movement_and_rotation_speeds()?;
-                todo!()
-            }
-            MillInstruction::MoveSlow(location) => {
-                self.ensure_movement_and_rotation_speeds()?;
-                todo!()
-            }
+    fn new(shape: MillShape) -> Self {
+        Self {
+            shape,
+            ..Default::default()
         }
     }
 
-    fn ensure_movement_and_rotation_speeds(&self) -> Result<(), MillingError> {
+    pub fn set_movement_speed(&mut self, speed: f32) -> MillingResult {
+        if Self::MIN_MOVEMENT_SPEED > speed || speed > Self::MAX_MOVEMENT_SPEED {
+            return Err(MillingError::MovementSpeed(speed));
+        }
+
+        self.movement_speed = Some(speed);
+        Ok(())
+    }
+
+    pub fn set_rotation_speed(&mut self, speed: f32) -> MillingResult {
+        if Mill::MIN_ROTATION_SPEED > speed || speed > Self::MAX_ROTATION_SPEED {
+            return Err(MillingError::RotationSpeed(speed));
+        }
+
+        self.rotation_speed = Some(speed);
+        Ok(())
+    }
+
+    pub fn move_slow_to(&mut self, position: Vector3<f32>) -> MillingResult {
+        self.ensure_movement_and_rotation_speeds()?;
+        self.position = position;
+        Ok(())
+    }
+
+    pub fn move_fast_to(&mut self, position: Vector3<f32>) -> MillingResult {
+        self.ensure_movement_and_rotation_speeds()?;
+        self.position = position;
+        Ok(())
+    }
+
+    pub fn cut(&self, block: &mut Block) -> MillingResult {
+        match self.shape.type_ {
+            MillType::Ball => self.cut_ball(block),
+            MillType::Cylinder => self.cut_cylinder(block),
+        }
+    }
+
+    fn cut_ball(&self, block: &mut Block) -> MillingResult {
+        todo!()
+    }
+
+    fn cut_cylinder(&self, block: &mut Block) -> MillingResult {
+        todo!()
+    }
+
+    fn ensure_movement_and_rotation_speeds(&self) -> MillingResult {
         if self.movement_speed.is_none() {
             Err(MillingError::NoMovementSpeed)
         } else if self.rotation_speed.is_none() {

@@ -1,4 +1,4 @@
-use crate::cnc::program::{CoordinateSystemType, Instruction, ProgramLine, UnitSystem, Winding};
+use super::program::{CoordinateSystemType, Instruction, ProgramLine, UnitSystem, Winding};
 use itertools::Itertools;
 use thiserror::Error;
 
