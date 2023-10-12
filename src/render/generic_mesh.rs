@@ -1,9 +1,11 @@
 use super::{gl_drawable::GlDrawable, opengl};
 use crate::utils;
 use glow::HasContext;
-use nalgebra::Point3;
+use nalgebra::{Point3, Vector3};
 
-pub struct Triangle([u32; 3]);
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct Triangle(pub [u32; 3]);
 
 pub trait Vertex {
     fn set_vertex_attrib_pointers(gl: &glow::Context);
@@ -31,6 +33,45 @@ impl Vertex for SimpleVertex {
                 0,
             );
             gl.enable_vertex_attrib_array(0);
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct ClassicVertex {
+    pub position: Point3<f32>,
+    pub normal: Vector3<f32>,
+}
+
+impl ClassicVertex {
+    pub fn new(position: Point3<f32>, normal: Vector3<f32>) -> Self {
+        Self { position, normal }
+    }
+}
+
+impl Vertex for ClassicVertex {
+    fn set_vertex_attrib_pointers(gl: &glow::Context) {
+        unsafe {
+            gl.vertex_attrib_pointer_f32(
+                0,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<ClassicVertex>() as i32,
+                0,
+            );
+            gl.enable_vertex_attrib_array(0);
+
+            gl.vertex_attrib_pointer_f32(
+                1,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<ClassicVertex>() as i32,
+                std::mem::size_of::<Point3<f32>>() as i32,
+            );
+            gl.enable_vertex_attrib_array(1);
         }
     }
 }
