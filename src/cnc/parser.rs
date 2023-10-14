@@ -28,17 +28,23 @@ pub struct LineParseError {
     error: ParseError,
 }
 
+impl std::fmt::Display for LineParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "line {}: {}", self.line_number, self.error)
+    }
+}
+
 type ParseOptionResultLine = Option<Result<ProgramLine, ParseError>>;
 type ParseOptionResult = Option<Result<Instruction, ParseError>>;
 
 pub fn parse_source(source: &str) -> Result<Vec<ProgramLine>, LineParseError> {
-    Ok(source
+    source
         .lines()
         .enumerate()
         .map(|(line_number, line)| {
             parse_instruction(line.trim()).map_err(|error| LineParseError { line_number, error })
         })
-        .try_collect()?)
+        .try_collect()
 }
 
 fn parse_instruction(source: &str) -> Result<ProgramLine, ParseError> {
@@ -62,13 +68,12 @@ fn parse_numbered_instruction(source: &str) -> ParseOptionResultLine {
 
     Some(
         if let Some((number, digit_count)) = parse_prefix_number(source) {
-            if let Ok(data) = parse_clean_numbered_instruction(&source[0..digit_count as usize]) {
-                Ok(ProgramLine::Instruction {
+            match parse_clean_numbered_instruction(&source[(digit_count as usize)..source.len()]) {
+                Ok(data) => Ok(ProgramLine::Instruction {
                     number,
                     instruction: data,
-                })
-            } else {
-                Err(ParseError::UnknownInstruction)
+                }),
+                Err(err) => Err(err),
             }
         } else {
             Err(ParseError::InvalidLineNumber)

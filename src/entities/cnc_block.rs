@@ -3,9 +3,10 @@ use super::{
     changeable_name::ChangeableName,
     entity::{DrawType, Drawable, Entity, NamedEntity, SceneObject},
 };
-use crate::cnc::block::Block;
 use crate::{
     camera::Camera,
+    cnc::program as cncp,
+    cnc::{self, block::Block},
     render::{
         generic_mesh::GlMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
         shader_manager::ShaderManager,
@@ -62,6 +63,8 @@ pub struct CNCBlock<'gl> {
     name: ChangeableName,
     shader_manager: Rc<ShaderManager<'gl>>,
     linear_transform: LinearTransformEntity,
+    script_path: String,
+    script_error: Option<String>,
 }
 
 impl<'gl> CNCBlock<'gl> {
@@ -88,6 +91,8 @@ impl<'gl> CNCBlock<'gl> {
             shader_manager,
             linear_transform,
             name: ChangeableName::new("CNC block", name_repo),
+            script_path: String::from("paths/1.k16"),
+            script_error: None,
         }
     }
 
@@ -98,11 +103,46 @@ impl<'gl> CNCBlock<'gl> {
     pub fn block(&self) -> &Block {
         &self.block
     }
+
+    fn milling_control(&mut self, ui: &imgui::Ui) {
+        ui.text("MillingControl");
+        if ui.button("Load script") {
+            ui.open_popup("mill_path_popup");
+        }
+
+        ui.popup("mill_path_popup", || match self.script_error.as_ref() {
+            None => {
+                ui.input_text("File path", &mut self.script_path).build();
+                if ui.button("Open") {
+                    let program =
+                        cncp::Program::from_file(std::path::Path::new(&self.script_path), true);
+                    match program {
+                        Err(err) => {
+                            ui.open_popup("mill_program_error");
+                            self.script_error = Some(err.to_string());
+                        }
+                        Ok(prog) => {
+                            println!("{:?}", prog);
+                            ui.close_current_popup();
+                        }
+                    }
+                }
+            }
+            Some(err) => {
+                ui.text_colored([1.0, 0.3, 0.3, 1.0], format!("Error: {}", err));
+                if ui.button("OK") {
+                    self.script_error = None;
+                    ui.close_current_popup();
+                }
+            }
+        });
+    }
 }
 
 impl<'gl> Entity for CNCBlock<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         self.name_control_ui(ui);
+        self.milling_control(ui);
         self.linear_transform.control_ui(ui);
         false
     }

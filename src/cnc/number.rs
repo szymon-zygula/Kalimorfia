@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Number {
     is_negative: bool,
     integral_part: u32,
@@ -32,11 +32,14 @@ impl Number {
             return None;
         }
 
+        let is_negative = before.starts_with('-');
+        let start = if is_negative { 1 } else { 0 };
+
         Some((
             Number {
-                is_negative: before.starts_with('-'),
-                integral_part: before.parse().ok()?,
-                fractional_part: after.parse().ok()?,
+                integral_part: before[start..].parse().ok()?,
+                fractional_part: after[0..3].parse().ok()?,
+                is_negative,
             },
             &after[3..],
         ))

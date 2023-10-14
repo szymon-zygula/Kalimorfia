@@ -6,18 +6,22 @@ use super::{
 };
 use thiserror::Error;
 
+#[derive(Debug)]
 pub enum UnitSystem {
     Metric,
 }
 
+#[derive(Debug)]
 pub enum CoordinateSystemType {
     Global,
 }
 
+#[derive(Debug)]
 pub enum Winding {
     CW,
 }
 
+#[derive(Debug)]
 pub enum Instruction {
     CoordinateSystemType(CoordinateSystemType),
     RotationSpeed(u32),
@@ -33,6 +37,7 @@ pub enum Instruction {
     End,
 }
 
+#[derive(Debug)]
 pub enum ProgramLine {
     UnitSystem(UnitSystem),
     Instruction {
@@ -41,6 +46,7 @@ pub enum ProgramLine {
     },
 }
 
+#[derive(Debug, Clone)]
 pub struct Program {
     instructions: Vec<MillInstruction>,
     mill_shape: MillShape,
@@ -54,7 +60,7 @@ pub enum ProgramLoadError {
     NoExtension,
     #[error("invalid extension")]
     InvalidExtension,
-    #[error("parse error")]
+    #[error("parse error: {0}")]
     ParseError(LineParseError),
     #[error("a not numbered line inbetween other lines")]
     StrayLine,
@@ -73,7 +79,7 @@ pub enum ProgramLoadError {
 }
 
 impl Program {
-    pub fn from_file(path: &std::path::Path) -> Result<Self, ProgramLoadError> {
+    pub fn from_file(path: &std::path::Path, lenient: bool) -> Result<Self, ProgramLoadError> {
         let extension = path
             .extension()
             .ok_or(ProgramLoadError::NoExtension)?
@@ -83,14 +89,17 @@ impl Program {
         let mill_shape = Self::parse_program_extension(extension)?;
         let source = std::fs::read_to_string(path).map_err(ProgramLoadError::Io)?;
         let lines = parser::parse_source(&source).map_err(ProgramLoadError::ParseError)?;
-        Self::from_lines(lines, mill_shape)
+        Self::from_lines(lines, mill_shape, lenient)
     }
 
     pub fn from_lines(
         lines: Vec<ProgramLine>,
         mill_shape: MillShape,
+        lenient: bool,
     ) -> Result<Self, ProgramLoadError> {
-        Self::validate_lines(&lines)?;
+        if !lenient {
+            Self::validate_lines(&lines)?;
+        }
 
         Ok(Self {
             instructions: Self::lines_to_mill_instructions(&lines),
@@ -127,10 +136,9 @@ impl Program {
                 Instruction::RotationSpeed(speed) => {
                     vec![MillInstruction::RotationSpeed(*speed as f32 / 1000.0)]
                 }
-                Instruction::RotationSpeedAndWinding {
-                    rotation_speed,
-                    winding,
-                } => todo!(),
+                Instruction::RotationSpeedAndWinding { .. } => {
+                    todo!("Rotation speed and winding on the same line are not supported")
+                }
                 Instruction::MovementSpeed(speed) => {
                     vec![MillInstruction::MovementSpeed(*speed as f32 / 1000.0)]
                 }

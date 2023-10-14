@@ -4,14 +4,14 @@ use super::{
 };
 use nalgebra::Vector3;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum MillType {
     #[default]
     Ball,
     Cylinder,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct MillShape {
     pub type_: MillType,
     pub diameter: f32,

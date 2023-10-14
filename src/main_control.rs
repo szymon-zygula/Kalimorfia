@@ -596,7 +596,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
 
     fn cnc_block_window(&mut self, ui: &imgui::Ui, state: &mut State) {
         ui.window("CNC block creation")
-            .size([350.0, 200.0], imgui::Condition::FirstUseEver)
+            .size([350.0, 250.0], imgui::Condition::FirstUseEver)
             .position([300.0, 300.0], imgui::Condition::FirstUseEver)
             .build(|| {
                 let args = self.cnc_block_args.as_mut().unwrap();

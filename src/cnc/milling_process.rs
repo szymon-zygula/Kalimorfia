@@ -1,6 +1,7 @@
 use super::{block::Block, location::Location, mill::Mill, program::Program};
 use thiserror::Error;
 
+#[derive(Debug, Clone)]
 pub enum MillInstruction {
     RotationSpeed(f32),
     MovementSpeed(f32),

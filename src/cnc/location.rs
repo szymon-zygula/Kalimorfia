@@ -13,7 +13,7 @@ struct CoordinateParseResult<'a> {
     left: &'a str,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Location {
     x: Option<Number>,
     y: Option<Number>,
@@ -66,7 +66,7 @@ impl Location {
         Ok(left)
     }
 
-    fn parse_coordinate<'a>(string: &'a str) -> Option<CoordinateParseResult<'a>> {
+    fn parse_coordinate(string: &str) -> Option<CoordinateParseResult> {
         let (coordinate, string) = Self::parse_coordinate_letter(string)?;
         let (number, left) = Number::from_str_prefix(string)?;
         Some(CoordinateParseResult {
