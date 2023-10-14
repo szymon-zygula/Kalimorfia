@@ -26,14 +26,14 @@ pub enum MillingError {
 
 pub type MillingResult = Result<(), MillingError>;
 
-pub struct MillingProcess<'a> {
-    mill: &'a Mill,
-    program: &'a Program,
-    block: &'a mut Block,
+pub struct MillingProcess {
+    mill: Mill,
+    program: Program,
+    block: Block,
 }
 
-impl<'a> MillingProcess<'a> {
-    pub fn new(mill: &'a Mill, program: &'a Program, block: &'a mut Block) -> Self {
+impl MillingProcess {
+    pub fn new(mill: Mill, program: Program, block: Block) -> Self {
         Self {
             mill,
             program,
@@ -41,7 +41,7 @@ impl<'a> MillingProcess<'a> {
         }
     }
 
-    fn execute_next_instruction(&mut self, instruction: &MillInstruction) -> MillingResult {
+    pub fn execute_next_instruction(&mut self, instruction: &MillInstruction) -> MillingResult {
         match instruction {
             MillInstruction::RotationSpeed(speed) => self.mill.set_rotation_speed(*speed),
             MillInstruction::MovementSpeed(speed) => self.mill.set_movement_speed(*speed),
@@ -51,7 +51,7 @@ impl<'a> MillingProcess<'a> {
     }
 
     fn move_fast_to(&mut self, location: &Location) -> MillingResult {
-        todo!()
+        todo!("Fast moves are not supported")
     }
 
     fn move_slow_to(&mut self, location: &Location) -> MillingResult {
@@ -62,5 +62,7 @@ impl<'a> MillingProcess<'a> {
         todo!()
     }
 
-    pub fn next_instruction_distance(&mut self) -> f32 {}
+    pub fn retake_all(self) -> (Mill, Program, Block) {
+        (self.mill, self.program, self.block)
+    }
 }

@@ -3,9 +3,7 @@ use nalgebra::{point, vector, Vector2, Vector3};
 
 pub struct Block {
     sampling: Vector2<usize>,
-    sampling_f32: Vector2<f32>,
     sample_size: Vector2<f32>,
-    size: Vector3<f32>,
     heights: Vec<f32>, // Values on the borders serve as sentinels and are always 0
 }
 
@@ -13,10 +11,8 @@ impl Block {
     pub fn new(sampling: Vector2<usize>, size: Vector3<f32>) -> Self {
         Self {
             sample_size: vector![size.x / sampling.x as f32, size.y / sampling.y as f32],
-            heights: vec![0.0; sampling.x * sampling.y],
-            sampling_f32: vector![sampling.x as f32, sampling.y as f32],
+            heights: vec![size.z; sampling.x * sampling.y],
             sampling,
-            size,
         }
     }
 
@@ -29,7 +25,8 @@ impl Block {
     }
 
     pub fn height_mut(&mut self, x: usize, y: usize) -> &mut f32 {
-        &mut self.heights[self.heights_idx(x, y)]
+        let idx = self.heights_idx(x, y);
+        &mut self.heights[idx]
     }
 
     pub fn cut(&mut self, x: usize, y: usize, height: f32) -> bool {
@@ -41,7 +38,7 @@ impl Block {
         }
     }
 
-    pub fn generate_mesh(&self, gl: &glow::Context) -> GlMesh {
+    pub fn generate_mesh<'gl>(&self, gl: &'gl glow::Context) -> GlMesh<'gl> {
         let mut vertices = Vec::with_capacity(12 * self.sampling.x * self.sampling.y);
         let mut triangles = Vec::with_capacity(6 * self.sampling.x * self.sampling.y);
 
@@ -60,7 +57,7 @@ impl Block {
         for x in 0..self.sampling.x {
             for y in 0..self.sampling.y {
                 vertices.extend_from_slice(&self.sample_top_vertices(x, y));
-                triangles.extend_from_slice(&self.sample_top_triangles(x, y, vertices.len()));
+                triangles.extend_from_slice(&self.sample_top_triangles(vertices.len()));
             }
         }
     }
@@ -97,12 +94,12 @@ impl Block {
     }
 
     // Assume that the last added vertices belong to the same top
-    fn sample_top_triangles(&self, x: usize, y: usize, vertices_len: usize) -> [Triangle; 2] {
+    fn sample_top_triangles(&self, vertices_len: usize) -> [Triangle; 2] {
         let vertices_len = vertices_len as u32;
 
         [
-            Triangle([vertices_len - 3, vertices_len - 2, vertices_len - 1]),
-            Triangle([vertices_len, vertices_len - 1, vertices_len - 2]),
+            Triangle([vertices_len - 4, vertices_len - 3, vertices_len - 2]),
+            Triangle([vertices_len - 1, vertices_len - 2, vertices_len - 3]),
         ]
     }
 
@@ -205,8 +202,8 @@ impl Block {
 
         let len = vertices.len() as u32;
 
+        triangles.push(Triangle([len - 4, len - 3, len - 2]));
         triangles.push(Triangle([len - 3, len - 2, len - 1]));
-        triangles.push(Triangle([len - 2, len - 1, len]));
     }
 
     // ^y
@@ -216,13 +213,94 @@ impl Block {
     // |||||
     // |||||
     // |||||
-    fn mesh_y_walls(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {}
+    fn mesh_y_walls(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {
+        for x in 1..self.sampling.x {
+            self.mesh_y_internal_wall_row(vertices, triangles, x);
+        }
+
+        for y in 0..self.sampling.y {
+            self.mesh_y_wall(vertices, triangles, 0, y, self.height(0, y), 0.0);
+        }
+
+        for y in 0..self.sampling.y {
+            self.mesh_y_wall(
+                vertices,
+                triangles,
+                self.sampling.x,
+                y,
+                0.0,
+                self.height(y, self.sampling.x - 1),
+            );
+        }
+    }
 
     fn mesh_y_internal_wall_row(
         &self,
         vertices: &mut Vec<ClassicVertex>,
         triangles: &mut Vec<Triangle>,
-        y: usize,
+        x: usize,
     ) {
+        for y in 0..self.sampling.y {
+            self.mesh_y_wall(
+                vertices,
+                triangles,
+                x,
+                y,
+                self.height(x, y),
+                self.height(x - 1, y),
+            );
+        }
+    }
+
+    fn mesh_y_wall(
+        &self,
+        vertices: &mut Vec<ClassicVertex>,
+        triangles: &mut Vec<Triangle>,
+        x: usize,
+        y: usize,
+        my_height: f32,
+        neighbor_height: f32,
+    ) {
+        let height_difference = my_height - neighbor_height;
+        //
+        // ^z
+        // |
+        // +-->y
+        //
+        // 2   3
+        //
+        // 0   1
+        let normal = if height_difference > 0.0 {
+            vector![-1.0, 0.0, 0.0]
+        } else {
+            vector![1.0, 0.0, 0.0]
+        };
+
+        let x = x as f32;
+        let y = y as f32;
+
+        let base_point = point![x * self.sample_size.x, y * self.sample_size.y, 0.0];
+
+        vertices.push(ClassicVertex::new(
+            base_point + vector![0.0, 0.0, neighbor_height],
+            normal,
+        ));
+        vertices.push(ClassicVertex::new(
+            base_point + vector![0.0, self.sample_size.y, neighbor_height],
+            normal,
+        ));
+        vertices.push(ClassicVertex::new(
+            base_point + vector![0.0, 0.0, my_height],
+            normal,
+        ));
+        vertices.push(ClassicVertex::new(
+            base_point + vector![0.0, self.sample_size.y, my_height],
+            normal,
+        ));
+
+        let len = vertices.len() as u32;
+
+        triangles.push(Triangle([len - 4, len - 3, len - 2]));
+        triangles.push(Triangle([len - 3, len - 2, len - 1]));
     }
 }

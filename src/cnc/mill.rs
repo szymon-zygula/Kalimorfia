@@ -4,18 +4,14 @@ use super::{
 };
 use nalgebra::Vector3;
 
+#[derive(Default, Clone, Copy)]
 pub enum MillType {
+    #[default]
     Ball,
     Cylinder,
 }
 
-impl Default for MillType {
-    fn default() -> Self {
-        MillType::Ball
-    }
-}
-
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct MillShape {
     pub type_: MillType,
     pub diameter: f32,
@@ -36,7 +32,7 @@ impl Mill {
     pub const MIN_ROTATION_SPEED: f32 = 2.0;
     pub const MAX_ROTATION_SPEED: f32 = 15.0;
 
-    fn new(shape: MillShape) -> Self {
+    pub fn new(shape: MillShape) -> Self {
         Self {
             shape,
             ..Default::default()
@@ -44,7 +40,7 @@ impl Mill {
     }
 
     pub fn set_movement_speed(&mut self, speed: f32) -> MillingResult {
-        if Self::MIN_MOVEMENT_SPEED > speed || speed > Self::MAX_MOVEMENT_SPEED {
+        if !(Self::MIN_MOVEMENT_SPEED..=Self::MAX_MOVEMENT_SPEED).contains(&speed) {
             return Err(MillingError::MovementSpeed(speed));
         }
 
@@ -53,7 +49,7 @@ impl Mill {
     }
 
     pub fn set_rotation_speed(&mut self, speed: f32) -> MillingResult {
-        if Mill::MIN_ROTATION_SPEED > speed || speed > Self::MAX_ROTATION_SPEED {
+        if !(Mill::MIN_ROTATION_SPEED..=Self::MAX_ROTATION_SPEED).contains(&speed) {
             return Err(MillingError::RotationSpeed(speed));
         }
 

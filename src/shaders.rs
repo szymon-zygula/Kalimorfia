@@ -9,6 +9,7 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let fragment_colored_trimmed = shader(gl, "fragment_colored_trimmed", glow::FRAGMENT_SHADER);
     let fragment_uniform = shader(gl, "uniform_fragment", glow::FRAGMENT_SHADER);
     let fragment_gk = shader(gl, "fragment_gk", glow::FRAGMENT_SHADER);
+    let fragment_cnc_block = shader(gl, "fragment_cnc_block", glow::FRAGMENT_SHADER);
 
     let pass_through_vertex = shader(gl, "pass_through_vertex", glow::VERTEX_SHADER);
     let perspective_vertex = shader(gl, "perspective_vertex", glow::VERTEX_SHADER);
@@ -19,6 +20,7 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
     let point_cloud_vertex = shader(gl, "point_cloud_vertex", glow::VERTEX_SHADER);
     let vertex_bezier = shader(gl, "vertex_bezier", glow::VERTEX_SHADER);
     let vertex_gk = shader(gl, "vertex_gk", glow::VERTEX_SHADER);
+    let vertex_cnc_block = shader(gl, "vertex_cnc_block", glow::VERTEX_SHADER);
 
     let geometry_bezier = shader(gl, "geometry_bezier", glow::GEOMETRY_SHADER);
 
@@ -109,6 +111,16 @@ pub fn create_shader_manager(gl: &glow::Context) -> Rc<ShaderManager> {
                 ],
             ),
         ),
+        (
+            "cnc_block",
+            GlProgram::with_shaders(
+                gl,
+                &[
+                    &vertex_cnc_block,
+                    &fragment_cnc_block
+                ]
+            )
+        )
     ]))
 }
 

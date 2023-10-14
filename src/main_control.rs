@@ -6,6 +6,7 @@ use kalimorfia::{
         bezier_surface_args::BezierSurfaceArgs,
         bezier_surface_c0::BezierSurfaceC0,
         bezier_surface_c2::BezierSurfaceC2,
+        cnc_block::{CNCBlock, CNCBlockArgs},
         cubic_spline_c0::CubicSplineC0,
         cubic_spline_c2::CubicSplineC2,
         entity::{Entity, EntityCollection, ReferentialSceneEntity, SceneObject},
@@ -41,6 +42,7 @@ pub struct MainControl<'gl, 'a> {
     shader_manager: Rc<ShaderManager<'gl>>,
     bezier_surface_args: Option<BezierSurfaceArgs>,
     added_surface_type: Option<BezierSurfaceType>,
+    cnc_block_args: Option<CNCBlockArgs>,
     intersection_parameters: Option<IntersetionParameters>,
     file_path: String,
     cnc_file_path: String,
@@ -87,6 +89,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             intersection_parameters: None,
             shader_manager,
             bezier_surface_args: None,
+            cnc_block_args: None,
         }
     }
 
@@ -105,6 +108,10 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 }
                 _ => {}
             }
+        }
+
+        if self.cnc_block_args.is_some() {
+            self.cnc_block_window(ui, state);
         }
     }
 
@@ -579,19 +586,41 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
 
         ui.next_column();
-        if ui.button("CNC mill") {
-            ui.open_popup("cnc_mill");
+        if ui.button("CNC block") {
+            self.cnc_block_args = Some(CNCBlockArgs::new());
         }
-        ui.popup("cnc_mill", || {
-            ui.input_text("CNC file path", &mut self.cnc_file_path)
-                .build();
-            if ui.button("Open") {
-                self.add_cnc_mill(state);
-            }
-        });
 
         ui.next_column();
         ui.columns(1, "clear_columns", false);
+    }
+
+    fn cnc_block_window(&mut self, ui: &imgui::Ui, state: &mut State) {
+        ui.window("CNC block creation")
+            .size([350.0, 200.0], imgui::Condition::FirstUseEver)
+            .position([300.0, 300.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                let args = self.cnc_block_args.as_mut().unwrap();
+
+                ui.text("CNC block creation");
+                ui.input_int("Samples X", &mut args.sampling.x).build();
+                ui.input_int("Samples Y", &mut args.sampling.y).build();
+
+                ui.input_float("Size X", &mut args.size.x).build();
+                ui.input_float("Size Y", &mut args.size.y).build();
+                ui.input_float("Size Z", &mut args.size.z).build();
+
+                args.clamp();
+
+                if ui.button("Create") {
+                    let args = self.cnc_block_args.take().unwrap();
+                    self.add_cnc_block(state, args);
+                    return;
+                }
+
+                if ui.button("Cancel") {
+                    self.cnc_block_args = None;
+                }
+            });
     }
 
     fn add_point_at(&self, state: &mut State, position: Point3<f32>) -> usize {
@@ -990,7 +1019,17 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn add_cnc_mill(&self, state: &mut State) {}
+    fn add_cnc_block(&self, state: &mut State, args: CNCBlockArgs) {
+        let block = Box::new(CNCBlock::new(
+            self.gl,
+            Rc::clone(&state.name_repo),
+            Rc::clone(&self.shader_manager),
+            args,
+        ));
+
+        let id = self.entity_manager.borrow_mut().add_entity(block);
+        state.selector.add_selectable(id);
+    }
 
     fn add_intersection_curve(&self, state: &mut State, intersection: Intersection) {
         let intersection_curve = Box::new(IntersectionCurve::new(

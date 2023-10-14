@@ -63,7 +63,10 @@ fn parse_numbered_instruction(source: &str) -> ParseOptionResultLine {
     Some(
         if let Some((number, digit_count)) = parse_prefix_number(source) {
             if let Ok(data) = parse_clean_numbered_instruction(&source[0..digit_count as usize]) {
-                Ok(ProgramLine::Instruction { number, instruction: data })
+                Ok(ProgramLine::Instruction {
+                    number,
+                    instruction: data,
+                })
             } else {
                 Err(ParseError::UnknownInstruction)
             }
@@ -113,10 +116,6 @@ fn parse_movement_speed(source: &str) -> ParseOptionResult {
         return Some(Err(ParseError::InvalidMovementSpeed));
     };
 
-    if !(MIN_MOVEMENT_SPEED..=MAX_MOVEMENT_SPEED).contains(&speed) {
-        return Some(Err(ParseError::InvalidMovementSpeed));
-    }
-
     Some(Ok(Instruction::MovementSpeed(speed)))
 }
 
@@ -125,10 +124,6 @@ fn parse_rotation_speed_and_optional_winding(source: &str) -> ParseOptionResult 
     let Some((rotation_speed, speed_digits)) = parse_prefix_number(source) else {
         return Some(Err(ParseError::InvalidRotationSpeed));
     };
-
-    if !(MIN_ROTATION_SPEED..=MAX_ROTATION_SPEED).contains(&rotation_speed) {
-        return Some(Err(ParseError::InvalidRotationSpeed));
-    }
 
     if source.len() == speed_digits as usize {
         return Some(Ok(Instruction::RotationSpeed(rotation_speed)));

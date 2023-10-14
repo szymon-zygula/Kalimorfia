@@ -29,7 +29,7 @@ impl Location {
         ))
     }
 
-    fn parse_new_coordinate(&mut self, string: &str) -> Result<&str, ()> {
+    fn parse_new_coordinate<'a>(&mut self, string: &'a str) -> Result<&'a str, ()> {
         let Some(CoordinateParseResult {
             coordinate,
             number,

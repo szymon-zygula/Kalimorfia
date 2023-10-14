@@ -2,7 +2,7 @@ use super::milling_process::MillingProcess;
 use std::time::Duration;
 
 pub struct MillingPlayer<'a> {
-    milling_process: &'a mut MillingProcess<'a>,
+    milling_process: &'a mut MillingProcess,
     fast_speed: f32,
     slow_speed: f32,
     instruction_interval: Duration,

@@ -1,5 +1,6 @@
 use super::{
     location::Location,
+    mill::{MillShape, MillType},
     milling_process::MillInstruction,
     parser::{self, LineParseError},
 };
@@ -89,7 +90,6 @@ impl Program {
         lines: Vec<ProgramLine>,
         mill_shape: MillShape,
     ) -> Result<Self, ProgramLoadError> {
-        let lines = lines;
         Self::validate_lines(&lines)?;
 
         Ok(Self {
@@ -151,6 +151,8 @@ impl Program {
         let lines = Self::validate_units(lines)?;
         Self::validate_line_sequenciality(lines)?;
         let lines = Self::validate_coordinate_system(lines)?;
+        Self::validate_gracefull_exit(lines)?;
+        Self::validate_winding(lines)?;
 
         Ok(())
     }
@@ -166,10 +168,12 @@ impl Program {
     fn validate_coordinate_system(
         lines: &[ProgramLine],
     ) -> Result<&[ProgramLine], ProgramLoadError> {
-        if let Some(ProgramLine::Instruction { instruction, .. }) = lines.first() {
-            if let Instruction::CoordinateSystemType(_) = instruction {
-                return Ok(&lines[1..]);
-            }
+        if let Some(ProgramLine::Instruction {
+            instruction: Instruction::CoordinateSystemType(_),
+            ..
+        }) = lines.first()
+        {
+            return Ok(&lines[1..]);
         }
 
         Err(ProgramLoadError::CoordinateSystemNotSet)
@@ -181,10 +185,12 @@ impl Program {
                 return Err(ProgramLoadError::StrayLine);
             };
 
-            return Err(ProgramLoadError::LineSequence {
-                actual: actual as u32,
-                number: *number,
-            });
+            if actual != *number as usize {
+                return Err(ProgramLoadError::LineSequence {
+                    actual: actual as u32,
+                    number: *number,
+                });
+            }
         }
 
         Ok(())
@@ -238,5 +244,13 @@ impl Program {
         }
 
         Ok(())
+    }
+
+    pub fn instructions(&self) -> &[MillInstruction] {
+        &self.instructions
+    }
+
+    pub fn shape(&self) -> MillShape {
+        self.mill_shape
     }
 }
