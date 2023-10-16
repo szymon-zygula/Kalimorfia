@@ -137,7 +137,7 @@ impl Program {
                     vec![MillInstruction::RotationSpeed(*speed as f32 / 1000.0)]
                 }
                 Instruction::RotationSpeedAndWinding { .. } => {
-                    todo!("Rotation speed and winding on the same line are not supported")
+                    unimplemented!("Rotation speed and winding on the same line are not supported")
                 }
                 Instruction::MovementSpeed(speed) => {
                     vec![MillInstruction::MovementSpeed(*speed as f32 / 1000.0)]

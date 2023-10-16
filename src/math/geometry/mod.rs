@@ -8,3 +8,5 @@ pub mod polygon;
 pub mod surfaces;
 pub mod torus;
 pub mod intersection;
+pub mod sphere;
+pub mod cylinder;

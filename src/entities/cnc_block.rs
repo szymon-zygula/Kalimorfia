@@ -6,7 +6,10 @@ use super::{
 use crate::{
     camera::Camera,
     cnc::program as cncp,
-    cnc::{self, block::Block},
+    cnc::{
+        block::Block, mill::Mill, milling_player::MillingPlayer, milling_process::MillingProcess,
+        milling_process::MillingResult,
+    },
     render::{
         generic_mesh::GlMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
         shader_manager::ShaderManager,
@@ -28,14 +31,14 @@ impl Default for CNCBlockArgs {
 }
 
 impl CNCBlockArgs {
-    const MIN_SIZE: f32 = 1.0;
-    const MAX_SIZE: f32 = 10.0;
+    const MIN_SIZE: f32 = 10.0;
+    const MAX_SIZE: f32 = 400.0;
     const MIN_SAMPLING: i32 = 50;
-    const MAX_SAMPLING: i32 = 300;
+    const MAX_SAMPLING: i32 = 1000;
 
     pub fn new() -> Self {
         Self {
-            size: vector!(5.0, 5.0, 2.5),
+            size: vector!(300.0, 300.0, 35.0),
             sampling: vector!(100, 100),
         }
     }
@@ -58,13 +61,14 @@ impl CNCBlockArgs {
 
 pub struct CNCBlock<'gl> {
     gl: &'gl glow::Context,
-    block: Block,
+    block: Option<Block>,
     mesh: GlMesh<'gl>,
     name: ChangeableName,
     shader_manager: Rc<ShaderManager<'gl>>,
     linear_transform: LinearTransformEntity,
     script_path: String,
     script_error: Option<String>,
+    milling_player: Option<MillingPlayer>,
 }
 
 impl<'gl> CNCBlock<'gl> {
@@ -80,6 +84,7 @@ impl<'gl> CNCBlock<'gl> {
         );
 
         let mut linear_transform = LinearTransformEntity::new();
+        linear_transform.scale.scale = vector![0.01, 0.01, 0.01];
         linear_transform.orientation.axis = vector![1.0, 0.0, 0.0];
         linear_transform.orientation.angle =
             2.0 * std::f32::consts::PI - std::f32::consts::FRAC_PI_2;
@@ -87,62 +92,112 @@ impl<'gl> CNCBlock<'gl> {
         Self {
             mesh: block.generate_mesh(gl),
             gl,
-            block,
+            block: Some(block),
             shader_manager,
             linear_transform,
             name: ChangeableName::new("CNC block", name_repo),
             script_path: String::from("paths/1.k16"),
             script_error: None,
+            milling_player: None,
         }
     }
 
-    pub fn block_mut(&mut self) -> &mut Block {
-        &mut self.block
+    pub fn block_mut(&mut self) -> Option<&mut Block> {
+        self.block.as_mut()
     }
 
-    pub fn block(&self) -> &Block {
-        &self.block
+    pub fn block(&self) -> Option<&Block> {
+        self.block.as_ref()
     }
 
-    fn milling_control(&mut self, ui: &imgui::Ui) {
-        ui.text("MillingControl");
+    fn milling_control(&mut self, ui: &imgui::Ui) -> MillingResult {
+        ui.text("Milling control");
+        self.load_script_ui(ui);
+
+        if let Some(player) = &mut self.milling_player {
+            ui.text("Milling player");
+            ui.text(format!(
+                "Executed: {}/{}",
+                player.milling_process().current_instruction_idx(),
+                player.milling_process().program().instructions().len()
+            ));
+            let position = player.milling_process().mill().position();
+            ui.text(format!(
+                "Mill position: [{}, {}, {}]",
+                position.x, position.y, position.z,
+            ));
+
+            if ui.button("Step") {
+                player.full_step()?;
+                // TODO: could be more optimal
+                self.mesh = player.milling_process().block().generate_mesh(self.gl);
+            }
+
+            if ui.button("Complete") {
+                player.complete()?;
+                self.mesh = player.milling_process().block().generate_mesh(self.gl);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn load_script_ui(&mut self, ui: &imgui::Ui) {
         if ui.button("Load script") {
             ui.open_popup("mill_path_popup");
         }
 
-        ui.popup("mill_path_popup", || match self.script_error.as_ref() {
-            None => {
-                ui.input_text("File path", &mut self.script_path).build();
-                if ui.button("Open") {
-                    let program =
-                        cncp::Program::from_file(std::path::Path::new(&self.script_path), true);
-                    match program {
-                        Err(err) => {
-                            ui.open_popup("mill_program_error");
-                            self.script_error = Some(err.to_string());
-                        }
-                        Ok(prog) => {
-                            println!("{:?}", prog);
-                            ui.close_current_popup();
-                        }
+        ui.popup("mill_path_popup", || {
+            ui.input_text("File path", &mut self.script_path).build();
+            if ui.button("Open") {
+                let program =
+                    cncp::Program::from_file(std::path::Path::new(&self.script_path), true);
+                match program {
+                    Err(err) => {
+                        self.script_error = Some(err.to_string());
+                    }
+                    Ok(prog) => {
+                        self.use_program(prog);
                     }
                 }
-            }
-            Some(err) => {
-                ui.text_colored([1.0, 0.3, 0.3, 1.0], format!("Error: {}", err));
-                if ui.button("OK") {
-                    self.script_error = None;
-                    ui.close_current_popup();
-                }
+
+                ui.close_current_popup();
             }
         });
+    }
+
+    fn use_program(&mut self, program: cncp::Program) {
+        if let Some(player) = self.milling_player.take() {
+            self.block = Some(player.take().retake_all().2);
+        }
+
+        let mill = Mill::new(program.shape());
+        let process = MillingProcess::new(mill, program, self.block.take().unwrap());
+        self.milling_player = Some(MillingPlayer::new(process));
     }
 }
 
 impl<'gl> Entity for CNCBlock<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         self.name_control_ui(ui);
-        self.milling_control(ui);
+
+        if let Err(err) = self.milling_control(ui) {
+            self.script_error = Some(err.to_string());
+        }
+
+        let err = self.script_error.clone();
+        if let Some(err) = err {
+            ui.window("Milling error")
+                .size([400.0, 100.0], imgui::Condition::FirstUseEver)
+                .build(|| {
+                    ui.text_colored([1.0, 0.3, 0.3, 1.0], format!("Error: {}", err));
+                    if ui.button("OK") {
+                        self.script_error = None;
+                        ui.close_current_popup();
+                    }
+                });
+        }
+
         self.linear_transform.control_ui(ui);
         false
     }

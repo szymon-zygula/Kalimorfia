@@ -1,5 +1,5 @@
 use crate::cnc::number::Number;
-use nalgebra::Vector3;
+use nalgebra::{vector, Vector3};
 
 enum Coordinate {
     X,
@@ -27,6 +27,26 @@ impl Location {
             self.y.as_ref()?.to_f32(),
             self.z.as_ref()?.to_f32(),
         ))
+    }
+
+    pub fn relative_to(&self, other: &Vector3<f32>) -> Vector3<f32> {
+        vector![
+            self.x.map(|n| n.to_f32()).unwrap_or(other.x),
+            self.y.map(|n| n.to_f32()).unwrap_or(other.y),
+            self.z.map(|n| n.to_f32()).unwrap_or(other.z)
+        ]
+    }
+
+    pub fn f32_dist(&self, other: &Vector3<f32>) -> f32 {
+        let this = self.relative_to(other);
+
+        Vector3::metric_distance(&this, other)
+    }
+
+    pub fn move_toward(&self, from: &Vector3<f32>, distance: f32) -> Vector3<f32> {
+        let towards = self.relative_to(from);
+        let direction = (towards - from).normalize();
+        from + distance * direction
     }
 
     fn parse_new_coordinate<'a>(&mut self, string: &'a str) -> Result<&'a str, ()> {

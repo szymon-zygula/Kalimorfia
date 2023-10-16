@@ -45,7 +45,6 @@ pub struct MainControl<'gl, 'a> {
     cnc_block_args: Option<CNCBlockArgs>,
     intersection_parameters: Option<IntersetionParameters>,
     file_path: String,
-    cnc_file_path: String,
     gl: &'gl glow::Context,
 }
 
@@ -79,10 +78,6 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
                 .map(|p| String::from(p.to_str().unwrap_or("/")))
                 .unwrap_or(String::from("/"))
                 + "/file.json",
-            cnc_file_path: std::env::current_dir()
-                .map(|p| String::from(p.to_str().unwrap_or("/")))
-                .unwrap_or(String::from("/"))
-                + "/file.k01",
             added_surface_type: None,
             entity_manager,
             gl,

@@ -4,7 +4,9 @@ use nalgebra::{point, vector, Vector2, Vector3};
 pub struct Block {
     sampling: Vector2<usize>,
     sample_size: Vector2<f32>,
-    heights: Vec<f32>, // Values on the borders serve as sentinels and are always 0
+    heights: Vec<f32>,
+    height: f32,
+    size: Vector2<f32>,
 }
 
 impl Block {
@@ -13,11 +15,21 @@ impl Block {
             sample_size: vector![size.x / sampling.x as f32, size.y / sampling.y as f32],
             heights: vec![size.z; sampling.x * sampling.y],
             sampling,
+            height: size.z,
+            size: vector![size.x, size.y],
         }
+    }
+
+    pub fn sample_size(&self) -> &Vector2<f32> {
+        &self.sample_size
     }
 
     fn heights_idx(&self, x: usize, y: usize) -> usize {
         x + y * self.sampling.y
+    }
+
+    pub fn block_height(&self) -> f32 {
+        self.height
     }
 
     pub fn height(&self, x: usize, y: usize) -> f32 {
@@ -302,5 +314,24 @@ impl Block {
 
         triangles.push(Triangle([len - 4, len - 3, len - 2]));
         triangles.push(Triangle([len - 3, len - 2, len - 1]));
+    }
+
+    pub fn sampling(&self) -> &Vector2<usize> {
+        &self.sampling
+    }
+
+    pub fn size(&self) -> &Vector2<f32> {
+        &self.size
+    }
+
+    pub fn mill_to_block(&self, position: &Vector2<f32>) -> Vector2<i32> {
+        vector![
+            ((position.x + 0.5 * self.size.x) / self.sample_size.x).round() as i32,
+            ((position.y + 0.5 * self.size.y) / self.sample_size.y).round() as i32
+        ]
+    }
+
+    pub fn contains(&self, loc: &Vector2<i32>) -> bool {
+        loc.x >= 0 && loc.y >= 0 && loc.x < self.sampling.x as i32 && loc.y < self.sampling.y as i32
     }
 }
