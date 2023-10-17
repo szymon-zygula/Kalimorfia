@@ -4,6 +4,7 @@ use super::{
     milling_process::MillInstruction,
     parser::{self, LineParseError},
 };
+use nalgebra::Point3;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -260,5 +261,18 @@ impl Program {
 
     pub fn shape(&self) -> MillShape {
         self.mill_shape
+    }
+
+    pub fn positions_sequence(&self) -> Vec<Point3<f32>> {
+        let mut points = Vec::new();
+        let relative = Point3::origin();
+
+        for instruction in &self.instructions {
+            if let MillInstruction::MoveSlow(location) = instruction {
+                points.push(location.relative_to(&relative.coords).into());
+            }
+        }
+
+        points
     }
 }

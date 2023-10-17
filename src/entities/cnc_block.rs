@@ -7,11 +7,21 @@ use crate::{
     camera::Camera,
     cnc::program as cncp,
     cnc::{
-        block::Block, mill::Mill, milling_player::MillingPlayer, milling_process::MillingProcess,
+        block::Block,
+        mill::{Mill, MillShape, MillType},
+        milling_player::MillingPlayer,
+        milling_process::MillingProcess,
         milling_process::MillingResult,
     },
+    math::{
+        affine::transforms,
+        geometry::{cylinder::Cylinder, gridable::Gridable, sphere::Sphere},
+    },
+    primitives::color::Color,
     render::{
-        generic_mesh::GlMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
+        generic_mesh::GlMesh,
+        gl_drawable::GlDrawable,
+        mesh::{LinesMesh, SurfaceVertex},
         shader_manager::ShaderManager,
     },
     repositories::NameRepository,
@@ -38,7 +48,7 @@ impl CNCBlockArgs {
 
     pub fn new() -> Self {
         Self {
-            size: vector!(300.0, 300.0, 35.0),
+            size: vector!(250.0, 250.0, 50.0),
             sampling: vector!(100, 100),
         }
     }
@@ -63,6 +73,10 @@ pub struct CNCBlock<'gl> {
     gl: &'gl glow::Context,
     block: Option<Block>,
     mesh: GlMesh<'gl>,
+    mill_mesh: LinesMesh<'gl>,
+    additional_mesh_translation: Matrix4<f32>,
+    paths_mesh: LinesMesh<'gl>,
+    draw_paths: bool,
     name: ChangeableName,
     shader_manager: Rc<ShaderManager<'gl>>,
     linear_transform: LinearTransformEntity,
@@ -91,6 +105,14 @@ impl<'gl> CNCBlock<'gl> {
 
         Self {
             mesh: block.generate_mesh(gl),
+            mill_mesh: LinesMesh::empty(gl),
+            additional_mesh_translation: transforms::translate(vector![
+                block.size().x * 0.5,
+                block.size().y * 0.5,
+                0.0
+            ]),
+            draw_paths: true,
+            paths_mesh: LinesMesh::empty(gl),
             gl,
             block: Some(block),
             shader_manager,
@@ -126,6 +148,8 @@ impl<'gl> CNCBlock<'gl> {
                 "Mill position: [{}, {}, {}]",
                 position.x, position.y, position.z,
             ));
+
+            ui.checkbox("Draw paths", &mut self.draw_paths);
 
             if ui.button("Step") {
                 player.full_step()?;
@@ -167,11 +191,46 @@ impl<'gl> CNCBlock<'gl> {
     }
 
     fn use_program(&mut self, program: cncp::Program) {
+        self.paths_mesh = LinesMesh::strip(self.gl, program.positions_sequence());
+        let (mill_vertices, mill_indices) = match program.shape() {
+            MillShape {
+                type_: MillType::Cylinder,
+                diameter,
+            } => Cylinder::new(0.5 * diameter as f64, 3.0 * diameter as f64).grid(30, 30),
+            MillShape {
+                type_: MillType::Ball,
+                diameter,
+            } => {
+                let (v, i) = Sphere::with_radius(0.5 * diameter as f64).grid(30, 30);
+                (
+                    v.iter()
+                        .map(|v| SurfaceVertex {
+                            point: v.point + vector![0.0, 0.0, 0.5 * diameter],
+                            uv: v.uv,
+                        })
+                        .collect(),
+                    i,
+                )
+            }
+        };
+        self.mill_mesh = LinesMesh::new(
+            self.gl,
+            mill_vertices.iter().map(|v| v.point).collect(),
+            mill_indices,
+        );
+
         if let Some(player) = self.milling_player.take() {
             self.block = Some(player.take().retake_all().2);
         }
 
-        let mill = Mill::new(program.shape());
+        let mut mill = Mill::new(program.shape());
+        mill.move_to(vector![
+            0.0,
+            0.0,
+            2.0 * self.block.as_ref().unwrap().block_height()
+        ])
+        .unwrap();
+
         let process = MillingProcess::new(mill, program, self.block.take().unwrap());
         self.milling_player = Some(MillingPlayer::new(process));
     }
@@ -224,6 +283,36 @@ impl<'gl> Drawable for CNCBlock<'gl> {
         );
 
         self.mesh.draw();
+
+        if let Some(player) = &self.milling_player {
+            let program = self.shader_manager.program("spline");
+            program.enable();
+            program.uniform_matrix_4_f32_slice(
+                "model_transform",
+                (premul
+                    * model_transform
+                    * self.additional_mesh_translation
+                    * transforms::translate(*player.milling_process().mill().position()))
+                .as_slice(),
+            );
+            program
+                .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+            program.uniform_matrix_4_f32_slice(
+                "projection_transform",
+                camera.projection_transform().as_slice(),
+            );
+            program.uniform_color("vertex_color", &Color::blue());
+            self.mill_mesh.draw();
+
+            if self.draw_paths {
+                program.uniform_color("vertex_color", &Color::green());
+                program.uniform_matrix_4_f32_slice(
+                    "model_transform",
+                    (premul * model_transform * self.additional_mesh_translation).as_slice(),
+                );
+                self.paths_mesh.draw();
+            }
+        }
     }
 }
 

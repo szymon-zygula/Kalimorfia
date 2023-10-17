@@ -26,21 +26,19 @@ impl DifferentialParametricForm<2, 3> for Cylinder {
     }
 
     fn value(&self, vec: &Vector2<f64>) -> Point3<f64> {
-        let z = vec.y.clamp(0.0, 1.0);
-        let r = self.radius * if vec.y < 0.0 {
-            10.0 * (vec.y + 0.1)
-        }
-        else if vec.y > 1.0 {
-            10.0 * (1.1 - vec.y)
-        }
-        else {
-            1.0
-        };
+        let r = self.radius
+            * if vec.y < 0.0 {
+                10.0 * (vec.y + 0.1)
+            } else if vec.y > 1.0 {
+                10.0 * (1.1 - vec.y)
+            } else {
+                1.0
+            };
 
         Point3::new(
             r * vec.x.cos(),
             r * vec.x.sin(),
-            z,
+            self.length * vec.y.clamp(0.0, 1.0),
         )
     }
 

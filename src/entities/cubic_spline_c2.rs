@@ -369,7 +369,9 @@ impl<'gl> ReferentialSceneObject<'gl> for CubicSplineC2<'gl> {
         entities: &EntityCollection<'gl>,
         controller_id: usize,
     ) -> ControlResult {
-        let Some(idx) = self.selected_bernstein_point else { return ControlResult::default() };
+        let Some(idx) = self.selected_bernstein_point else {
+            return ControlResult::default();
+        };
 
         SceneObject::set_ndc(&mut self.bernstein_points[idx], ndc, camera);
         self.update_bernstein_from(idx, entities);
