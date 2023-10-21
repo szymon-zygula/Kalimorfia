@@ -3,12 +3,12 @@ use std::time::Instant;
 
 pub struct MillingPlayer {
     milling_process: MillingProcess,
-    slow_speed: f32,
+    pub slow_speed: f32,
     last_step: Instant,
 }
 
 impl MillingPlayer {
-    const DEFAULT_SLOW_SPEED: f32 = 1.0;
+    const DEFAULT_SLOW_SPEED: f32 = 10.0;
 
     pub fn new(milling_process: MillingProcess) -> Self {
         Self {
@@ -20,6 +20,10 @@ impl MillingPlayer {
 
     pub fn full_step(&mut self) -> MillingResult {
         self.milling_process.execute_next_instruction()
+    }
+
+    pub fn reset_timer(&mut self) {
+        self.last_step = Instant::now();
     }
 
     pub fn step(&mut self) -> MillingResult {
@@ -42,6 +46,10 @@ impl MillingPlayer {
 
     pub fn milling_process(&self) -> &MillingProcess {
         &self.milling_process
+    }
+
+    pub fn milling_process_mut(&mut self) -> &mut MillingProcess {
+        &mut self.milling_process
     }
 
     pub fn take(self) -> MillingProcess {

@@ -8,7 +8,7 @@ use crate::{
     cnc::program as cncp,
     cnc::{
         block::Block,
-        mill::{Mill, MillShape, MillType},
+        mill::{Cutter, Mill, MillType},
         milling_player::MillingPlayer,
         milling_process::MillingProcess,
         milling_process::MillingResult,
@@ -19,7 +19,7 @@ use crate::{
     },
     primitives::color::Color,
     render::{
-        generic_mesh::GlMesh,
+        generic_mesh::{ClassicVertex, GlMesh, Mesh},
         gl_drawable::GlDrawable,
         mesh::{LinesMesh, SurfaceVertex},
         shader_manager::ShaderManager,
@@ -27,7 +27,7 @@ use crate::{
     repositories::NameRepository,
 };
 use nalgebra::{vector, Matrix4, Vector2, Vector3};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::mpsc};
 
 pub struct CNCBlockArgs {
     pub size: Vector3<f32>,
@@ -44,12 +44,12 @@ impl CNCBlockArgs {
     const MIN_SIZE: f32 = 10.0;
     const MAX_SIZE: f32 = 400.0;
     const MIN_SAMPLING: i32 = 50;
-    const MAX_SAMPLING: i32 = 1000;
+    const MAX_SAMPLING: i32 = 4000;
 
     pub fn new() -> Self {
         Self {
-            size: vector!(250.0, 250.0, 50.0),
-            sampling: vector!(100, 100),
+            size: vector!(160.0, 160.0, 50.0),
+            sampling: vector!(1000, 1000),
         }
     }
 
@@ -69,11 +69,18 @@ impl CNCBlockArgs {
     }
 }
 
+use std::time::Instant;
+
+enum MeshMessage {
+    CreateNewMesh(Block),
+    Exit,
+}
+
 pub struct CNCBlock<'gl> {
     gl: &'gl glow::Context,
     block: Option<Block>,
     mesh: GlMesh<'gl>,
-    mill_mesh: LinesMesh<'gl>,
+    cutter_mesh: LinesMesh<'gl>,
     additional_mesh_translation: Matrix4<f32>,
     paths_mesh: LinesMesh<'gl>,
     draw_paths: bool,
@@ -83,6 +90,11 @@ pub struct CNCBlock<'gl> {
     script_path: String,
     script_error: Option<String>,
     milling_player: Option<MillingPlayer>,
+    playback_paused: bool,
+    last_mesh_regen: Instant,
+    mesh_regen_interval: f32,
+    mesh_notifier: mpsc::Sender<MeshMessage>,
+    mesh_receiver: mpsc::Receiver<Mesh<ClassicVertex>>,
 }
 
 impl<'gl> CNCBlock<'gl> {
@@ -98,14 +110,26 @@ impl<'gl> CNCBlock<'gl> {
         );
 
         let mut linear_transform = LinearTransformEntity::new();
-        linear_transform.scale.scale = vector![0.01, 0.01, 0.01];
+        linear_transform.scale.scale = vector![0.05, 0.05, 0.05];
         linear_transform.orientation.axis = vector![1.0, 0.0, 0.0];
         linear_transform.orientation.angle =
             2.0 * std::f32::consts::PI - std::f32::consts::FRAC_PI_2;
 
+        let (mesh_sender, mesh_receiver) = std::sync::mpsc::channel::<Mesh<ClassicVertex>>();
+        let (mesh_notifier, mesh_getter) = std::sync::mpsc::channel::<MeshMessage>();
+
+        std::thread::spawn(move || {
+            while let Ok(msg) = mesh_getter.recv() {
+                let _ = match msg {
+                    MeshMessage::CreateNewMesh(block) => mesh_sender.send(block.generate_mesh()),
+                    MeshMessage::Exit => break,
+                };
+            }
+        });
+
         Self {
-            mesh: block.generate_mesh(gl),
-            mill_mesh: LinesMesh::empty(gl),
+            mesh: GlMesh::new(gl, &block.generate_mesh()),
+            cutter_mesh: LinesMesh::empty(gl),
             additional_mesh_translation: transforms::translate(vector![
                 block.size().x * 0.5,
                 block.size().y * 0.5,
@@ -121,7 +145,41 @@ impl<'gl> CNCBlock<'gl> {
             script_path: String::from("paths/1.k16"),
             script_error: None,
             milling_player: None,
+            playback_paused: true,
+            mesh_regen_interval: 0.0,
+            last_mesh_regen: Instant::now(),
+            mesh_notifier,
+            mesh_receiver,
         }
+    }
+
+    pub fn request_new_mesh(&mut self) {
+        let block = self
+            .block
+            .as_ref()
+            .or(self
+                .milling_player
+                .as_ref()
+                .map(|p| p.milling_process().block()))
+            .unwrap();
+        if self.mesh_regen_interval == 0.0 {
+            let mesh = block.generate_mesh();
+            self.set_new_mesh(mesh);
+        } else {
+            let _ = self
+                .mesh_notifier
+                .send(MeshMessage::CreateNewMesh(block.clone()));
+        }
+    }
+
+    pub fn try_receive_new_mesh(&mut self) {
+        if let Ok(mesh) = self.mesh_receiver.try_recv() {
+            self.set_new_mesh(mesh)
+        }
+    }
+
+    pub fn set_new_mesh(&mut self, mesh: Mesh<ClassicVertex>) {
+        self.mesh = GlMesh::new(self.gl, &mesh);
     }
 
     pub fn block_mut(&mut self) -> Option<&mut Block> {
@@ -150,17 +208,23 @@ impl<'gl> CNCBlock<'gl> {
             ));
 
             ui.checkbox("Draw paths", &mut self.draw_paths);
+            let mut regen_mesh = false;
 
             if ui.button("Step") {
                 player.full_step()?;
-                // TODO: could be more optimal
-                self.mesh = player.milling_process().block().generate_mesh(self.gl);
+                regen_mesh = true;
             }
 
             if ui.button("Complete") {
                 player.complete()?;
-                self.mesh = player.milling_process().block().generate_mesh(self.gl);
+                regen_mesh = true;
             }
+
+            if regen_mesh {
+                self.request_new_mesh();
+            }
+
+            self.player_control(ui)?;
         }
 
         Ok(())
@@ -190,20 +254,39 @@ impl<'gl> CNCBlock<'gl> {
         });
     }
 
-    fn use_program(&mut self, program: cncp::Program) {
-        self.paths_mesh = LinesMesh::strip(self.gl, program.positions_sequence());
-        let (mill_vertices, mill_indices) = match program.shape() {
-            MillShape {
+    fn merge_mesh(
+        mesh_0: (Vec<SurfaceVertex>, Vec<u32>),
+        mesh_1: (Vec<SurfaceVertex>, Vec<u32>),
+    ) -> (Vec<SurfaceVertex>, Vec<u32>) {
+        let mut points = mesh_0.0;
+        let mut indices = mesh_0.1;
+        let vertex_count_0 = points.len() as u32;
+        indices.extend(mesh_1.1.into_iter().map(|u| u + vertex_count_0));
+
+        points.extend(mesh_1.0);
+        (points, indices)
+    }
+
+    fn create_new_cutter_mesh(&mut self, cutter: &Cutter) {
+        let (mill_vertices, mill_indices) = match cutter {
+            Cutter {
                 type_: MillType::Cylinder,
                 diameter,
-            } => Cylinder::new(0.5 * diameter as f64, 3.0 * diameter as f64).grid(30, 30),
-            MillShape {
+                height,
+            } => Cylinder::new(0.5 * *diameter as f64, *height as f64).grid(30, 30),
+            Cutter {
                 type_: MillType::Ball,
                 diameter,
+                height,
             } => {
-                let (v, i) = Sphere::with_radius(0.5 * diameter as f64).grid(30, 30);
+                let sphere = Sphere::with_radius(0.5 * *diameter as f64).grid(30, 30);
+                let cylinder =
+                    Cylinder::new(0.5 * *diameter as f64, (height - 0.5 * diameter) as f64)
+                        .grid(30, 30);
+
+                let (v, i) = Self::merge_mesh(sphere, cylinder);
                 (
-                    v.iter()
+                    v.into_iter()
                         .map(|v| SurfaceVertex {
                             point: v.point + vector![0.0, 0.0, 0.5 * diameter],
                             uv: v.uv,
@@ -213,11 +296,18 @@ impl<'gl> CNCBlock<'gl> {
                 )
             }
         };
-        self.mill_mesh = LinesMesh::new(
+
+        self.cutter_mesh = LinesMesh::new(
             self.gl,
             mill_vertices.iter().map(|v| v.point).collect(),
             mill_indices,
         );
+    }
+
+    fn use_program(&mut self, program: cncp::Program) {
+        self.playback_paused = true;
+        self.paths_mesh = LinesMesh::strip(self.gl, program.positions_sequence());
+        self.create_new_cutter_mesh(&program.shape());
 
         if let Some(player) = self.milling_player.take() {
             self.block = Some(player.take().retake_all().2);
@@ -234,15 +324,78 @@ impl<'gl> CNCBlock<'gl> {
         let process = MillingProcess::new(mill, program, self.block.take().unwrap());
         self.milling_player = Some(MillingPlayer::new(process));
     }
+
+    fn player_control(&mut self, ui: &imgui::Ui) -> MillingResult {
+        let Some(player) = &mut self.milling_player else {
+            return Ok(());
+        };
+
+        let mut regen_mesh = false;
+
+        if self.playback_paused {
+            if ui.button("Play") {
+                self.playback_paused = false;
+                player.reset_timer();
+            }
+        } else {
+            player.step()?;
+            if ui.button("Pause") {
+                self.playback_paused = true;
+                regen_mesh = true;
+            }
+        }
+
+        let cutter = &mut player.milling_process_mut().mill_mut().cutter;
+        let mut regen_cutter = false;
+        if ui
+            .slider_config("Cutter height", cutter.diameter, cutter.diameter * 8.0)
+            .flags(imgui::SliderFlags::NO_INPUT)
+            .build(&mut cutter.height)
+        {
+            regen_cutter = true;
+        }
+
+        ui.slider_config("Simulation speed", 1.0, 1000.0)
+            .flags(imgui::SliderFlags::LOGARITHMIC | imgui::SliderFlags::NO_INPUT)
+            .build(&mut player.slow_speed);
+
+        ui.slider_config("Mesh regeneration interval", 0.0, 1.0)
+            .flags(imgui::SliderFlags::NO_INPUT)
+            .build(&mut self.mesh_regen_interval);
+
+        if !self.playback_paused
+            && (Instant::now() - self.last_mesh_regen).as_secs_f32() >= self.mesh_regen_interval
+        {
+            regen_mesh = true;
+            self.last_mesh_regen = Instant::now();
+        }
+
+        if regen_cutter {
+            let cutter = player.milling_process().mill().cutter;
+            self.create_new_cutter_mesh(&cutter);
+        }
+
+        if regen_mesh {
+            self.request_new_mesh();
+        }
+
+        Ok(())
+    }
 }
 
 impl<'gl> Entity for CNCBlock<'gl> {
     fn control_ui(&mut self, ui: &imgui::Ui) -> bool {
         self.name_control_ui(ui);
 
-        if let Err(err) = self.milling_control(ui) {
-            self.script_error = Some(err.to_string());
+        if self.script_error.is_none() {
+            if let Err(err) = self.milling_control(ui) {
+                self.playback_paused = true;
+                self.request_new_mesh();
+                self.script_error = Some(err.to_string());
+            }
         }
+
+        self.try_receive_new_mesh();
 
         let err = self.script_error.clone();
         if let Some(err) = err {
@@ -301,8 +454,8 @@ impl<'gl> Drawable for CNCBlock<'gl> {
                 "projection_transform",
                 camera.projection_transform().as_slice(),
             );
-            program.uniform_color("vertex_color", &Color::blue());
-            self.mill_mesh.draw();
+            program.uniform_color("vertex_color", &Color::red());
+            self.cutter_mesh.draw();
 
             if self.draw_paths {
                 program.uniform_color("vertex_color", &Color::green());
@@ -344,5 +497,11 @@ impl<'gl> NamedEntity for CNCBlock<'gl> {
             "objectType": "cncBlock",
             "name": self.name()
         })
+    }
+}
+
+impl<'gl> Drop for CNCBlock<'gl> {
+    fn drop(&mut self) {
+        let _ = self.mesh_notifier.send(MeshMessage::Exit);
     }
 }

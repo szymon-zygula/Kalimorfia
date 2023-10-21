@@ -45,7 +45,9 @@ impl Location {
 
     pub fn move_toward(&self, from: &Vector3<f32>, distance: f32) -> Vector3<f32> {
         let towards = self.relative_to(from);
-        let direction = (towards - from).normalize();
+        let Some(direction) = (towards - from).try_normalize(0.0) else {
+            return *from;
+        };
         from + distance * direction
     }
 

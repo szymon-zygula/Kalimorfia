@@ -1,6 +1,6 @@
 use super::{
     location::Location,
-    mill::{MillShape, MillType},
+    mill::{Cutter, MillType},
     milling_process::MillInstruction,
     parser::{self, LineParseError},
 };
@@ -50,12 +50,12 @@ pub enum ProgramLine {
 #[derive(Debug, Clone)]
 pub struct Program {
     instructions: Vec<MillInstruction>,
-    mill_shape: MillShape,
+    mill_shape: Cutter,
 }
 
 #[derive(Error, Debug)]
 pub enum ProgramLoadError {
-    #[error("IO error")]
+    #[error("IO error: {0}")]
     Io(std::io::Error),
     #[error("file without extension")]
     NoExtension,
@@ -95,7 +95,7 @@ impl Program {
 
     pub fn from_lines(
         lines: Vec<ProgramLine>,
-        mill_shape: MillShape,
+        mill_shape: Cutter,
         lenient: bool,
     ) -> Result<Self, ProgramLoadError> {
         if !lenient {
@@ -108,7 +108,7 @@ impl Program {
         })
     }
 
-    fn parse_program_extension(extension: &str) -> Result<MillShape, ProgramLoadError> {
+    fn parse_program_extension(extension: &str) -> Result<Cutter, ProgramLoadError> {
         let type_ = match extension.as_bytes()[0] as char {
             'k' => MillType::Ball,
             'f' => MillType::Cylinder,
@@ -119,7 +119,11 @@ impl Program {
             .parse()
             .map_err(|_| ProgramLoadError::InvalidExtension)?;
 
-        Ok(MillShape { type_, diameter })
+        Ok(Cutter {
+            type_,
+            diameter,
+            height: diameter * 4.0,
+        })
     }
 
     fn lines_to_mill_instructions(lines: &[ProgramLine]) -> Vec<MillInstruction> {
@@ -259,7 +263,7 @@ impl Program {
         &self.instructions
     }
 
-    pub fn shape(&self) -> MillShape {
+    pub fn shape(&self) -> Cutter {
         self.mill_shape
     }
 

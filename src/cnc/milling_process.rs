@@ -16,8 +16,10 @@ pub enum MillingError {
     NoMovementSpeed,
     #[error("moving a mill without rotation speed")]
     NoRotationSpeed,
-    #[error("non-cutting part of the mill is being pushed into the material")]
-    DeadZoneCollision,
+    #[error("lower non-cutting part of the mill is being pushed into the material")]
+    LowerDeadZoneCollision,
+    #[error("upper non-cutting part of the mill is being pushed into the material")]
+    UpperDeadZoneCollision,
     #[error("the mill is lowered too deeply")]
     CutTooDeep,
     #[error("movement speed {0} not in allowed range")]
@@ -70,19 +72,25 @@ impl MillingProcess {
     }
 
     fn move_slow_to(&mut self, location: &Vector3<f32>) -> MillingResult {
-        let direction = (location - self.mill.position()).normalize();
-        let moving_downwards = direction.z < 0.0;
+        let Some(direction) = (location - self.mill.position()).try_normalize(0.0) else {
+            self.mill.cut(&mut self.block, &Vector3::zeros())?;
+            return Ok(());
+        };
         let min_sample = self.block.sample_size().min();
         let distance = Vector3::metric_distance(location, self.mill.position());
-        let step_count = (distance / min_sample).ceil() as usize;
+        let step_count = std::cmp::max((distance / min_sample).ceil() as usize, 1);
         let step = distance / step_count as f32;
         let initial_position = *self.mill.position();
 
         for step_idx in 0..=step_count {
             let position = initial_position + direction * step_idx as f32 * step;
             self.mill.move_to(position)?;
-            self.mill.cut(&mut self.block, moving_downwards)?;
+            self.mill.cut(&mut self.block, &direction)?;
         }
+
+        // Make up for numerical errors
+        self.mill.move_to(*location)?;
+        self.mill.cut(&mut self.block, &direction)?;
 
         Ok(())
     }
@@ -109,24 +117,30 @@ impl MillingProcess {
         }
     }
 
-    pub fn execute_next_instruction_partially(&mut self, mut progress: f32) -> MillingResult {
+    pub fn execute_next_instruction_partially(&mut self, mut dist_left: f32) -> MillingResult {
         if self.done() {
             return Ok(());
         }
 
-        let instruction = self.current_instruction().clone();
-        let current_instruction_length = self.current_instruction_length();
-        if progress >= current_instruction_length {
-            progress = current_instruction_length;
-            self.current_instruction += 1;
+        while dist_left > 0.0 && !self.done() {
+            let instruction = self.current_instruction().clone();
+            let current_instruction_length = self.current_instruction_length();
+
+            if dist_left >= current_instruction_length {
+                self.current_instruction += 1;
+            }
+            let current_dist = f32::min(current_instruction_length, dist_left);
+            dist_left -= current_dist;
+
+            if let MillInstruction::MoveSlow(location) = instruction {
+                let target = location.move_toward(self.mill.position(), current_dist);
+                self.move_slow_to(&target)?;
+            } else {
+                self.execute_next_instruction()?;
+            }
         }
 
-        if let MillInstruction::MoveSlow(location) = instruction {
-            let target = location.move_toward(self.mill.position(), progress);
-            self.move_slow_to(&target)
-        } else {
-            self.execute_next_instruction()
-        }
+        Ok(())
     }
 
     pub fn done(&self) -> bool {
@@ -143,5 +157,9 @@ impl MillingProcess {
 
     pub fn mill(&self) -> &Mill {
         &self.mill
+    }
+
+    pub fn mill_mut(&mut self) -> &mut Mill {
+        &mut self.mill
     }
 }

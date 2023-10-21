@@ -1,6 +1,7 @@
-use crate::render::generic_mesh::{ClassicVertex, GlMesh, Mesh, Triangle};
+use crate::render::generic_mesh::{ClassicVertex, Mesh, Triangle};
 use nalgebra::{point, vector, Vector2, Vector3};
 
+#[derive(Clone)]
 pub struct Block {
     sampling: Vector2<usize>,
     sample_size: Vector2<f32>,
@@ -50,26 +51,24 @@ impl Block {
         }
     }
 
-    pub fn generate_mesh<'gl>(&self, gl: &'gl glow::Context) -> GlMesh<'gl> {
+    pub fn generate_mesh(&self) -> Mesh<ClassicVertex> {
         let mut vertices = Vec::with_capacity(12 * self.sampling.x * self.sampling.y);
         let mut triangles = Vec::with_capacity(6 * self.sampling.x * self.sampling.y);
 
         self.mesh_tops(&mut vertices, &mut triangles);
         self.mesh_walls(&mut vertices, &mut triangles);
 
-        let mesh = Mesh {
+        Mesh {
             vertices,
             triangles,
-        };
-
-        GlMesh::new(gl, &mesh)
+        }
     }
 
     fn mesh_tops(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {
         for x in 0..self.sampling.x {
             for y in 0..self.sampling.y {
                 vertices.extend_from_slice(&self.sample_top_vertices(x, y));
-                triangles.extend_from_slice(&self.sample_top_triangles(vertices.len()));
+                triangles.extend_from_slice(&self.sample_top_triangles(x, y));
             }
         }
     }
@@ -105,13 +104,16 @@ impl Block {
         ]
     }
 
-    // Assume that the last added vertices belong to the same top
-    fn sample_top_triangles(&self, vertices_len: usize) -> [Triangle; 2] {
-        let vertices_len = vertices_len as u32;
+    fn sample_top_triangles(&self, x: usize, y: usize) -> [Triangle; 2] {
+        let vertices_offset = 4 * (y + self.sampling.y * x) as u32;
 
         [
-            Triangle([vertices_len - 4, vertices_len - 3, vertices_len - 2]),
-            Triangle([vertices_len - 1, vertices_len - 2, vertices_len - 3]),
+            Triangle([vertices_offset, vertices_offset + 1, vertices_offset + 2]),
+            Triangle([
+                vertices_offset + 3,
+                vertices_offset + 2,
+                vertices_offset + 1,
+            ]),
         ]
     }
 
@@ -176,7 +178,7 @@ impl Block {
         neighbor_height: f32,
     ) {
         let height_difference = my_height - neighbor_height;
-        //
+
         // ^z
         // |
         // +-->x
@@ -241,7 +243,7 @@ impl Block {
                 self.sampling.x,
                 y,
                 0.0,
-                self.height(y, self.sampling.x - 1),
+                self.height(self.sampling.x - 1, y),
             );
         }
     }
