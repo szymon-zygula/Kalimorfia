@@ -27,7 +27,7 @@ pub struct Mill {
 }
 
 impl Mill {
-    pub const BALL_DOWN_ALLOWED_DOT: f32 = 0.99;
+    pub const BALL_DOWN_ALLOWED_DOT: f32 = 1.0;
 
     pub const MIN_MOVEMENT_SPEED: f32 = 2.0;
     pub const MAX_MOVEMENT_SPEED: f32 = 60.0;
@@ -124,15 +124,15 @@ impl Mill {
         }
     }
 
-    fn cut_ball(&self, block: &mut Block, direction: &Vector3<f32>) -> MillingResult {
-        let block_position = block.mill_to_block(&self.position.xy());
+    fn cut_ball(&self, block: &mut Block, _direction: &Vector3<f32>) -> MillingResult {
+        // let block_position = block.mill_to_block(&self.position.xy());
 
-        if block.contains(&block_position)
-            && block.height(block_position.x as usize, block_position.y as usize) > self.position.z
-            && Vector3::dot(direction, &vector![0.0, 0.0, -1.0]) > Self::BALL_DOWN_ALLOWED_DOT
-        {
-            return Err(MillingError::LowerDeadZoneCollision);
-        }
+        // if block.contains(&block_position)
+        //     && block.height(block_position.x as usize, block_position.y as usize) > self.position.z
+        //     && Vector3::dot(direction, &vector![0.0, 0.0, -1.0]) >= Self::BALL_DOWN_ALLOWED_DOT
+        // {
+        //     return Err(MillingError::LowerDeadZoneCollision);
+        // }
 
         let radius = 0.5 * self.cutter.diameter;
         let radius_sq = radius * radius;

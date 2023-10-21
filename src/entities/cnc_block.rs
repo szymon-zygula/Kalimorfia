@@ -19,8 +19,9 @@ use crate::{
     },
     primitives::color::Color,
     render::{
-        generic_mesh::{ClassicVertex, GlMesh, Mesh},
+        generic_mesh::{CNCBlockVertex, GlMesh, Mesh},
         gl_drawable::GlDrawable,
+        gl_texture::GlTexture,
         mesh::{LinesMesh, SurfaceVertex},
         shader_manager::ShaderManager,
     },
@@ -41,7 +42,8 @@ impl Default for CNCBlockArgs {
 }
 
 impl CNCBlockArgs {
-    const MIN_SIZE: f32 = 10.0;
+    const MIN_SIZE: f32 = 100.0;
+    const MIN_HEIGHT: f32 = 10.0;
     const MAX_SIZE: f32 = 400.0;
     const MIN_SAMPLING: i32 = 50;
     const MAX_SAMPLING: i32 = 4000;
@@ -56,7 +58,7 @@ impl CNCBlockArgs {
     pub fn clamp(&mut self) {
         self.size.x = self.size.x.clamp(Self::MIN_SIZE, Self::MAX_SIZE);
         self.size.y = self.size.y.clamp(Self::MIN_SIZE, Self::MAX_SIZE);
-        self.size.z = self.size.z.clamp(Self::MIN_SIZE, Self::MAX_SIZE);
+        self.size.z = self.size.z.clamp(Self::MIN_HEIGHT, Self::MAX_SIZE);
 
         self.sampling.x = self
             .sampling
@@ -72,6 +74,7 @@ impl CNCBlockArgs {
 use std::time::Instant;
 
 enum MeshMessage {
+    #[allow(dead_code)]
     CreateNewMesh(Block),
     Exit,
 }
@@ -94,7 +97,8 @@ pub struct CNCBlock<'gl> {
     last_mesh_regen: Instant,
     mesh_regen_interval: f32,
     mesh_notifier: mpsc::Sender<MeshMessage>,
-    mesh_receiver: mpsc::Receiver<Mesh<ClassicVertex>>,
+    mesh_receiver: mpsc::Receiver<Mesh<CNCBlockVertex>>,
+    height_texture: GlTexture<'gl>,
 }
 
 impl<'gl> CNCBlock<'gl> {
@@ -115,7 +119,7 @@ impl<'gl> CNCBlock<'gl> {
         linear_transform.orientation.angle =
             2.0 * std::f32::consts::PI - std::f32::consts::FRAC_PI_2;
 
-        let (mesh_sender, mesh_receiver) = std::sync::mpsc::channel::<Mesh<ClassicVertex>>();
+        let (mesh_sender, mesh_receiver) = std::sync::mpsc::channel::<Mesh<CNCBlockVertex>>();
         let (mesh_notifier, mesh_getter) = std::sync::mpsc::channel::<MeshMessage>();
 
         std::thread::spawn(move || {
@@ -129,6 +133,12 @@ impl<'gl> CNCBlock<'gl> {
 
         Self {
             mesh: GlMesh::new(gl, &block.generate_mesh()),
+            height_texture: GlTexture::new_float(
+                gl,
+                block.raw_heights(),
+                block.sampling().x,
+                block.sampling().y,
+            ),
             cutter_mesh: LinesMesh::empty(gl),
             additional_mesh_translation: transforms::translate(vector![
                 block.size().x * 0.5,
@@ -162,14 +172,18 @@ impl<'gl> CNCBlock<'gl> {
                 .as_ref()
                 .map(|p| p.milling_process().block()))
             .unwrap();
-        if self.mesh_regen_interval == 0.0 {
-            let mesh = block.generate_mesh();
-            self.set_new_mesh(mesh);
-        } else {
-            let _ = self
-                .mesh_notifier
-                .send(MeshMessage::CreateNewMesh(block.clone()));
-        }
+
+        self.height_texture
+            .load_float(block.raw_heights(), block.sampling().x, block.sampling().y);
+
+        // if self.mesh_regen_interval == 0.0 {
+        //     let mesh = block.generate_mesh();
+        //     self.set_new_mesh(mesh);
+        // } else {
+        //     let _ = self
+        //         .mesh_notifier
+        //         .send(MeshMessage::CreateNewMesh(block.clone()));
+        // }
     }
 
     pub fn try_receive_new_mesh(&mut self) {
@@ -178,7 +192,7 @@ impl<'gl> CNCBlock<'gl> {
         }
     }
 
-    pub fn set_new_mesh(&mut self, mesh: Mesh<ClassicVertex>) {
+    pub fn set_new_mesh(&mut self, mesh: Mesh<CNCBlockVertex>) {
         self.mesh = GlMesh::new(self.gl, &mesh);
     }
 
@@ -356,7 +370,7 @@ impl<'gl> CNCBlock<'gl> {
         }
 
         if ui
-            .slider_config("Cutter diameter", 0.01, 20.0)
+            .slider_config("Cutter diameter", 0.5, 20.0)
             .flags(imgui::SliderFlags::NO_INPUT)
             .build(&mut cutter.diameter)
         {
@@ -465,6 +479,7 @@ impl<'gl> Drawable for CNCBlock<'gl> {
             camera.position().y,
             camera.position().z,
         );
+        self.height_texture.bind();
 
         self.mesh.draw();
 

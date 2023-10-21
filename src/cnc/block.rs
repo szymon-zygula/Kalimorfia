@@ -1,4 +1,4 @@
-use crate::render::generic_mesh::{ClassicVertex, Mesh, Triangle};
+use crate::render::generic_mesh::{CNCBlockVertex, Mesh, Triangle};
 use nalgebra::{point, vector, Vector2, Vector3};
 
 #[derive(Clone)]
@@ -53,7 +53,7 @@ impl Block {
         }
     }
 
-    pub fn generate_mesh(&self) -> Mesh<ClassicVertex> {
+    pub fn generate_mesh(&self) -> Mesh<CNCBlockVertex> {
         let mut vertices = Vec::with_capacity(12 * self.sampling.x * self.sampling.y);
         let mut triangles = Vec::with_capacity(6 * self.sampling.x * self.sampling.y);
 
@@ -66,7 +66,7 @@ impl Block {
         }
     }
 
-    fn mesh_tops(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {
+    fn mesh_tops(&self, vertices: &mut Vec<CNCBlockVertex>, triangles: &mut Vec<Triangle>) {
         for x in 0..self.sampling.x {
             for y in 0..self.sampling.y {
                 vertices.extend_from_slice(&self.sample_top_vertices(x, y));
@@ -75,8 +75,8 @@ impl Block {
         }
     }
 
-    fn sample_top_vertices(&self, x: usize, y: usize) -> [ClassicVertex; 4] {
-        let height = self.height(x, y);
+    fn sample_top_vertices(&self, x: usize, y: usize) -> [CNCBlockVertex; 4] {
+        let height = 0.0; // self.height(x, y);
         let x = x as f32;
         let y = y as f32;
         let base_point = point![x * self.sample_size.x, y * self.sample_size.y, height];
@@ -88,20 +88,25 @@ impl Block {
         // 2   3
         //
         // 0   1
-
         [
-            ClassicVertex::new(base_point, vector![0.0, 0.0, 1.0]),
-            ClassicVertex::new(
+            CNCBlockVertex::new(base_point, vector![0.0, 0.0, 1.0], x, y),
+            CNCBlockVertex::new(
                 base_point + vector![self.sample_size.x, 0.0, 0.0],
                 vector![0.0, 0.0, 1.0],
+                x,
+                y,
             ),
-            ClassicVertex::new(
+            CNCBlockVertex::new(
                 base_point + vector![0.0, self.sample_size.y, 0.0],
                 vector![0.0, 0.0, 1.0],
+                x,
+                y,
             ),
-            ClassicVertex::new(
+            CNCBlockVertex::new(
                 base_point + vector![self.sample_size.x, self.sample_size.y, 0.0],
                 vector![0.0, 0.0, 1.0],
+                x,
+                y,
             ),
         ]
     }
@@ -119,7 +124,7 @@ impl Block {
         ]
     }
 
-    fn mesh_walls(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {
+    fn mesh_walls(&self, vertices: &mut Vec<CNCBlockVertex>, triangles: &mut Vec<Triangle>) {
         self.mesh_x_walls(vertices, triangles);
         self.mesh_y_walls(vertices, triangles);
     }
@@ -131,13 +136,16 @@ impl Block {
     // -----
     // -----
     // -----
-    fn mesh_x_walls(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {
+    fn mesh_x_walls(&self, vertices: &mut Vec<CNCBlockVertex>, triangles: &mut Vec<Triangle>) {
         for y in 1..self.sampling.y {
             self.mesh_x_internal_wall_row(vertices, triangles, y);
         }
 
         for x in 0..self.sampling.x {
-            self.mesh_x_wall(vertices, triangles, x, 0, self.height(x, 0), 0.0);
+            self.mesh_x_wall(
+                vertices, triangles, x, 0, 0.0, // self.height(x, 0),
+                0.0,
+            );
         }
 
         for x in 0..self.sampling.x {
@@ -147,32 +155,30 @@ impl Block {
                 x,
                 self.sampling.y,
                 0.0,
-                self.height(x, self.sampling.y - 1),
+                0.0, // self.height(x, self.sampling.y - 1),
             );
         }
     }
 
     fn mesh_x_internal_wall_row(
         &self,
-        vertices: &mut Vec<ClassicVertex>,
+        vertices: &mut Vec<CNCBlockVertex>,
         triangles: &mut Vec<Triangle>,
         y: usize,
     ) {
         for x in 0..self.sampling.x {
             self.mesh_x_wall(
-                vertices,
-                triangles,
-                x,
-                y,
-                self.height(x, y),
-                self.height(x, y - 1),
+                vertices, triangles, x, y,
+                // self.height(x, y),
+                // self.height(x, y - 1),
+                0.0, 0.0,
             );
         }
     }
 
     fn mesh_x_wall(
         &self,
-        vertices: &mut Vec<ClassicVertex>,
+        vertices: &mut Vec<CNCBlockVertex>,
         triangles: &mut Vec<Triangle>,
         x: usize,
         y: usize,
@@ -199,21 +205,29 @@ impl Block {
 
         let base_point = point![x * self.sample_size.x, y * self.sample_size.y, 0.0];
 
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![0.0, 0.0, neighbor_height],
             normal,
+            x,
+            y - 1.0,
         ));
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![self.sample_size.x, 0.0, neighbor_height],
             normal,
+            x,
+            y - 1.0,
         ));
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![0.0, 0.0, my_height],
             normal,
+            x,
+            y,
         ));
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![self.sample_size.x, 0.0, my_height],
             normal,
+            x,
+            y,
         ));
 
         let len = vertices.len() as u32;
@@ -229,13 +243,16 @@ impl Block {
     // |||||
     // |||||
     // |||||
-    fn mesh_y_walls(&self, vertices: &mut Vec<ClassicVertex>, triangles: &mut Vec<Triangle>) {
+    fn mesh_y_walls(&self, vertices: &mut Vec<CNCBlockVertex>, triangles: &mut Vec<Triangle>) {
         for x in 1..self.sampling.x {
             self.mesh_y_internal_wall_row(vertices, triangles, x);
         }
 
         for y in 0..self.sampling.y {
-            self.mesh_y_wall(vertices, triangles, 0, y, self.height(0, y), 0.0);
+            self.mesh_y_wall(
+                vertices, triangles, 0, y, // self.height(0, y),
+                0.0, 0.0,
+            );
         }
 
         for y in 0..self.sampling.y {
@@ -245,32 +262,29 @@ impl Block {
                 self.sampling.x,
                 y,
                 0.0,
-                self.height(self.sampling.x - 1, y),
+                0.0, // self.height(self.sampling.x - 1, y),
             );
         }
     }
 
     fn mesh_y_internal_wall_row(
         &self,
-        vertices: &mut Vec<ClassicVertex>,
+        vertices: &mut Vec<CNCBlockVertex>,
         triangles: &mut Vec<Triangle>,
         x: usize,
     ) {
         for y in 0..self.sampling.y {
             self.mesh_y_wall(
-                vertices,
-                triangles,
-                x,
-                y,
-                self.height(x, y),
-                self.height(x - 1, y),
+                vertices, triangles, x, y, 0.0,
+                0.0, // self.height(x, y),
+                    // self.height(x - 1, y),
             );
         }
     }
 
     fn mesh_y_wall(
         &self,
-        vertices: &mut Vec<ClassicVertex>,
+        vertices: &mut Vec<CNCBlockVertex>,
         triangles: &mut Vec<Triangle>,
         x: usize,
         y: usize,
@@ -297,21 +311,29 @@ impl Block {
 
         let base_point = point![x * self.sample_size.x, y * self.sample_size.y, 0.0];
 
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![0.0, 0.0, neighbor_height],
             normal,
+            x - 1.0,
+            y,
         ));
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![0.0, self.sample_size.y, neighbor_height],
             normal,
+            x - 1.0,
+            y,
         ));
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![0.0, 0.0, my_height],
             normal,
+            x,
+            y,
         ));
-        vertices.push(ClassicVertex::new(
+        vertices.push(CNCBlockVertex::new(
             base_point + vector![0.0, self.sample_size.y, my_height],
             normal,
+            x,
+            y,
         ));
 
         let len = vertices.len() as u32;
@@ -330,12 +352,16 @@ impl Block {
 
     pub fn mill_to_block(&self, position: &Vector2<f32>) -> Vector2<i32> {
         vector![
-            ((position.x + 0.5 * self.size.x) / self.sample_size.x).round() as i32,
-            ((position.y + 0.5 * self.size.y) / self.sample_size.y).round() as i32
+            ((position.x + 0.5 * self.size.x) / self.sample_size.x).floor() as i32,
+            ((position.y + 0.5 * self.size.y) / self.sample_size.y).floor() as i32
         ]
     }
 
     pub fn contains(&self, loc: &Vector2<i32>) -> bool {
         loc.x >= 0 && loc.y >= 0 && loc.x < self.sampling.x as i32 && loc.y < self.sampling.y as i32
+    }
+
+    pub fn raw_heights(&self) -> &Vec<f32> {
+        &self.heights
     }
 }

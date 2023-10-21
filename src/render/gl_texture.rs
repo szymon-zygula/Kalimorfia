@@ -1,4 +1,4 @@
-use crate::render::texture::Texture;
+use crate::{render::texture::Texture, utils};
 use glow::HasContext;
 
 fn texture_format(texture: &Texture) -> u32 {
@@ -20,6 +20,19 @@ impl<'gl> GlTexture<'gl> {
 
         let gl_texture = Self { gl, handle };
         gl_texture.load(texture);
+        gl_texture
+    }
+
+    pub fn new_float(
+        gl: &'gl glow::Context,
+        texture: &Vec<f32>,
+        width: usize,
+        height: usize,
+    ) -> Self {
+        let handle = Self::create_and_bind(gl);
+
+        let gl_texture = Self { gl, handle };
+        gl_texture.load_float(texture, width, height);
         gl_texture
     }
 
@@ -73,6 +86,44 @@ impl<'gl> GlTexture<'gl> {
                 format,
                 glow::UNSIGNED_BYTE,
                 Some(texture.image.as_bytes()),
+            );
+            self.gl.generate_mipmap(glow::TEXTURE_2D);
+        }
+    }
+
+    pub fn load_float(&self, texture: &Vec<f32>, width: usize, height: usize) {
+        unsafe {
+            self.gl.bind_texture(glow::TEXTURE_2D, Some(self.handle));
+            self.gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_WRAP_S,
+                glow::MIRRORED_REPEAT as i32,
+            );
+            self.gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_WRAP_T,
+                glow::MIRRORED_REPEAT as i32,
+            );
+            self.gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MIN_FILTER,
+                glow::NEAREST as i32,
+            );
+            self.gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MAG_FILTER,
+                glow::NEAREST as i32,
+            );
+            self.gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::R32F as i32,
+                width as i32,
+                height as i32,
+                0,
+                glow::RED,
+                glow::FLOAT,
+                Some(utils::slice_as_raw(texture.as_slice())),
             );
             self.gl.generate_mipmap(glow::TEXTURE_2D);
         }

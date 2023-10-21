@@ -76,6 +76,75 @@ impl Vertex for ClassicVertex {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub struct CNCBlockVertex {
+    pub position: Point3<f32>,
+    pub normal: Vector3<f32>,
+    pub x: f32,
+    pub y: f32,
+}
+
+impl CNCBlockVertex {
+    pub fn new(position: Point3<f32>, normal: Vector3<f32>, x: f32, y: f32) -> Self {
+        Self {
+            position,
+            normal,
+            x,
+            y,
+        }
+    }
+}
+
+impl Vertex for CNCBlockVertex {
+    fn set_vertex_attrib_pointers(gl: &glow::Context) {
+        unsafe {
+            gl.vertex_attrib_pointer_f32(
+                0,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<CNCBlockVertex>() as i32,
+                0,
+            );
+            gl.enable_vertex_attrib_array(0);
+
+            gl.vertex_attrib_pointer_f32(
+                1,
+                3,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<CNCBlockVertex>() as i32,
+                std::mem::size_of::<Point3<f32>>() as i32,
+            );
+            gl.enable_vertex_attrib_array(1);
+
+            gl.vertex_attrib_pointer_f32(
+                2,
+                1,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<CNCBlockVertex>() as i32,
+                std::mem::size_of::<Point3<f32>>() as i32
+                    + std::mem::size_of::<Vector3<f32>>() as i32,
+            );
+            gl.enable_vertex_attrib_array(2);
+
+            gl.vertex_attrib_pointer_f32(
+                3,
+                1,
+                glow::FLOAT,
+                false,
+                std::mem::size_of::<CNCBlockVertex>() as i32,
+                std::mem::size_of::<Point3<f32>>() as i32
+                    + std::mem::size_of::<Vector3<f32>>() as i32
+                    + std::mem::size_of::<f32>() as i32,
+            );
+            gl.enable_vertex_attrib_array(3);
+        }
+    }
+}
+
 pub struct Mesh<V: Vertex> {
     pub vertices: Vec<V>,
     pub triangles: Vec<Triangle>,
