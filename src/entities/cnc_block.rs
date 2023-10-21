@@ -8,7 +8,7 @@ use crate::{
     cnc::program as cncp,
     cnc::{
         block::Block,
-        mill::{Cutter, Mill, MillType},
+        mill::{Cutter, CutterShape, Mill},
         milling_player::MillingPlayer,
         milling_process::MillingProcess,
         milling_process::MillingResult,
@@ -270,12 +270,12 @@ impl<'gl> CNCBlock<'gl> {
     fn create_new_cutter_mesh(&mut self, cutter: &Cutter) {
         let (mill_vertices, mill_indices) = match cutter {
             Cutter {
-                type_: MillType::Cylinder,
+                shape: CutterShape::Cylinder,
                 diameter,
                 height,
             } => Cylinder::new(0.5 * *diameter as f64, *height as f64).grid(30, 30),
             Cutter {
-                type_: MillType::Ball,
+                shape: CutterShape::Ball,
                 diameter,
                 height,
             } => {
@@ -360,6 +360,21 @@ impl<'gl> CNCBlock<'gl> {
             .flags(imgui::SliderFlags::NO_INPUT)
             .build(&mut cutter.diameter)
         {
+            regen_cutter = true;
+        }
+
+        let mut cylinder = matches!(
+            player.milling_process().mill().cutter.shape,
+            CutterShape::Cylinder
+        );
+
+        if ui.checkbox("Cylinder cutter", &mut cylinder) {
+            player.milling_process_mut().mill_mut().cutter.shape = if cylinder {
+                CutterShape::Cylinder
+            } else {
+                CutterShape::Ball
+            };
+
             regen_cutter = true;
         }
 

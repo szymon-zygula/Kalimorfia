@@ -1,6 +1,6 @@
 use super::{
     location::Location,
-    mill::{Cutter, MillType},
+    mill::{Cutter, CutterShape},
     milling_process::MillInstruction,
     parser::{self, LineParseError},
 };
@@ -110,8 +110,8 @@ impl Program {
 
     fn parse_program_extension(extension: &str) -> Result<Cutter, ProgramLoadError> {
         let type_ = match extension.as_bytes()[0] as char {
-            'k' => MillType::Ball,
-            'f' => MillType::Cylinder,
+            'k' => CutterShape::Ball,
+            'f' => CutterShape::Cylinder,
             _ => return Err(ProgramLoadError::InvalidExtension),
         };
 
@@ -120,7 +120,7 @@ impl Program {
             .map_err(|_| ProgramLoadError::InvalidExtension)?;
 
         Ok(Cutter {
-            type_,
+            shape: type_,
             diameter,
             height: diameter * 4.0,
         })

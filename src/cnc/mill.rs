@@ -5,7 +5,7 @@ use super::{
 use nalgebra::{vector, Vector3};
 
 #[derive(Default, Clone, Copy, Debug)]
-pub enum MillType {
+pub enum CutterShape {
     #[default]
     Ball,
     Cylinder,
@@ -14,7 +14,7 @@ pub enum MillType {
 #[derive(Default, Clone, Copy, Debug)]
 pub struct Cutter {
     pub height: f32,
-    pub type_: MillType,
+    pub shape: CutterShape,
     pub diameter: f32,
 }
 
@@ -118,9 +118,9 @@ impl Mill {
     }
 
     pub fn cut(&self, block: &mut Block, direction: &Vector3<f32>) -> MillingResult {
-        match self.cutter.type_ {
-            MillType::Ball => self.cut_ball(block, direction),
-            MillType::Cylinder => self.cut_cylinder(block, direction),
+        match self.cutter.shape {
+            CutterShape::Ball => self.cut_ball(block, direction),
+            CutterShape::Cylinder => self.cut_cylinder(block, direction),
         }
     }
 
