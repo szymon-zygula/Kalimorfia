@@ -348,9 +348,17 @@ impl<'gl> CNCBlock<'gl> {
         let cutter = &mut player.milling_process_mut().mill_mut().cutter;
         let mut regen_cutter = false;
         if ui
-            .slider_config("Cutter height", cutter.diameter, cutter.diameter * 8.0)
+            .slider_config("Cutter height", cutter.diameter, 100.0)
             .flags(imgui::SliderFlags::NO_INPUT)
             .build(&mut cutter.height)
+        {
+            regen_cutter = true;
+        }
+
+        if ui
+            .slider_config("Cutter diameter", 0.01, 20.0)
+            .flags(imgui::SliderFlags::NO_INPUT)
+            .build(&mut cutter.diameter)
         {
             regen_cutter = true;
         }
