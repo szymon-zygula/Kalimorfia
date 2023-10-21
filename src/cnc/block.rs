@@ -28,7 +28,7 @@ impl Block {
     }
 
     fn heights_idx(&self, x: usize, y: usize) -> usize {
-        x + y * self.sampling.y
+        x + y * self.sampling.x
     }
 
     pub fn block_height(&self) -> f32 {
