@@ -147,6 +147,11 @@ impl Mill {
                     - (x - self.position.x) * (x - self.position.x)
                     - (y - self.position.y) * (y - self.position.y))
                     .sqrt();
+
+            if depth < block.base_height {
+                return Err(MillingError::CutTooDeep);
+            }
+
             if block.height(x_r, y_r) > depth {
                 *block.height_mut(x_r, y_r) = depth;
             }
@@ -164,6 +169,10 @@ impl Mill {
             if block.height(x, y) > self.position.z {
                 if direction.z < 0.0 {
                     return Err(MillingError::LowerDeadZoneCollision);
+                }
+
+                if self.position.z < block.base_height {
+                    return Err(MillingError::CutTooDeep);
                 }
 
                 *block.height_mut(x, y) = self.position.z;

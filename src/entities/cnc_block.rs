@@ -355,6 +355,14 @@ impl<'gl> CNCBlock<'gl> {
             regen_cutter = true;
         }
 
+        ui.slider_config(
+            "Block base height",
+            1.0,
+            player.milling_process().block().block_height(),
+        )
+        .flags(imgui::SliderFlags::NO_INPUT)
+        .build(&mut player.milling_process_mut().block_mut().base_height);
+
         ui.slider_config("Simulation speed", 1.0, 1000.0)
             .flags(imgui::SliderFlags::LOGARITHMIC | imgui::SliderFlags::NO_INPUT)
             .build(&mut player.slow_speed);

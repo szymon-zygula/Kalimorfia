@@ -8,6 +8,7 @@ pub struct Block {
     heights: Vec<f32>,
     height: f32,
     size: Vector2<f32>,
+    pub base_height: f32,
 }
 
 impl Block {
@@ -18,6 +19,7 @@ impl Block {
             sampling,
             height: size.z,
             size: vector![size.x, size.y],
+            base_height: size.z / 10.0,
         }
     }
 

@@ -155,6 +155,10 @@ impl MillingProcess {
         &self.block
     }
 
+    pub fn block_mut(&mut self) -> &mut Block {
+        &mut self.block
+    }
+
     pub fn mill(&self) -> &Mill {
         &self.mill
     }
