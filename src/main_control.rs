@@ -172,8 +172,8 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
             };
         }
 
-        ui.slider_config("Screen distance", 0.2, 5.0)
-            .flags(imgui::SliderFlags::NO_INPUT)
+        ui.slider_config("Screen distance", 0.2, 50.0)
+            .flags(imgui::SliderFlags::NO_INPUT | imgui::SliderFlags::LOGARITHMIC)
             .build(&mut state.camera.screen_distance);
 
         if let Some(stereo) = &mut state.camera.stereo {

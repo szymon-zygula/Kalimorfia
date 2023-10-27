@@ -507,7 +507,12 @@ impl<'gl> Drawable for CNCBlock<'gl> {
                 program.uniform_color("vertex_color", &Color::green());
                 program.uniform_matrix_4_f32_slice(
                     "model_transform",
-                    (premul * model_transform * self.additional_mesh_translation).as_slice(),
+                    (premul
+                        * model_transform
+                        // Avoid z-fighting with CNC mesh
+                        * transforms::translate(vector![0.0, 0.0, 0.01])
+                        * self.additional_mesh_translation)
+                        .as_slice(),
                 );
                 self.paths_mesh.draw();
             }
