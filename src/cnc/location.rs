@@ -29,6 +29,14 @@ impl Location {
         ))
     }
 
+    pub fn from_f32(location: &Vector3<f32>) -> Self {
+        Self {
+            x: Some(Number::from_f32(location.x)),
+            y: Some(Number::from_f32(location.y)),
+            z: Some(Number::from_f32(location.z)),
+        }
+    }
+
     pub fn relative_to(&self, other: &Vector3<f32>) -> Vector3<f32> {
         vector![
             self.x.map(|n| n.to_f32()).unwrap_or(other.x),

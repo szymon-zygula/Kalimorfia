@@ -6,8 +6,8 @@ pub struct Number {
 }
 
 impl Number {
-    pub fn from_f32(&self, x: f32) -> Self {
-        Number {
+    pub fn from_f32(x: f32) -> Self {
+        Self {
             is_negative: x < 0.0,
             integral_part: x.trunc() as u32,
             fractional_part: (x.fract() * 1000.0) as u32,

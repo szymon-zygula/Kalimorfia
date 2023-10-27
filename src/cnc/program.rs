@@ -4,7 +4,7 @@ use super::{
     milling_process::MillInstruction,
     parser::{self, LineParseError},
 };
-use nalgebra::Point3;
+use nalgebra::{Point3, Vector3};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -50,7 +50,7 @@ pub enum ProgramLine {
 #[derive(Debug, Clone)]
 pub struct Program {
     instructions: Vec<MillInstruction>,
-    mill_shape: Cutter,
+    cutter: Cutter,
 }
 
 #[derive(Error, Debug)]
@@ -104,8 +104,20 @@ impl Program {
 
         Ok(Self {
             instructions: Self::lines_to_mill_instructions(&lines),
-            mill_shape,
+            cutter: mill_shape,
         })
+    }
+
+    pub fn empty(cutter: Cutter) -> Self {
+        Self {
+            instructions: Vec::new(),
+            cutter,
+        }
+    }
+
+    pub fn add_move(&mut self, location: &Vector3<f32>) {
+        self.instructions
+            .push(MillInstruction::MoveSlow(Location::from_f32(location)))
     }
 
     fn parse_program_extension(extension: &str) -> Result<Cutter, ProgramLoadError> {
@@ -264,7 +276,7 @@ impl Program {
     }
 
     pub fn shape(&self) -> Cutter {
-        self.mill_shape
+        self.cutter
     }
 
     pub fn positions_sequence(&self) -> Vec<Point3<f32>> {
