@@ -116,6 +116,15 @@ impl Program {
         }
     }
 
+    pub fn from_locations(locations: Vec<Vector3<f32>>, cutter: Cutter) -> Self {
+        let mut prog = Self::empty(cutter);
+        for loc in locations {
+            prog.add_move(&loc);
+        }
+
+        prog
+    }
+
     pub fn add_move(&mut self, location: &Vector3<f32>) {
         self.instructions
             .push(MillInstruction::MoveSlow(Location::from_f32(location)))
@@ -125,7 +134,7 @@ impl Program {
         let mut file = std::fs::File::create(path).expect("File creation error");
 
         for (idx, instruction) in self.instructions.iter().enumerate() {
-            file.write_all(format!("N{}{}", idx + 3, instruction.to_str()).as_bytes())
+            file.write_all(format!("N{}{}\n", idx + 3, instruction.to_str()).as_bytes())
                 .expect("File IO error");
         }
     }

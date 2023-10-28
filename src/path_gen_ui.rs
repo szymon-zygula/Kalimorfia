@@ -1,6 +1,14 @@
 use crate::{main_control::MainControl, state::State};
-use kalimorfia::{entities::cnc_block::CNCBlock, path_gen::model::Model};
+use kalimorfia::{
+    entities::cnc_block::{CNCBlock, CNCBlockArgs},
+    path_gen::gen::*,
+    path_gen::model::*,
+};
+use nalgebra::vector;
 use std::rc::Rc;
+
+const SAVE_PATH: &str = "gen-paths";
+const TEST_SAMPLING: i32 = 1500;
 
 pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl) {
     ui.window("Path generation control")
@@ -11,16 +19,40 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
             ui.text("Generation");
             ui.separator();
 
-            if ui.button("Rough paths") {
+            let mut add_block = false;
 
+            if ui.button("Rough paths") {
+                rough(&get_model(state, control))
+                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/1.k16")));
+                add_block = true;
             }
 
             if ui.button("Flat paths") {
-
+                flat(&get_model(state, control))
+                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/2.f10")));
+                add_block = true;
             }
-            
-            if ui.button("Detailed paths") {
 
+            if ui.button("Detailed paths") {
+                detail(&get_model(state, control))
+                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/3.k08")));
+                add_block = true;
+            }
+
+            if ui.button("Signature paths") {
+                signa(&get_model(state, control))
+                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/4.k01")));
+                add_block = true;
+            }
+
+            if add_block {
+                let id = control.add_cnc_block(
+                    state,
+                    CNCBlockArgs {
+                        size: vector![BLOCK_SIZE, BLOCK_SIZE, BLOCK_HEIGHT],
+                        sampling: vector![TEST_SAMPLING, TEST_SAMPLING],
+                    },
+                );
             }
 
             ui.separator();

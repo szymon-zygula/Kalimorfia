@@ -147,7 +147,7 @@ impl<'gl> CNCBlock<'gl> {
             shader_manager,
             linear_transform,
             name: ChangeableName::new("CNC block", name_repo),
-            script_path: String::from("paths/1.k16"),
+            script_path: String::from("gen-paths/1.k16"),
             script_error: None,
             milling_player: None,
             playback_paused: true,

@@ -76,7 +76,8 @@ impl Mill {
     fn milling_points(&self, block: &Block) -> Vec<(usize, usize, f32, f32)> {
         let x_diameter = self.cutter.diameter;
         let x_radius = 0.5 * x_diameter;
-        let x_diameter_samples = (x_diameter / block.sample_size().x).ceil() as i32;
+        // 2 * is a quickfix for too sparse sampling with k16 cutter
+        let x_diameter_samples = 2 * (x_diameter / block.sample_size().x).ceil() as i32;
         let x_step = x_diameter / x_diameter_samples as f32;
         let y_diameter_samples_max = (x_diameter / block.sample_size().y).ceil() as i32;
 

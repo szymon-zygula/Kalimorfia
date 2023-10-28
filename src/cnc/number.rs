@@ -9,8 +9,8 @@ impl Number {
     pub fn from_f32(x: f32) -> Self {
         Self {
             is_negative: x < 0.0,
-            integral_part: x.trunc() as u32,
-            fractional_part: (x.fract() * 1000.0) as u32,
+            integral_part: x.trunc().abs() as u32,
+            fractional_part: (x.fract().abs() * 1000.0) as u32,
         }
     }
 

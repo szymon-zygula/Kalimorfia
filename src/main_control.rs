@@ -1015,7 +1015,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         }
     }
 
-    fn add_cnc_block(&self, state: &mut State, args: CNCBlockArgs) {
+    pub fn add_cnc_block(&self, state: &mut State, args: CNCBlockArgs) {
         let block = Box::new(CNCBlock::new(
             self.gl,
             Rc::clone(&state.name_repo),
