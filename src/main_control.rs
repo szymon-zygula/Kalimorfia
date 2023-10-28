@@ -1,4 +1,4 @@
-use crate::{json, state::State};
+use crate::{json, state::State, path_gen_ui::path_gen_ui};
 use kalimorfia::{
     camera::Stereo,
     entities::{
@@ -38,7 +38,7 @@ enum BezierSurfaceType {
 }
 
 pub struct MainControl<'gl, 'a> {
-    entity_manager: &'a RefCell<EntityManager<'gl>>,
+    pub entity_manager: &'a RefCell<EntityManager<'gl>>,
     shader_manager: Rc<ShaderManager<'gl>>,
     bezier_surface_args: Option<BezierSurfaceArgs>,
     added_surface_type: Option<BezierSurfaceType>,
@@ -92,6 +92,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.main_control_window(ui, state);
         self.entities_window(ui, state);
         self.selection_window(ui, state);
+        path_gen_ui(ui, state, self);
 
         if self.bezier_surface_args.is_some() {
             match self.added_surface_type {
@@ -1026,7 +1027,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         state.selector.add_selectable(id);
     }
 
-    fn add_intersection_curve(&self, state: &mut State, intersection: Intersection) {
+    pub fn add_intersection_curve(&self, state: &mut State, intersection: Intersection) {
         let intersection_curve = Box::new(IntersectionCurve::new(
             self.gl,
             Rc::clone(&state.name_repo),

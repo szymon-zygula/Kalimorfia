@@ -12,3 +12,4 @@ pub mod scene;
 pub mod ui;
 pub mod utils;
 pub mod window;
+pub mod path_gen;

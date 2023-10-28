@@ -2,6 +2,7 @@ mod json;
 mod main_control;
 mod shaders;
 mod state;
+mod path_gen_ui;
 
 use crate::{main_control::MainControl, state::State};
 use glow::HasContext;
