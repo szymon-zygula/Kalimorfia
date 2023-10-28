@@ -102,17 +102,12 @@ pub struct CNCBlock<'gl> {
 }
 
 impl<'gl> CNCBlock<'gl> {
-    pub fn new(
+    pub fn with_block(
         gl: &'gl glow::Context,
         name_repo: Rc<RefCell<dyn NameRepository>>,
         shader_manager: Rc<ShaderManager<'gl>>,
-        args: CNCBlockArgs,
+        block: Block,
     ) -> Self {
-        let block = Block::new(
-            vector!(args.sampling.x as usize, args.sampling.y as usize),
-            args.size,
-        );
-
         let mut linear_transform = LinearTransformEntity::new();
         linear_transform.scale.scale = vector![0.05, 0.05, 0.05];
         linear_transform.orientation.axis = vector![1.0, 0.0, 0.0];
@@ -161,6 +156,20 @@ impl<'gl> CNCBlock<'gl> {
             mesh_notifier,
             mesh_receiver,
         }
+    }
+
+    pub fn new(
+        gl: &'gl glow::Context,
+        name_repo: Rc<RefCell<dyn NameRepository>>,
+        shader_manager: Rc<ShaderManager<'gl>>,
+        args: CNCBlockArgs,
+    ) -> Self {
+        let block = Block::new(
+            vector!(args.sampling.x as usize, args.sampling.y as usize),
+            args.size,
+        );
+
+        Self::with_block(gl, name_repo, shader_manager, block)
     }
 
     pub fn request_new_mesh(&mut self) {
