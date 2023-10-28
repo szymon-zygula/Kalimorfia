@@ -1,9 +1,12 @@
 use crate::{
     cnc::block::Block,
-    math::geometry::{
-        intersection::{Intersection, IntersectionFinder},
-        parametric_form::DifferentialParametricForm,
-        surfaces::XZPlane,
+    math::{
+        geometry::{
+            intersection::{Intersection, IntersectionFinder},
+            parametric_form::DifferentialParametricForm,
+            surfaces::XZPlane,
+        },
+        utils::vec_64_to_32,
     },
 };
 use itertools::Itertools;
@@ -19,6 +22,12 @@ const GUIDE_POINT: [f64; 3] = [-2.0, 0.0, 2.5];
 const INTERSECTION_SUM_START_POINT: usize = 0;
 const PERTURBATION: f64 = 0.1;
 const INTER_COOLDOWN: usize = 15;
+const BLOCK_SIZE: f32 = 150.0;
+const BLOCK_HEIGHT: f32 = 50.0;
+const MODEL_SCALE: f32 = 30.0;
+const HEIGHTMAP_SAMPLING: usize = 250;
+const HEIGHTMAP_PARAMETER_SAMPLING: usize = 300;
+const BLOCK_BASE: f32 = 16.0;
 
 pub struct Model {
     surfaces: Vec<Box<dyn DifferentialParametricForm<2, 3>>>,
@@ -29,8 +38,51 @@ impl Model {
         Self { surfaces }
     }
 
-    pub fn sampled_block(&self, _sampling: Vector2<usize>, _size: Vector3<f32>) -> Block {
-        todo!()
+    pub fn sampled_block(&self) -> Block {
+        let origin = Vector3::from_row_slice(&PLANE_CENTER);
+        let block_convert = HEIGHTMAP_SAMPLING as f32 / BLOCK_SIZE;
+        let mut block = Block::new(
+            vector![HEIGHTMAP_SAMPLING, HEIGHTMAP_SAMPLING],
+            vector![BLOCK_SIZE, BLOCK_SIZE, BLOCK_HEIGHT],
+        );
+
+        let sampling = *block.sampling();
+        for x in 0..sampling.x {
+            for y in 0..sampling.y {
+                *block.height_mut(x, y) = BLOCK_BASE;
+            }
+        }
+
+        for surface in &self.surfaces {
+            let bounds = surface.bounds();
+            let u_step = (bounds.x.1 - bounds.x.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
+            let v_step = (bounds.y.1 - bounds.y.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
+
+            // Intentionally skip the last sample so that dealing with numerical errors of `u` and
+            // `v` at the border is not necessary
+            let mut u = bounds.x.0;
+            for _ in 0..HEIGHTMAP_PARAMETER_SAMPLING {
+                let mut v = bounds.y.0;
+                for _ in 0..HEIGHTMAP_PARAMETER_SAMPLING {
+                    let mut value =
+                        vec_64_to_32(surface.value(&vector![u, v]).coords - origin) * MODEL_SCALE;
+
+                    value.y += BLOCK_BASE;
+                    let x = ((value.x as f32 + BLOCK_SIZE * 0.5) * block_convert).round() as usize;
+                    let y = ((value.z as f32 + BLOCK_SIZE * 0.5) * block_convert).round() as usize;
+
+                    if block.height(x, y) < value.y as f32 {
+                        *block.height_mut(x, y) = value.y as f32;
+                    }
+
+                    v += v_step;
+                }
+
+                u += u_step;
+            }
+        }
+
+        block
     }
 
     pub fn silhouette(&self) -> Option<Intersection> {
@@ -39,7 +91,7 @@ impl Model {
             vector![PLANE_SIZE, PLANE_SIZE],
         );
 
-            let mut intersections = self
+        let mut intersections = self
             .surfaces
             .iter()
             .filter_map(|s| {

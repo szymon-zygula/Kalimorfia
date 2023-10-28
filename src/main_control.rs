@@ -39,13 +39,13 @@ enum BezierSurfaceType {
 
 pub struct MainControl<'gl, 'a> {
     pub entity_manager: &'a RefCell<EntityManager<'gl>>,
-    shader_manager: Rc<ShaderManager<'gl>>,
+    pub shader_manager: Rc<ShaderManager<'gl>>,
     bezier_surface_args: Option<BezierSurfaceArgs>,
     added_surface_type: Option<BezierSurfaceType>,
     cnc_block_args: Option<CNCBlockArgs>,
     intersection_parameters: Option<IntersetionParameters>,
     file_path: String,
-    gl: &'gl glow::Context,
+    pub gl: &'gl glow::Context,
 }
 
 struct IntersectionTarget {
