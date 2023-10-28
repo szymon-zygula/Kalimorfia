@@ -3,7 +3,41 @@ use super::{
     parametric_form::{DifferentialParametricForm, ParametricForm},
 };
 use itertools::Itertools;
-use nalgebra::{Matrix3x2, Point3, Vector1, Vector2};
+use nalgebra::{matrix, vector, Matrix3x2, Point3, Vector1, Vector2};
+
+#[derive(Clone, Debug)]
+pub struct XZPlane {
+    size: Vector2<f64>,
+    origin: Point3<f64>,
+}
+
+impl XZPlane {
+    pub fn new(origin: Point3<f64>, size: Vector2<f64>) -> Self {
+        Self { size, origin }
+    }
+}
+
+impl DifferentialParametricForm<2, 3> for XZPlane {
+    fn bounds(&self) -> Vector2<(f64, f64)> {
+        vector![(0.0, self.size.x), (0.0, self.size.y)]
+    }
+
+    fn wrapped(&self, _dim: usize) -> bool {
+        false
+    }
+
+    fn value(&self, vec: &Vector2<f64>) -> Point3<f64> {
+        self.origin + vector![vec.x, 0.0, vec.y]
+    }
+
+    fn jacobian(&self, _vec: &Vector2<f64>) -> Matrix3x2<f64> {
+        matrix![
+            1.0, 0.0;
+            0.0, 0.0;
+            0.0, 1.0;
+        ]
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct PatchC0 {
