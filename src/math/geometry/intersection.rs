@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use super::parametric_form::{DifferentialParametricForm, WithNormals};
 use crate::math::{
     functions::{
@@ -10,6 +8,7 @@ use crate::math::{
     utils::point_avg,
 };
 use nalgebra::{vector, Point3, Vector2, Vector3};
+use std::cell::RefCell;
 
 macro_rules! tighten {
     (
@@ -58,7 +57,7 @@ macro_rules! check_stochastic_points {
     };
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct IntersectionPoint {
     pub surface_0: Vector2<f64>,
     pub surface_1: Vector2<f64>,
@@ -67,7 +66,6 @@ pub struct IntersectionPoint {
 
 #[derive(Debug, Clone)]
 pub struct Intersection {
-    pub wrapped: bool,
     pub points: Vec<IntersectionPoint>,
     pub looped: bool,
 }
@@ -129,11 +127,7 @@ impl<'f> IntersectionFinder<'f> {
             return None;
         }
 
-        Some(Intersection {
-            wrapped: false,
-            points,
-            looped,
-        })
+        Some(Intersection { points, looped })
     }
 
     fn find_first_point(&self) -> Option<IntersectionPoint> {
@@ -327,9 +321,10 @@ impl<'f> IntersectionFinder<'f> {
     ) -> bool {
         while points.len() < Self::MAX_POINTS {
             let Some(next_intersection) =
-                self.next_intersection_point(points.last().unwrap(), false) else {
-                    return false;
-                };
+                self.next_intersection_point(points.last().unwrap(), false)
+            else {
+                return false;
+            };
 
             points.push(next_intersection);
 
@@ -350,9 +345,10 @@ impl<'f> IntersectionFinder<'f> {
     ) {
         while points.len() < Self::MAX_POINTS {
             let Some(next_intersection) =
-                self.next_intersection_point(points.last().unwrap(), inverse_direction) else {
-                    return;
-                };
+                self.next_intersection_point(points.last().unwrap(), inverse_direction)
+            else {
+                return;
+            };
 
             points.push(next_intersection);
         }
