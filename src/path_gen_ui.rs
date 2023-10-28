@@ -7,6 +7,11 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
         .position([500.0, 0.0], imgui::Condition::FirstUseEver)
         .build(|| {
             ui.separator();
+            ui.text("Generation");
+            ui.separator();
+            ui.separator();
+            ui.text("Tests");
+            ui.separator();
             if ui.button("Find silhouette") {
                 test_silhouette(state, control);
             }
