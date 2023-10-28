@@ -114,6 +114,16 @@ impl Location {
             _ => None,
         }
     }
+
+    pub fn to_str(&self) -> String {
+        const ERR: &str = "Location string supports only full locations";
+        format!(
+            "X{}Y{}Z{}",
+            self.x.expect(ERR).to_str(),
+            self.y.expect(ERR).to_str(),
+            self.z.expect(ERR).to_str()
+        )
+    }
 }
 
 impl std::str::FromStr for Location {

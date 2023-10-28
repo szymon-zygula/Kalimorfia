@@ -44,6 +44,15 @@ impl Number {
             &after[3..],
         ))
     }
+
+    pub fn to_str(&self) -> String {
+        format!(
+            "{}{}.{:0>3}",
+            if self.is_negative { "-" } else { "" },
+            self.integral_part,
+            self.fractional_part
+        )
+    }
 }
 
 impl std::str::FromStr for Number {

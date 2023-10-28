@@ -10,6 +10,19 @@ pub enum MillInstruction {
     MoveSlow(Location),
 }
 
+impl MillInstruction {
+    pub fn to_str(&self) -> String {
+        match self {
+            MillInstruction::RotationSpeed(_) => unimplemented!(),
+            MillInstruction::MovementSpeed(_) => unimplemented!(),
+            MillInstruction::MoveFast(_) => unimplemented!(),
+            MillInstruction::MoveSlow(location) => {
+                format!("G01{}", location.to_str())
+            }
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum MillingError {
     #[error("moving a mill which has no movement speed")]

@@ -5,6 +5,7 @@ use super::{
     parser::{self, LineParseError},
 };
 use nalgebra::{Point3, Vector3};
+use std::io::Write;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -118,6 +119,15 @@ impl Program {
     pub fn add_move(&mut self, location: &Vector3<f32>) {
         self.instructions
             .push(MillInstruction::MoveSlow(Location::from_f32(location)))
+    }
+
+    pub fn save_to_file(&self, path: &std::path::Path) {
+        let mut file = std::fs::File::create(path).expect("File creation error");
+
+        for (idx, instruction) in self.instructions.iter().enumerate() {
+            file.write_all(format!("N{}{}", idx + 3, instruction.to_str()).as_bytes())
+                .expect("File IO error");
+        }
     }
 
     fn parse_program_extension(extension: &str) -> Result<Cutter, ProgramLoadError> {
