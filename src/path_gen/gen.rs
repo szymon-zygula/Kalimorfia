@@ -1,9 +1,10 @@
-use super::model::{Model, BLOCK_SIZE};
+use super::model::{Model, BLOCK_SIZE, MODEL_SCALE, PLANE_CENTER};
 use crate::cnc::{
     block::Block,
     mill::{Cutter, CutterShape},
     program as cncp,
 };
+use itertools::Itertools;
 use nalgebra::{vector, Vector3};
 use rayon::prelude::*;
 
@@ -11,6 +12,7 @@ const SAFE_HEIGHT: f32 = 66.0;
 const CUTTER_DIAMETER_ROUGH: f32 = 16.0;
 const CUTTER_RADIUS_ROUGH: f32 = CUTTER_DIAMETER_ROUGH * 0.5;
 const CUTTER_RADIUS_ROUGH_SQRT_2: f32 = CUTTER_RADIUS_ROUGH * std::f32::consts::SQRT_2 * 0.5;
+const BASE_HEIGHT: f32 = 16.0;
 
 pub fn rough(model: &Model) -> cncp::Program {
     const UPPER_PLANE_HEIGHT: f32 = 35.0;
@@ -140,21 +142,59 @@ fn rough_line(
     locs
 }
 
-pub fn flat(model: &Model) -> cncp::Program {
+pub fn flat(model: &Model) -> Option<cncp::Program> {
     const CUTTER_DIAMETER: f32 = 10.0;
+    const CUTTER_RADIUS: f32 = 0.5 * CUTTER_DIAMETER;
     const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER;
+    const FLAT_EPS: f32 = 0.1;
+
+    let silhouette = model.silhouette()?;
 
     let mut locs = initial_locations();
+    locs.extend_from_slice(&[
+        vector![
+            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER * 2.0,
+            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER * 2.0,
+            SAFE_HEIGHT
+        ],
+        vector![
+            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER * 2.0,
+            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER * 2.0,
+            BASE_HEIGHT
+        ],
+    ]);
+
+    let len = silhouette.points.len();
+
+    for (a, b) in silhouette
+        .points
+        .into_iter()
+        .map(|p| p.point.xz())
+        .cycle()
+        .skip(len / 2) // Model-specific things
+        .take(len)
+        .tuple_windows()
+    {
+        let center = vector![
+            ((a.x + b.x) * 0.5 - PLANE_CENTER[0]) as f32 * MODEL_SCALE,
+            ((a.y + b.y) * 0.5 - PLANE_CENTER[2]) as f32 * MODEL_SCALE,
+            BASE_HEIGHT
+        ];
+        let normal =
+            vector![(-a.y + b.y) as f32, (a.x - b.x) as f32, 0.0].normalize() * CUTTER_RADIUS;
+        locs.push(center + normal);
+    }
+
     add_ending_locs(&mut locs);
 
-    cncp::Program::from_locations(
+    Some(cncp::Program::from_locations(
         locs,
         Cutter {
             height: CUTTER_HEIGHT,
             diameter: CUTTER_DIAMETER,
             shape: CutterShape::Cylinder,
         },
-    )
+    ))
 }
 
 pub fn detail(model: &Model) -> cncp::Program {

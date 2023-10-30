@@ -14,7 +14,7 @@ use kiddo::KdTree;
 use nalgebra::{geometry::Rotation2, vector, Point3, Vector2, Vector3};
 
 const PLANE_SIZE: f64 = 7.0;
-const PLANE_CENTER: [f64; 3] = [0.0, 0.0, 2.5];
+pub const PLANE_CENTER: [f64; 3] = [0.0, 0.0, 2.5];
 
 const NUMERICAL_STEP: f64 = 0.005;
 const INTERSECTION_STEP: f64 = 0.01;
@@ -28,7 +28,7 @@ pub const BLOCK_SIZE: f32 = 150.0;
 pub const BLOCK_HEIGHT: f32 = 50.0;
 pub const BLOCK_BASE: f32 = 16.0;
 
-const MODEL_SCALE: f32 = 30.0;
+pub const MODEL_SCALE: f32 = 30.0;
 
 const HEIGHTMAP_SAMPLING: usize = 250;
 const HEIGHTMAP_PARAMETER_SAMPLING: usize = 300;

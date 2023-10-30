@@ -28,8 +28,12 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
             }
 
             if ui.button("Flat paths") {
-                flat(&get_model(state, control))
-                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/2.f10")));
+                if let Some(prog) = flat(&get_model(state, control)) {
+                    prog.save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/2.f10")));
+                } else {
+                    println!("Failed to find flat paths -- try again");
+                }
+
                 add_block = true;
             }
 
