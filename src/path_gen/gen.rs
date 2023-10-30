@@ -5,15 +5,18 @@ use crate::cnc::{
     program as cncp,
 };
 use nalgebra::{vector, Vector3};
+use rayon::prelude::*;
 
 const SAFE_HEIGHT: f32 = 66.0;
+const CUTTER_DIAMETER_ROUGH: f32 = 16.0;
+const CUTTER_RADIUS_ROUGH: f32 = CUTTER_DIAMETER_ROUGH * 0.5;
+const CUTTER_RADIUS_ROUGH_SQRT_2: f32 = CUTTER_RADIUS_ROUGH * std::f32::consts::SQRT_2 * 0.5;
 
 pub fn rough(model: &Model) -> cncp::Program {
     const UPPER_PLANE_HEIGHT: f32 = 35.0;
     const LOWER_PLANE_HEIGHT: f32 = 20.0;
-    const CUTTER_DIAMETER: f32 = 16.0;
-    const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER;
-    const SPACING: f32 = CUTTER_DIAMETER * 0.5;
+    const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER_ROUGH;
+    const SPACING: f32 = CUTTER_DIAMETER_ROUGH * 0.5;
     const SAMPLING: f32 = 1.0;
 
     let heightmap = model.sampled_block();
@@ -41,29 +44,59 @@ pub fn rough(model: &Model) -> cncp::Program {
         locs,
         Cutter {
             height: CUTTER_HEIGHT,
-            diameter: CUTTER_DIAMETER,
+            diameter: CUTTER_DIAMETER_ROUGH,
             shape: CutterShape::Ball,
         },
     )
 }
 
 fn rough_plane(height: f32, heightmap: &Block, spacing: f32, sampling: f32) -> Vec<Vector3<f32>> {
-    let mut reverse = false;
-    let mut locs = Vec::new();
-    let mut x = 0.5 * BLOCK_SIZE + spacing;
+    (0..(BLOCK_SIZE / spacing + 4.0) as usize)
+        .into_par_iter()
+        .flat_map(|i| {
+            let x = 0.5 * BLOCK_SIZE + spacing - spacing * i as f32;
+            let mut line = rough_line(height, x, heightmap, spacing, sampling);
+            if i % 2 == 1 {
+                line.reverse();
+            }
 
-    for _ in 0..(BLOCK_SIZE / spacing + 4.0) as usize {
-        let mut line = rough_line(height, x, heightmap, spacing, sampling);
-        if reverse {
-            line.reverse();
-        }
+            line
+        })
+        .collect()
+}
 
-        locs.extend(line);
-        x -= spacing;
-        reverse = !reverse;
-    }
+fn get_height(bx: f32, by: f32, hsamx: f32, hsamy: f32, block: &Block) -> Option<f32> {
+    (bx >= 0.0 && by >= 0.0 && bx < hsamx && by < hsamy)
+        .then(|| block.height(bx as usize, by as usize))
+}
 
-    locs
+fn rough_max(bx: f32, by: f32, hsamx: f32, hsamy: f32, block: &Block) -> f32 {
+    [
+        (bx, by),
+        (bx + CUTTER_RADIUS_ROUGH, by),
+        (bx, by + CUTTER_RADIUS_ROUGH),
+        (bx - CUTTER_RADIUS_ROUGH, by),
+        (bx, by - CUTTER_RADIUS_ROUGH),
+        (
+            bx + CUTTER_RADIUS_ROUGH_SQRT_2,
+            by + CUTTER_RADIUS_ROUGH_SQRT_2,
+        ),
+        (
+            bx + CUTTER_RADIUS_ROUGH_SQRT_2,
+            by - CUTTER_RADIUS_ROUGH_SQRT_2,
+        ),
+        (
+            bx - CUTTER_RADIUS_ROUGH_SQRT_2,
+            by + CUTTER_RADIUS_ROUGH_SQRT_2,
+        ),
+        (
+            bx - CUTTER_RADIUS_ROUGH_SQRT_2,
+            by - CUTTER_RADIUS_ROUGH_SQRT_2,
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(x, y)| get_height(x, y, hsamx, hsamy, block))
+    .fold(0.0, f32::max)
 }
 
 fn rough_line(
@@ -87,10 +120,7 @@ fn rough_line(
         let by = ((y + BLOCK_SIZE * 0.5) / ss.y).floor();
 
         let z = if bx >= 0.0 && by >= 0.0 && bx < hsamx && by < hsamy {
-            f32::max(
-                heightmap.height(bx.floor() as usize, by.floor() as usize),
-                height,
-            )
+            f32::max(rough_max(bx, by, hsamx, hsamy, heightmap), height)
         } else {
             height
         };
