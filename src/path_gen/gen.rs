@@ -156,13 +156,13 @@ pub fn flat(model: &Model) -> Option<cncp::Program> {
     let mut locs = initial_locations();
     locs.extend_from_slice(&[
         vector![
-            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER_FLAT * 2.0,
-            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER_FLAT * 2.0,
+            -BLOCK_SIZE * 0.5 - CUTTER_DIAMETER_FLAT,
+            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER_FLAT,
             SAFE_HEIGHT
         ],
         vector![
-            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER_FLAT * 2.0,
-            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER_FLAT * 2.0,
+            -BLOCK_SIZE * 0.5 - CUTTER_DIAMETER_FLAT,
+            BLOCK_SIZE * 0.5 + CUTTER_DIAMETER_FLAT,
             BASE_HEIGHT
         ],
     ]);
@@ -198,12 +198,15 @@ fn flat_mow(silhouette: &Intersection) -> Vec<Vector3<f32>> {
             p.point.x - PLANE_CENTER[0] > 0.0
         });
 
-    let mut locs = flat_partition_paths(bottom);
-    // locs.extend(flat_partition_paths(top));
+    let mut locs = flat_partition_paths(top, -1.0);
+    locs.extend(flat_partition_paths(bottom, 1.0).iter().rev());
     locs
 }
 
-fn flat_partition_paths(border: BTreeMap<NotNan<f64>, IntersectionPoint>) -> Vec<Vector3<f32>> {
+fn flat_partition_paths(
+    border: BTreeMap<NotNan<f64>, IntersectionPoint>,
+    approach: f64,
+) -> Vec<Vector3<f32>> {
     let mut locs = Vec::new();
 
     let mut y = (-BLOCK_SIZE * 0.5 - CUTTER_RADIUS_FLAT) as f64;
@@ -213,6 +216,7 @@ fn flat_partition_paths(border: BTreeMap<NotNan<f64>, IntersectionPoint>) -> Vec
             NotNan::new(y + (CUTTER_DIAMETER_FLAT - FLAT_EPS) as f64).unwrap(),
             &border,
             &mut locs,
+            NotNan::new(approach).unwrap(),
         );
 
         y += (CUTTER_DIAMETER_FLAT - FLAT_EPS) as f64 * 2.0;
@@ -226,14 +230,15 @@ fn flat_partition_path_pair(
     y_limit: NotNan<f64>,
     border: &BTreeMap<NotNan<f64>, IntersectionPoint>,
     locs: &mut Vec<Vector3<f32>>,
+    approach: NotNan<f64>,
 ) {
     const LIMIT_ACCURACY: usize = 10;
+    // Do not touch the model while mowing the grass
+    const CUTTER_SAFE_DISTANCE_MULTIPLIER: f32 = 1.1;
 
-    locs.push(vector![
-        0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT,
-        *y as f32,
-        BASE_HEIGHT
-    ]);
+    let x_start = *approach as f32 * (0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT);
+
+    locs.push(vector![x_start, *y as f32, BASE_HEIGHT]);
 
     for i in 0..LIMIT_ACCURACY {
         let t = i as f64 / (LIMIT_ACCURACY as f64 - 1.0);
@@ -243,19 +248,19 @@ fn flat_partition_path_pair(
             .range(
                 (y_interpol - CUTTER_RADIUS_FLAT as f64)..(y_interpol + CUTTER_RADIUS_FLAT as f64),
             )
-            .map(|(_, p)| NotNan::new((p.point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE).unwrap())
+            .map(|(_, p)| {
+                approach.as_f32()
+                    * NotNan::new((p.point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE).unwrap()
+            })
             .max()
+            .map(|p| approach.as_f32() * p)
             .unwrap_or(NotNan::new(0.0).unwrap())
-            + CUTTER_RADIUS_FLAT;
+            + *approach as f32 * CUTTER_RADIUS_FLAT * CUTTER_SAFE_DISTANCE_MULTIPLIER;
 
         locs.push(vector![*x_limit, *y_interpol as f32, BASE_HEIGHT]);
     }
 
-    locs.push(vector![
-        0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT,
-        *y_limit as f32,
-        BASE_HEIGHT
-    ]);
+    locs.push(vector![x_start, *y_limit as f32, BASE_HEIGHT]);
 }
 
 fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
@@ -267,8 +272,8 @@ fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
             .iter()
             .map(|p| p.point.xz())
             .cycle()
-            .skip(len / 2) // Model-specific things
-            .take(len)
+            .skip(len / 2) // Model-specific things -- start from the other side
+            .take(len + 3) // + 3 to make sure that the whole silhouette is cut with cutter moving
             .tuple_windows()
             .filter_map(|(a, b)| {
                 if a == b {
