@@ -22,6 +22,7 @@ const BASE_HEIGHT: f32 = 16.0;
 const CUTTER_DIAMETER_FLAT: f32 = 10.0;
 const CUTTER_RADIUS_FLAT: f32 = 0.5 * CUTTER_DIAMETER_FLAT;
 const CUTTER_HEIGHT_FLAT: f32 = 4.0 * CUTTER_DIAMETER_FLAT;
+const FLAT_EPS: f32 = 0.1 * CUTTER_RADIUS_FLAT;
 
 pub fn rough(model: &Model) -> cncp::Program {
     const UPPER_PLANE_HEIGHT: f32 = 35.0;
@@ -152,8 +153,6 @@ fn rough_line(
 }
 
 pub fn flat(model: &Model) -> Option<cncp::Program> {
-    const FLAT_EPS: f32 = 0.1;
-
     let mut locs = initial_locations();
     locs.extend_from_slice(&[
         vector![
@@ -189,24 +188,70 @@ fn flat_mow(silhouette: &Intersection) -> Vec<Vector3<f32>> {
     let (bottom, top) = silhouette
         .points
         .iter()
-        .map(|p| (NotNan::new(p.point.y).unwrap(), *p))
-        .partition::<BTreeMap<NotNan<f64>, IntersectionPoint>, _>(|(_, p)| p.point.x > 0.0);
+        .map(|p| {
+            (
+                NotNan::new((p.point.z - PLANE_CENTER[2]) * MODEL_SCALE as f64).unwrap(),
+                *p,
+            )
+        })
+        .partition::<BTreeMap<NotNan<f64>, IntersectionPoint>, _>(|(_, p)| {
+            p.point.x - PLANE_CENTER[0] > 0.0
+        });
 
     let mut locs = flat_partition_paths(bottom);
-    locs.extend(flat_partition_paths(top));
+    // locs.extend(flat_partition_paths(top));
     locs
 }
 
 fn flat_partition_paths(border: BTreeMap<NotNan<f64>, IntersectionPoint>) -> Vec<Vector3<f32>> {
     let mut locs = Vec::new();
 
-    
+    let mut y = (-BLOCK_SIZE * 0.5) as f64;
+    while y < (BLOCK_SIZE * 0.5) as f64 {
+        flat_partition_path_pair(
+            NotNan::new(y).unwrap(),
+            NotNan::new(y + (CUTTER_DIAMETER_FLAT - FLAT_EPS) as f64).unwrap(),
+            &border,
+            &mut locs,
+        );
+
+        y += (CUTTER_DIAMETER_FLAT - FLAT_EPS) as f64 * 2.0;
+    }
 
     locs
 }
 
-fn flat_partition_path(y: f64, locs: &mut Vec<Vector3<f32>>) {
+fn flat_partition_path_pair(
+    y: NotNan<f64>,
+    y_limit: NotNan<f64>,
+    border: &BTreeMap<NotNan<f64>, IntersectionPoint>,
+    locs: &mut Vec<Vector3<f32>>,
+) {
+    locs.push(vector![
+        0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT,
+        *y as f32,
+        BASE_HEIGHT
+    ]);
 
+    let x_limit_0 = f32::max(
+        0.0,
+        (btree_closest(border, y).point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE
+            + CUTTER_RADIUS_FLAT * 1.5,
+    );
+    let x_limit_1 = f32::max(
+        0.0,
+        (btree_closest(border, y_limit).point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE
+            + CUTTER_RADIUS_FLAT * 1.5,
+    );
+
+    locs.push(vector![x_limit_0, *y as f32, BASE_HEIGHT]);
+    locs.push(vector![x_limit_1, *y_limit as f32, BASE_HEIGHT]);
+
+    locs.push(vector![
+        0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT,
+        *y_limit as f32,
+        BASE_HEIGHT
+    ]);
 }
 
 fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
@@ -221,7 +266,11 @@ fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
             .skip(len / 2) // Model-specific things
             .take(len)
             .tuple_windows()
-            .map(|(a, b)| {
+            .filter_map(|(a, b)| {
+                if a == b {
+                    return None;
+                }
+
                 let center = vector![
                     ((a.x + b.x) * 0.5 - PLANE_CENTER[0]) as f32 * MODEL_SCALE,
                     ((a.y + b.y) * 0.5 - PLANE_CENTER[2]) as f32 * MODEL_SCALE,
@@ -229,10 +278,31 @@ fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
                 ];
                 let normal = vector![(-a.y + b.y) as f32, (a.x - b.x) as f32, 0.0].normalize()
                     * CUTTER_RADIUS_FLAT;
-                center + normal
+                Some(center + normal)
             })
             .collect(),
     )
+}
+
+fn btree_closest(
+    btree: &BTreeMap<NotNan<f64>, IntersectionPoint>,
+    query: NotNan<f64>,
+) -> IntersectionPoint {
+    let lower_bound = btree.range(..query).next_back();
+    let upper_bound = btree.range(query..).next();
+
+    match (lower_bound, upper_bound) {
+        (None, None) => panic!("Empty tree"),
+        (None, Some(x)) => *x.1,
+        (Some(x), None) => *x.1,
+        (Some(x), Some(y)) => {
+            if (*x.0 - query).abs() > (*y.0 - query).abs() {
+                *x.1
+            } else {
+                *y.1
+            }
+        }
+    }
 }
 
 pub fn detail(model: &Model) -> cncp::Program {
