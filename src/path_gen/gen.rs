@@ -206,8 +206,8 @@ fn flat_mow(silhouette: &Intersection) -> Vec<Vector3<f32>> {
 fn flat_partition_paths(border: BTreeMap<NotNan<f64>, IntersectionPoint>) -> Vec<Vector3<f32>> {
     let mut locs = Vec::new();
 
-    let mut y = (-BLOCK_SIZE * 0.5) as f64;
-    while y < (BLOCK_SIZE * 0.5) as f64 {
+    let mut y = (-BLOCK_SIZE * 0.5 - CUTTER_RADIUS_FLAT) as f64;
+    while y < (BLOCK_SIZE * 0.5 + CUTTER_RADIUS_FLAT) as f64 {
         flat_partition_path_pair(
             NotNan::new(y).unwrap(),
             NotNan::new(y + (CUTTER_DIAMETER_FLAT - FLAT_EPS) as f64).unwrap(),
@@ -227,25 +227,29 @@ fn flat_partition_path_pair(
     border: &BTreeMap<NotNan<f64>, IntersectionPoint>,
     locs: &mut Vec<Vector3<f32>>,
 ) {
+    const LIMIT_ACCURACY: usize = 10;
+
     locs.push(vector![
         0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT,
         *y as f32,
         BASE_HEIGHT
     ]);
 
-    let x_limit_0 = f32::max(
-        0.0,
-        (btree_closest(border, y).point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE
-            + CUTTER_RADIUS_FLAT * 1.5,
-    );
-    let x_limit_1 = f32::max(
-        0.0,
-        (btree_closest(border, y_limit).point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE
-            + CUTTER_RADIUS_FLAT * 1.5,
-    );
+    for i in 0..LIMIT_ACCURACY {
+        let t = i as f64 / (LIMIT_ACCURACY as f64 - 1.0);
+        let y_interpol = y * (1.0 - t) + (y_limit) * t;
 
-    locs.push(vector![x_limit_0, *y as f32, BASE_HEIGHT]);
-    locs.push(vector![x_limit_1, *y_limit as f32, BASE_HEIGHT]);
+        let x_limit = border
+            .range(
+                (y_interpol - CUTTER_RADIUS_FLAT as f64)..(y_interpol + CUTTER_RADIUS_FLAT as f64),
+            )
+            .map(|(_, p)| NotNan::new((p.point.x - PLANE_CENTER[0]) as f32 * MODEL_SCALE).unwrap())
+            .max()
+            .unwrap_or(NotNan::new(0.0).unwrap())
+            + CUTTER_RADIUS_FLAT;
+
+        locs.push(vector![*x_limit, *y_interpol as f32, BASE_HEIGHT]);
+    }
 
     locs.push(vector![
         0.5 * BLOCK_SIZE + CUTTER_DIAMETER_FLAT,
