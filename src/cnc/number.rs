@@ -15,8 +15,8 @@ impl Number {
     }
 
     pub fn to_f32(&self) -> f32 {
-        (if self.is_negative { -1.0 } else { 1.0 }) * self.integral_part as f32
-            + self.fractional_part as f32 * 0.001
+        (if self.is_negative { -1.0 } else { 1.0 })
+            * (self.integral_part as f32 + self.fractional_part as f32 * 0.001)
     }
 
     pub fn from_str_prefix(string: &str) -> Option<(Self, &str)> {
