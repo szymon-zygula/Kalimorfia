@@ -50,7 +50,7 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
             }
 
             if add_block {
-                let id = control.add_cnc_block(
+                control.add_cnc_block(
                     state,
                     CNCBlockArgs {
                         size: vector![BLOCK_SIZE, BLOCK_SIZE, BLOCK_HEIGHT],
@@ -70,20 +70,28 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
             if ui.button("Heightmap") {
                 test_heightmap(state, control);
             }
+
+            if ui.button("Intersections") {
+                test_intersections(state, control);
+            }
+
+            if ui.button("Holes") {
+                test_holes(state, control);
+            }
         });
 }
 
 fn get_model(state: &mut State, control: &mut MainControl) -> Model {
     let manager = control.entity_manager.borrow();
-    let targets: Vec<_> = state
+    let (targets, ids) = state
         .selector
         .selected()
         .iter()
         .copied()
-        .filter_map(|id| manager.get_entity(id).as_parametric_2_to_3())
-        .collect();
+        .filter_map(|id| manager.get_entity(id).as_parametric_2_to_3().zip(Some(id)))
+        .unzip();
 
-    Model::new(targets)
+    Model::new(targets, ids)
 }
 
 fn test_silhouette(state: &mut State, control: &mut MainControl) {
@@ -106,4 +114,18 @@ fn test_heightmap(state: &mut State, control: &mut MainControl) {
     ));
     let id = control.entity_manager.borrow_mut().add_entity(entity_block);
     state.selector.add_selectable(id);
+}
+
+fn test_intersections(state: &mut State, control: &mut MainControl) {
+    let model = get_model(state, control);
+    for intersection in model.find_model_intersections() {
+        control.add_intersection_curve(state, intersection);
+    }
+}
+
+fn test_holes(state: &mut State, control: &mut MainControl) {
+    let model = get_model(state, control);
+    for intersection in model.find_plane_intersections() {
+        control.add_intersection_curve(state, intersection);
+    }
 }

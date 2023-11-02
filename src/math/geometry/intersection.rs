@@ -70,6 +70,12 @@ pub struct Intersection {
     pub looped: bool,
 }
 
+impl Intersection {
+    pub fn reverse(&mut self) {
+        self.points.reverse();
+    }
+}
+
 pub struct IntersectionFinder<'f> {
     surface_0: &'f dyn DifferentialParametricForm<2, 3>,
     surface_1: &'f dyn DifferentialParametricForm<2, 3>,
@@ -354,7 +360,7 @@ impl<'f> IntersectionFinder<'f> {
         }
     }
 
-    /// Previous intersection points (when goint in the regular direction) in parameter space for both surfaces
+    /// Previous intersection points (when going in the regular direction) in parameter space for both surfaces
     fn parameter_space_backward_distances(&self, point: &IntersectionPoint) -> Option<(f64, f64)> {
         let backward_point = self.next_intersection_point(point, true);
         backward_point.map(
@@ -420,12 +426,6 @@ impl<'f> IntersectionFinder<'f> {
     }
 
     fn tightening_point(&self, point: IntersectionPoint) -> Option<IntersectionPoint> {
-        if !self.surface_0.wrapped(0)
-            && !self.surface_0.wrapped(1)
-            && self.surface_1.wrapped(0)
-            && self.surface_1.wrapped(1)
-        {}
-
         tighten_1_dim!(self, point, surface_0, 0, surface_1);
         tighten_1_dim!(self, point, surface_0, 1, surface_1);
         tighten_1_dim!(self, point, surface_1, 0, surface_0);

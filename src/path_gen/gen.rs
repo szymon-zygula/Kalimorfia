@@ -1,4 +1,7 @@
-use super::model::{Model, BLOCK_SIZE, MODEL_SCALE, PLANE_CENTER};
+use super::{
+    model::{Model, BLOCK_SIZE, MODEL_SCALE, PLANE_CENTER},
+    utils::*,
+};
 use crate::{
     cnc::{
         block::Block,

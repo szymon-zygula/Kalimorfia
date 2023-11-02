@@ -1,3 +1,4 @@
+use super::utils::*;
 use crate::{
     cnc::block::Block,
     math::{
@@ -11,7 +12,8 @@ use crate::{
 };
 use itertools::Itertools;
 use kiddo::KdTree;
-use nalgebra::{geometry::Rotation2, vector, Point3, Vector2, Vector3};
+use nalgebra::{geometry::Rotation2, point, vector, Point3, Vector2, Vector3};
+use std::collections::HashMap;
 
 const PLANE_SIZE: f64 = 7.0;
 pub const PLANE_CENTER: [f64; 3] = [0.0, 0.0, 2.5];
@@ -19,7 +21,7 @@ pub const PLANE_CENTER: [f64; 3] = [0.0, 0.0, 2.5];
 const NUMERICAL_STEP: f64 = 0.005;
 const INTERSECTION_STEP: f64 = 0.01;
 const KDTREE_SEARCH_RADIUS: f64 = INTERSECTION_STEP * 5.0;
-const GUIDE_POINT: [f64; 3] = [-2.0, 0.0, 2.5];
+const SILHOUETTE_GUIDE_POINT: Point3<f64> = point![-2.0, 0.0, 2.5];
 const INTERSECTION_SUM_START_POINT: usize = 0;
 const PERTURBATION: f64 = 0.1;
 const INTER_COOLDOWN: usize = 15;
@@ -33,13 +35,77 @@ pub const MODEL_SCALE: f32 = 30.0;
 const HEIGHTMAP_SAMPLING: usize = 250;
 const HEIGHTMAP_PARAMETER_SAMPLING: usize = 300;
 
+const BODY_ID: usize = 181;
+const LEFT_SHACKLE_ID: usize = 210;
+const RIGHT_SHACKLE_ID: usize = 239;
+const LEFT_SHIELD_ID: usize = 273;
+const RIGHT_SHIELD_ID: usize = 256;
+const LEFT_SCREW_ID: usize = 307;
+const RIGHT_SCREW_ID: usize = 290;
+
+const INTERSECTIONS: [InterGuide; 8] = [
+    InterGuide {
+        id_0: BODY_ID,
+        id_1: LEFT_SHIELD_ID,
+        guide: point![0.0, 1.0, 3.0],
+    },
+    InterGuide {
+        id_0: BODY_ID,
+        id_1: RIGHT_SHIELD_ID,
+        guide: point![0.0, 1.0, 1.0],
+    },
+    InterGuide {
+        id_0: LEFT_SHIELD_ID,
+        id_1: LEFT_SCREW_ID,
+        guide: point![0.0, 1.0, 3.5],
+    },
+    InterGuide {
+        id_0: RIGHT_SHIELD_ID,
+        id_1: RIGHT_SCREW_ID,
+        guide: point![0.0, 1.0, 1.5],
+    },
+    InterGuide {
+        id_0: BODY_ID,
+        id_1: LEFT_SHACKLE_ID,
+        guide: point![-1.0, 0.0, 4.0],
+    },
+    InterGuide {
+        id_0: BODY_ID,
+        id_1: LEFT_SHACKLE_ID,
+        guide: point![-1.0, 0.0, 3.0],
+    },
+    InterGuide {
+        id_0: BODY_ID,
+        id_1: RIGHT_SHACKLE_ID,
+        guide: point![-1.0, 0.0, 2.0],
+    },
+    InterGuide {
+        id_0: BODY_ID,
+        id_1: RIGHT_SHACKLE_ID,
+        guide: point![-1.0, 0.0, 1.0],
+    },
+];
+
+const HOLE_INTERSECTIONS: [InterPlaneGuide; 2] = [
+    InterPlaneGuide {
+        id: LEFT_SHACKLE_ID,
+        guide: point![-1.5, 0.0, 3.5],
+    },
+    InterPlaneGuide {
+        id: RIGHT_SHACKLE_ID,
+        guide: point![-1.5, 0.0, 1.5],
+    },
+];
+
 pub struct Model {
-    surfaces: Vec<Box<dyn DifferentialParametricForm<2, 3>>>,
+    pub surfaces: HashMap<usize, Box<dyn DifferentialParametricForm<2, 3>>>,
 }
 
 impl Model {
-    pub fn new(surfaces: Vec<Box<dyn DifferentialParametricForm<2, 3>>>) -> Self {
-        Self { surfaces }
+    pub fn new(surfaces: Vec<Box<dyn DifferentialParametricForm<2, 3>>>, ids: Vec<usize>) -> Self {
+        Self {
+            surfaces: HashMap::from_iter(ids.into_iter().zip(surfaces)),
+        }
     }
 
     pub fn sampled_block(&self) -> Block {
@@ -57,7 +123,7 @@ impl Model {
             }
         }
 
-        for surface in &self.surfaces {
+        for surface in self.surfaces.values() {
             let bounds = surface.bounds();
             let u_step = (bounds.x.1 - bounds.x.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
             let v_step = (bounds.y.1 - bounds.y.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
@@ -90,19 +156,16 @@ impl Model {
     }
 
     pub fn silhouette(&self) -> Option<Intersection> {
-        let plane = XZPlane::new(
-            Point3::from_slice(&PLANE_CENTER) - vector![PLANE_SIZE / 2.0, 0.0, PLANE_SIZE / 2.0],
-            vector![PLANE_SIZE, PLANE_SIZE],
-        );
+        let plane = Self::plane();
 
         let mut intersections = self
             .surfaces
-            .iter()
+            .values()
             .filter_map(|s| {
                 let mut finder = IntersectionFinder::new(&plane, s.as_ref());
                 finder.numerical_step = NUMERICAL_STEP;
                 finder.intersection_step = INTERSECTION_STEP;
-                finder.guide_point = Some(Point3::from_slice(&GUIDE_POINT));
+                finder.guide_point = Some(SILHOUETTE_GUIDE_POINT);
                 finder.find()
             })
             .collect_vec();
@@ -112,13 +175,62 @@ impl Model {
 
         intersections
             .into_iter()
-            .reduce(looped_outer_intersection_sum)
+            .reduce(|x, y| looped_outer_intersection_sum(x, y, false, false))
+    }
+
+    pub fn find_model_intersections(&self) -> [Intersection; INTERSECTIONS.len()] {
+        INTERSECTIONS.map(|ig| {
+            let mut finder = IntersectionFinder::new(
+                self.surfaces[&ig.id_0].as_ref(),
+                self.surfaces[&ig.id_1].as_ref(),
+            );
+            finder.numerical_step = NUMERICAL_STEP;
+            finder.intersection_step = INTERSECTION_STEP;
+            finder.guide_point = Some(ig.guide);
+            let err = format!(
+                "Intersection between {} and {} not found!",
+                ig.id_0, ig.id_1
+            );
+            finder.find().expect(&err)
+        })
+    }
+
+    pub fn find_plane_intersections(&self) -> [Intersection; HOLE_INTERSECTIONS.len()] {
+        let plane = Self::plane();
+        let mut finder = IntersectionFinder::new(&plane, self.surfaces[&BODY_ID].as_ref());
+        finder.numerical_step = NUMERICAL_STEP;
+        finder.intersection_step = INTERSECTION_STEP;
+        finder.guide_point = Some(SILHOUETTE_GUIDE_POINT);
+        let mut body_inter = finder
+            .find()
+            .expect("Could not find intersection of the main body with the plane");
+        body_inter.reverse();
+
+        HOLE_INTERSECTIONS.map(|ig| {
+            let mut finder = IntersectionFinder::new(&plane, self.surfaces[&ig.id].as_ref());
+            finder.numerical_step = NUMERICAL_STEP;
+            finder.intersection_step = INTERSECTION_STEP;
+            finder.guide_point = Some(ig.guide);
+            let err = format!("Intersection between {} and the plane not found!", ig.id);
+            let inter = finder.find().expect(&err);
+            looped_outer_intersection_sum(inter, body_inter.clone(), true, true)
+        })
+    }
+
+    pub fn plane() -> XZPlane {
+        XZPlane::new(
+            Point3::from_slice(&PLANE_CENTER) - vector![PLANE_SIZE / 2.0, 0.0, PLANE_SIZE / 2.0],
+            vector![PLANE_SIZE, PLANE_SIZE],
+        )
     }
 }
 
+/// intersections have to be calculated with XZPlane as surface_0
 fn looped_outer_intersection_sum(
     inter_current: Intersection,
     inter_second: Intersection,
+    start_in_the_middle: bool,
+    constant_direction: bool,
 ) -> Intersection {
     // To avoid KdTree lumping all points on one axis
     let perturbation = Rotation2::new(PERTURBATION);
@@ -132,9 +244,15 @@ fn looped_outer_intersection_sum(
 
     let mut sum_points =
         Vec::with_capacity(inter_current.points.capacity() + inter_second.points.capacity());
-    sum_points.push(inter_current.points[0]);
-    sum_points.push(inter_current.points[1]);
-    let mut current_idx = INTERSECTION_SUM_START_POINT as i64 + 2;
+
+    let mut current_idx = if start_in_the_middle {
+        inter_current.points.len() as i64 / 2
+    } else {
+        0
+    } + 2;
+    sum_points.push(inter_current.points[current_idx as usize - 2]);
+    sum_points.push(inter_current.points[current_idx as usize - 1]);
+
     let mut idx_step = 1;
     let mut found_intersection = false;
     let mut last_found = INTER_COOLDOWN;
@@ -162,7 +280,7 @@ fn looped_outer_intersection_sum(
             let neigh_dir = inter_second.points[neighbour.1].surface_0
                 - inter_second.points[neighbour.1 - 1].surface_0;
 
-            idx_step = if Vector2::dot(&neigh_dir, &normal) < 0.0 {
+            idx_step = if constant_direction || Vector2::dot(&neigh_dir, &normal) < 0.0 {
                 1
             } else {
                 -1
