@@ -261,7 +261,7 @@ fn flat_partition_path_pair(
             })
             .max()
             .map(|p| approach.as_f32() * p)
-            .unwrap_or(NotNan::new(0.0).unwrap())
+            .unwrap_or(-NotNan::new(5.0).unwrap() * approach.as_f32())
             + *approach as f32 * CUTTER_RADIUS_FLAT * CUTTER_SAFE_DISTANCE_MULTIPLIER;
 
         locs.push(vector![*x_limit, *y_interpol as f32, BASE_HEIGHT]);
@@ -272,19 +272,19 @@ fn flat_partition_path_pair(
 
 fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
     let len = silhouette.points.len();
+    let mut locs = silhouette
+        .points
+        .iter()
+        .map(|p| p.point.xz())
+        .cycle()
+        .skip(len / 2) // Model-specific things -- start from the other side
+        .take(len + SAFE_CONTOUR_ADD) // make sure that the whole silhouette is cut with cutter moving
+        .tuple_windows()
+        .filter_map(|(a, b)| cutter_at_inter_base::<false>(CUTTER_RADIUS_FLAT, a, b))
+        .collect();
+    clean_cutter_at_inter_base(&mut locs);
 
-    Some(
-        silhouette
-            .points
-            .iter()
-            .map(|p| p.point.xz())
-            .cycle()
-            .skip(len / 2) // Model-specific things -- start from the other side
-            .take(len + SAFE_CONTOUR_ADD) // make sure that the whole silhouette is cut with cutter moving
-            .tuple_windows()
-            .filter_map(|(a, b)| cutter_at_inter_base::<false>(CUTTER_RADIUS_FLAT, a, b))
-            .collect(),
-    )
+    Some(locs)
 }
 
 fn btree_closest(
