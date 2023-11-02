@@ -1,7 +1,4 @@
-use super::{
-    model::{Model, BLOCK_SIZE, INTERSECTION_STEP, MODEL_SCALE, PLANE_CENTER},
-    utils::*,
-};
+use super::model::{Model, BLOCK_SIZE, INTERSECTION_STEP, MODEL_SCALE, PLANE_CENTER};
 use crate::{
     cnc::{
         block::Block,
@@ -17,6 +14,7 @@ use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 
 const SAFE_CONTOUR_ADD: usize = 3;
+const INTERSECTION_IN_BLOCK: f32 = INTERSECTION_STEP as f32 * MODEL_SCALE;
 
 const SAFE_HEIGHT: f32 = 66.0;
 const CUTTER_DIAMETER_ROUGH: f32 = 16.0;
@@ -31,6 +29,7 @@ const FLAT_EPS: f32 = 0.1 * CUTTER_RADIUS_FLAT;
 
 const CUTTER_DIAMETER_DETAIL: f32 = 8.0;
 const CUTTER_RADIUS_DETAIL: f32 = 0.5 * CUTTER_DIAMETER_DETAIL;
+const HOLE_NET_SAFE_DIST: f32 = CUTTER_RADIUS_DETAIL * 0.3;
 
 pub fn rough(model: &Model) -> cncp::Program {
     const UPPER_PLANE_HEIGHT: f32 = 35.0;
@@ -338,24 +337,75 @@ fn grill(model: &Model) -> Vec<Vector3<f32>> {
         first_high.z = SAFE_HEIGHT;
         locs.push(first_high);
 
-        let len = hole.points.len();
-        let mut points = hole
-            .points
-            .iter()
-            .map(|p| p.point.xz())
-            .cycle()
-            .take(len + SAFE_CONTOUR_ADD) // + 3 to make sure that the whole hole
-            .tuple_windows()
-            .filter_map(|(a, b)| cutter_at_inter_base::<true>(CUTTER_RADIUS_DETAIL, a, b))
-            .collect();
+        let contour = grill_contour(&hole);
 
-        clean_cutter_at_inter_base(&mut points);
-
-        locs.extend(points);
+        locs.extend(grill_net(&contour));
+        locs.extend(
+            grill_net(&contour.iter().map(|p| p.yxz()).collect_vec())
+                .iter()
+                .map(|p| p.yxz()),
+        );
+        locs.extend(contour);
 
         let mut last_high = *locs.last().unwrap();
         last_high.z = SAFE_HEIGHT;
         locs.push(last_high);
+    }
+
+    locs
+}
+
+fn grill_contour(hole: &Intersection) -> Vec<Vector3<f32>> {
+    let len = hole.points.len();
+    let mut points = hole
+        .points
+        .iter()
+        .map(|p| p.point.xz())
+        .cycle()
+        .take(len + SAFE_CONTOUR_ADD) // + 3 to make sure that the whole hole
+        .tuple_windows()
+        .filter_map(|(a, b)| cutter_at_inter_base::<true>(CUTTER_RADIUS_DETAIL, a, b))
+        .collect();
+
+    clean_cutter_at_inter_base(&mut points);
+    points
+}
+
+fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
+    let mut locs = Vec::new();
+
+    let x_map: BTreeMap<_, _> = contour
+        .iter()
+        .map(|p| (NotNan::new(p.x).unwrap(), p.y))
+        .collect();
+
+    let (&min_x, _) = x_map.first_key_value().unwrap();
+    let (&max_x, _) = x_map.last_key_value().unwrap();
+    let span = (min_x - max_x).abs();
+    let paths = (2.0 * span / CUTTER_RADIUS_DETAIL).ceil() as i32;
+    let x_step = span / paths as f32;
+
+    let mut x = min_x + HOLE_NET_SAFE_DIST;
+    for i in 0..paths {
+        let max_y = x_map
+            .range(x - INTERSECTION_IN_BLOCK..x + INTERSECTION_IN_BLOCK)
+            .map(|(_, v)| *v)
+            .fold(-f32::INFINITY, f32::max);
+
+        let min_y = x_map
+            .range(x - INTERSECTION_IN_BLOCK..x + INTERSECTION_IN_BLOCK)
+            .map(|(_, v)| *v)
+            .fold(f32::INFINITY, f32::min);
+
+        if i % 2 == 0 {
+            locs.push(vector![*x, min_y + HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
+            locs.push(vector![*x, max_y - HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
+        } else {
+            locs.push(vector![*x, max_y - HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
+            locs.push(vector![*x, min_y + HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
+        }
+
+        x += x_step;
     }
 
     locs
