@@ -19,7 +19,7 @@ const PLANE_SIZE: f64 = 7.0;
 pub const PLANE_CENTER: [f64; 3] = [0.0, 0.0, 2.5];
 
 const NUMERICAL_STEP: f64 = 0.005;
-const INTERSECTION_STEP: f64 = 0.01;
+pub const INTERSECTION_STEP: f64 = 0.01;
 const KDTREE_SEARCH_RADIUS: f64 = INTERSECTION_STEP * 5.0;
 const SILHOUETTE_GUIDE_POINT: Point3<f64> = point![-2.0, 0.0, 2.5];
 const INTERSECTION_SUM_START_POINT: usize = 0;
@@ -195,7 +195,7 @@ impl Model {
         })
     }
 
-    pub fn find_plane_intersections(&self) -> [Intersection; HOLE_INTERSECTIONS.len()] {
+    pub fn find_holes(&self) -> [Intersection; HOLE_INTERSECTIONS.len()] {
         let plane = Self::plane();
         let mut finder = IntersectionFinder::new(&plane, self.surfaces[&BODY_ID].as_ref());
         finder.numerical_step = NUMERICAL_STEP;

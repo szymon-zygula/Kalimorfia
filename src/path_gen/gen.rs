@@ -1,5 +1,5 @@
 use super::{
-    model::{Model, BLOCK_SIZE, MODEL_SCALE, PLANE_CENTER},
+    model::{Model, BLOCK_SIZE, INTERSECTION_STEP, MODEL_SCALE, PLANE_CENTER},
     utils::*,
 };
 use crate::{
@@ -11,10 +11,12 @@ use crate::{
     math::geometry::intersection::{Intersection, IntersectionPoint},
 };
 use itertools::Itertools;
-use nalgebra::{vector, Vector3};
+use nalgebra::{vector, Point2, Vector2, Vector3};
 use ordered_float::NotNan;
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+
+const SAFE_CONTOUR_ADD: usize = 3;
 
 const SAFE_HEIGHT: f32 = 66.0;
 const CUTTER_DIAMETER_ROUGH: f32 = 16.0;
@@ -26,6 +28,9 @@ const CUTTER_DIAMETER_FLAT: f32 = 10.0;
 const CUTTER_RADIUS_FLAT: f32 = 0.5 * CUTTER_DIAMETER_FLAT;
 const CUTTER_HEIGHT_FLAT: f32 = 4.0 * CUTTER_DIAMETER_FLAT;
 const FLAT_EPS: f32 = 0.1 * CUTTER_RADIUS_FLAT;
+
+const CUTTER_DIAMETER_DETAIL: f32 = 8.0;
+const CUTTER_RADIUS_DETAIL: f32 = 0.5 * CUTTER_DIAMETER_DETAIL;
 
 pub fn rough(model: &Model) -> cncp::Program {
     const UPPER_PLANE_HEIGHT: f32 = 35.0;
@@ -276,22 +281,9 @@ fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
             .map(|p| p.point.xz())
             .cycle()
             .skip(len / 2) // Model-specific things -- start from the other side
-            .take(len + 3) // + 3 to make sure that the whole silhouette is cut with cutter moving
+            .take(len + SAFE_CONTOUR_ADD) // make sure that the whole silhouette is cut with cutter moving
             .tuple_windows()
-            .filter_map(|(a, b)| {
-                if a == b {
-                    return None;
-                }
-
-                let center = vector![
-                    ((a.x + b.x) * 0.5 - PLANE_CENTER[0]) as f32 * MODEL_SCALE,
-                    ((a.y + b.y) * 0.5 - PLANE_CENTER[2]) as f32 * MODEL_SCALE,
-                    BASE_HEIGHT
-                ];
-                let normal = vector![(-a.y + b.y) as f32, (a.x - b.x) as f32, 0.0].normalize()
-                    * CUTTER_RADIUS_FLAT;
-                Some(center + normal)
-            })
+            .filter_map(|(a, b)| cutter_at_inter_base::<false>(CUTTER_RADIUS_FLAT, a, b))
             .collect(),
     )
 }
@@ -322,6 +314,7 @@ pub fn detail(model: &Model) -> cncp::Program {
     const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER;
 
     let mut locs = initial_locations();
+    locs.extend(grill(model));
     add_ending_locs(&mut locs);
 
     cncp::Program::from_locations(
@@ -332,6 +325,108 @@ pub fn detail(model: &Model) -> cncp::Program {
             shape: CutterShape::Ball,
         },
     )
+}
+
+fn grill(model: &Model) -> Vec<Vector3<f32>> {
+    let mut locs = Vec::new();
+    let holes = model.find_holes();
+
+    for hole in holes {
+        let p0 = hole.points[0].point.xz();
+        let p1 = hole.points[1].point.xz();
+        let mut first_high = cutter_at_inter_base::<true>(CUTTER_RADIUS_DETAIL, p0, p1).unwrap();
+        first_high.z = SAFE_HEIGHT;
+        locs.push(first_high);
+
+        let len = hole.points.len();
+        let mut points = hole
+            .points
+            .iter()
+            .map(|p| p.point.xz())
+            .cycle()
+            .take(len + SAFE_CONTOUR_ADD) // + 3 to make sure that the whole hole
+            .tuple_windows()
+            .filter_map(|(a, b)| cutter_at_inter_base::<true>(CUTTER_RADIUS_DETAIL, a, b))
+            .collect();
+
+        clean_cutter_at_inter_base(&mut points);
+
+        locs.extend(points);
+
+        let mut last_high = *locs.last().unwrap();
+        last_high.z = SAFE_HEIGHT;
+        locs.push(last_high);
+    }
+
+    locs
+}
+
+fn cutter_at_inter_base<const INV_NORM: bool>(
+    radius: f32,
+    a: Point2<f64>,
+    b: Point2<f64>,
+) -> Option<Vector3<f32>> {
+    if a == b {
+        return None;
+    }
+
+    let center = vector![
+        ((a.x + b.x) * 0.5 - PLANE_CENTER[0]) as f32 * MODEL_SCALE,
+        ((a.y + b.y) * 0.5 - PLANE_CENTER[2]) as f32 * MODEL_SCALE,
+        BASE_HEIGHT
+    ];
+    let mut normal = vector![(-a.y + b.y) as f32, (a.x - b.x) as f32, 0.0].normalize() * radius;
+
+    if INV_NORM {
+        normal = -normal;
+    }
+
+    Some(center + normal)
+}
+
+fn clean_cutter_at_inter_base(vec: &mut Vec<Vector3<f32>>) {
+    let mut hashmap = HashMap::new();
+    let mut cut_ranges = Vec::new();
+
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..vec.len() - SAFE_CONTOUR_ADD {
+        let cur_round = round_vec(&vec[i]);
+        let prev = hashmap.get(&cur_round);
+
+        if let Some(&previous) = prev {
+            // Assume that 0 is always a correct point to
+            if i - previous < 4 || previous == 0 {
+                *hashmap.get_mut(&cur_round).unwrap() = i;
+            } else {
+                cut_ranges.push(previous..i);
+            }
+        } else {
+            hashmap.insert(cur_round, i);
+        }
+    }
+
+    let mut i = 0;
+    let mut j = 0;
+    while j < vec.len() {
+        if cut_ranges.iter().any(|r| r.contains(&j)) {
+            j += 1;
+            continue;
+        }
+
+        vec[i] = vec[j];
+        i += 1;
+        j += 1;
+    }
+
+    vec.resize(i, vector![0.0, 0.0, 0.0]);
+}
+
+fn round_vec(vec: &Vector3<f32>) -> Vector2<i32> {
+    const ROUND_POWER: f32 = 0.03 / INTERSECTION_STEP as f32;
+    vector![
+        (vec.x * ROUND_POWER).round() as i32,
+        (vec.y * ROUND_POWER).round() as i32
+    ]
 }
 
 pub fn signa(model: &Model) -> cncp::Program {

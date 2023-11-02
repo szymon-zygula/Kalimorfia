@@ -125,7 +125,7 @@ fn test_intersections(state: &mut State, control: &mut MainControl) {
 
 fn test_holes(state: &mut State, control: &mut MainControl) {
     let model = get_model(state, control);
-    for intersection in model.find_plane_intersections() {
+    for intersection in model.find_holes() {
         control.add_intersection_curve(state, intersection);
     }
 }
