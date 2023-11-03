@@ -124,7 +124,7 @@ impl<'f> DifferentiableScalarFunction<2> for SurfacePointL2DistanceSquared<'f> {
 pub struct IntersectionStepFunction<'f> {
     surface_0: &'f dyn DifferentialParametricForm<2, 3>,
     surface_1: &'f dyn DifferentialParametricForm<2, 3>,
-    common_point: Point3<f64>,
+    last_common_point: Point3<f64>,
     direction: Vector3<f64>,
     step: f64,
 }
@@ -133,14 +133,14 @@ impl<'f> IntersectionStepFunction<'f> {
     pub fn new(
         surface_0: &'f dyn DifferentialParametricForm<2, 3>,
         surface_1: &'f dyn DifferentialParametricForm<2, 3>,
-        common_point: Point3<f64>,
+        last_common_point: Point3<f64>,
         direction: Vector3<f64>,
         step: f64,
     ) -> Self {
         Self {
             surface_0,
             surface_1,
-            common_point,
+            last_common_point,
             direction,
             step,
         }
@@ -170,7 +170,7 @@ impl<'f> DifferentialParametricForm<4, 4> for IntersectionStepFunction<'f> {
 
         let midpoint = point_avg(surface_0_val, surface_1_val);
         let displacement_projection_length =
-            Vector3::dot(&(midpoint - self.common_point), &self.direction) - self.step;
+            Vector3::dot(&(midpoint - self.last_common_point), &self.direction) - self.step;
 
         point![
             surface_diff.x,

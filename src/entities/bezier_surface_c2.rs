@@ -12,9 +12,11 @@ use crate::{
     },
     math::geometry::{
         bezier::{deboor_surface_to_bernstein, BezierSurface},
+        gridable::Gridable,
         parametric_form::DifferentialParametricForm,
-        surfaces::SurfaceC2,
+        surfaces::{ShiftedSurface, SurfaceC2},
     },
+    primitives::color::Color,
     render::{
         bezier_surface_mesh::BezierSurfaceMesh, gl_drawable::GlDrawable, gl_texture::GlTexture,
         mesh::LinesMesh, shader_manager::ShaderManager, texture::Texture,
@@ -36,11 +38,13 @@ pub struct BezierSurfaceC2<'gl> {
     gl: &'gl glow::Context,
 
     mesh: BezierSurfaceMesh<'gl>,
+    shifted_mesh: LinesMesh<'gl>,
     deboor_polygon_mesh: LinesMesh<'gl>,
     bernstein_polygon_mesh: LinesMesh<'gl>,
 
     draw_deboor_polygon: bool,
     draw_bernstein_polygon: bool,
+    draw_shifted: bool,
 
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
@@ -76,6 +80,8 @@ impl<'gl> BezierSurfaceC2<'gl> {
         let mut s = Self {
             gl,
             mesh: BezierSurfaceMesh::empty(gl),
+            shifted_mesh: LinesMesh::empty(gl),
+            draw_shifted: false,
             deboor_polygon_mesh: LinesMesh::empty(gl),
             bernstein_polygon_mesh: LinesMesh::empty(gl),
             points,
@@ -121,6 +127,16 @@ impl<'gl> BezierSurfaceC2<'gl> {
         points
     }
 
+    fn recalc_shifted_mesh(&mut self) {
+        const SHIFT: f64 = 0.1;
+        const RES: u32 = 30;
+        let shifted = ShiftedSurface::new(&self.surface, SHIFT);
+
+        let (vertices, indices) = shifted.grid(RES, RES);
+        self.shifted_mesh =
+            LinesMesh::new(self.gl, vertices.iter().map(|p| p.point).collect(), indices);
+    }
+
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
         let wrapped_points = self.wrapped_points();
         let deboor_points = point_ids_to_f64(&wrapped_points, entities);
@@ -138,6 +154,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
 
         let deboor_grid = create_grid(&self.points, entities, self.is_cylinder);
         self.deboor_polygon_mesh = grid_mesh(self.gl, &deboor_grid);
+        self.recalc_shifted_mesh();
     }
 
     fn u_patches(&self) -> usize {
@@ -233,6 +250,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
         self.name_control_ui(ui);
         ui.checkbox("Draw de Boor polygon", &mut self.draw_deboor_polygon);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
+        ui.checkbox("Draw shifted surface", &mut self.draw_shifted);
         ui.checkbox("GK2 mode", &mut self.gk_mode);
 
         if self.gk_mode {
@@ -243,12 +261,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
         }
 
         self.intersection_texture.control_ui(ui);
-
-        if self.wireframe {
-            self.mesh.wireframe = true;
-        } else {
-            self.mesh.wireframe = false;
-        }
+        self.mesh.wireframe = self.wireframe;
 
         ControlResult::default()
     }
@@ -318,6 +331,20 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
                 premul,
                 draw_type,
             );
+        }
+
+        if self.draw_shifted {
+            let program = self.shader_manager.program("spline");
+            program.enable();
+            program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+            program
+                .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+            program.uniform_matrix_4_f32_slice(
+                "projection_transform",
+                camera.projection_transform().as_slice(),
+            );
+            program.uniform_color("vertex_color", &Color::lblue());
+            self.shifted_mesh.draw();
         }
     }
 }

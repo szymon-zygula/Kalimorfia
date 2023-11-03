@@ -11,10 +11,15 @@ use crate::{
         utils,
     },
     graph::C0Edge,
-    math::geometry::{parametric_form::DifferentialParametricForm, surfaces::SurfaceC0},
+    math::geometry::{
+        gridable::Gridable,
+        parametric_form::DifferentialParametricForm,
+        surfaces::{ShiftedSurface, SurfaceC0},
+    },
+    primitives::color::Color,
     render::{
-        bezier_surface_mesh::BezierSurfaceMesh, mesh::LinesMesh, shader_manager::ShaderManager,
-        texture::Texture,
+        bezier_surface_mesh::BezierSurfaceMesh, gl_drawable::GlDrawable, mesh::LinesMesh,
+        shader_manager::ShaderManager, texture::Texture,
     },
     repositories::NameRepository,
 };
@@ -31,9 +36,11 @@ pub struct BezierSurfaceC0<'gl> {
     gl: &'gl glow::Context,
 
     mesh: BezierSurfaceMesh<'gl>,
+    shifted_mesh: LinesMesh<'gl>,
     bernstein_polygon_mesh: LinesMesh<'gl>,
 
     draw_bernstein_polygon: bool,
+    draw_shifted: bool,
 
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
@@ -63,9 +70,11 @@ impl<'gl> BezierSurfaceC0<'gl> {
         let mut surface = Self {
             gl,
             mesh: BezierSurfaceMesh::empty(gl),
+            shifted_mesh: LinesMesh::empty(gl),
             points,
             bernstein_polygon_mesh: grid_mesh(gl, bezier_surface.grid()),
             draw_bernstein_polygon: false,
+            draw_shifted: false,
             name: ChangeableName::new("Bezier Surface C0", name_repo),
             intersection_texture: IntersectionTexture::empty(gl, is_cylinder, false),
             shader_manager,
@@ -79,12 +88,23 @@ impl<'gl> BezierSurfaceC0<'gl> {
         surface
     }
 
+    fn recalc_shifted_mesh(&mut self) {
+        const SHIFT: f64 = 0.1;
+        const RES: u32 = 30;
+        let shifted = ShiftedSurface::new(&self.surface, SHIFT);
+
+        let (vertices, indices) = shifted.grid(RES, RES);
+        self.shifted_mesh =
+            LinesMesh::new(self.gl, vertices.iter().map(|p| p.point).collect(), indices);
+    }
+
     fn recalculate_mesh(&mut self, entities: &EntityCollection<'gl>) {
         let bezier_surface = create_bezier_surface(&self.points, entities, self.is_cylinder);
         self.surface =
             SurfaceC0::from_bezier_surface(bezier_surface.clone(), self.is_cylinder, false);
         self.mesh = BezierSurfaceMesh::new(self.gl, bezier_surface.clone());
         self.bernstein_polygon_mesh = grid_mesh(self.gl, bezier_surface.grid());
+        self.recalc_shifted_mesh();
     }
 
     fn u_patches(&self) -> usize {
@@ -238,6 +258,7 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
         let _token = ui.push_id(self.name());
         self.name_control_ui(ui);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
+        ui.checkbox("Draw shifted surface", &mut self.draw_shifted);
 
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
@@ -297,6 +318,20 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
                 premul,
                 draw_type,
             );
+        }
+
+        if self.draw_shifted {
+            let program = self.shader_manager.program("spline");
+            program.enable();
+            program.uniform_matrix_4_f32_slice("model_transform", premul.as_slice());
+            program
+                .uniform_matrix_4_f32_slice("view_transform", camera.view_transform().as_slice());
+            program.uniform_matrix_4_f32_slice(
+                "projection_transform",
+                camera.projection_transform().as_slice(),
+            );
+            program.uniform_color("vertex_color", &Color::lblue());
+            self.shifted_mesh.draw();
         }
     }
 }

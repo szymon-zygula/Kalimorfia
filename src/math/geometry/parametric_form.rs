@@ -15,6 +15,14 @@ pub trait DifferentialParametricForm<const IN_DIM: usize, const OUT_DIM: usize> 
     fn wrapped(&self, dim: usize) -> bool;
     fn value(&self, vec: &SVector<f64, IN_DIM>) -> Point<f64, OUT_DIM>;
     fn jacobian(&self, vec: &SVector<f64, IN_DIM>) -> SMatrix<f64, OUT_DIM, IN_DIM>;
+    fn hessian(
+        &self,
+        _vec: &SVector<f64, IN_DIM>,
+        _var_0: usize,
+        _var_1: usize,
+    ) -> SVector<f64, OUT_DIM> {
+        unimplemented!("Hessian not implemented for a differential parametric form");
+    }
 
     fn parameter_distance(
         &self,
