@@ -36,6 +36,7 @@ pub struct BezierSurfaceC0<'gl> {
     gl: &'gl glow::Context,
 
     mesh: BezierSurfaceMesh<'gl>,
+    shifted_dist: f64,
     shifted_mesh: LinesMesh<'gl>,
     bernstein_polygon_mesh: LinesMesh<'gl>,
 
@@ -71,6 +72,7 @@ impl<'gl> BezierSurfaceC0<'gl> {
             gl,
             mesh: BezierSurfaceMesh::empty(gl),
             shifted_mesh: LinesMesh::empty(gl),
+            shifted_dist: 0.1,
             points,
             bernstein_polygon_mesh: grid_mesh(gl, bezier_surface.grid()),
             draw_bernstein_polygon: false,
@@ -89,9 +91,8 @@ impl<'gl> BezierSurfaceC0<'gl> {
     }
 
     fn recalc_shifted_mesh(&mut self) {
-        const SHIFT: f64 = 0.1;
         const RES: u32 = 30;
-        let shifted = ShiftedSurface::new(&self.surface, SHIFT);
+        let shifted = ShiftedSurface::new(&self.surface, self.shifted_dist);
 
         let (vertices, indices) = shifted.grid(RES, RES);
         self.shifted_mesh =
@@ -260,6 +261,10 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC0<'gl> {
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
         ui.checkbox("Draw shifted surface", &mut self.draw_shifted);
 
+        if ui.slider("Shifted distance", -1.0, 1.0, &mut self.shifted_dist) {
+            self.recalc_shifted_mesh();
+        }
+
         uv_subdivision_ui(ui, &mut self.u_patch_divisions, &mut self.v_patch_divisions);
 
         self.intersection_texture.control_ui(ui);
@@ -330,7 +335,7 @@ impl<'gl> Drawable for BezierSurfaceC0<'gl> {
                 "projection_transform",
                 camera.projection_transform().as_slice(),
             );
-            program.uniform_color("vertex_color", &Color::lblue());
+            program.uniform_color("vertex_color", &Color::lime());
             self.shifted_mesh.draw();
         }
     }

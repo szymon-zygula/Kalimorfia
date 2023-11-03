@@ -45,6 +45,7 @@ pub struct BezierSurfaceC2<'gl> {
     draw_deboor_polygon: bool,
     draw_bernstein_polygon: bool,
     draw_shifted: bool,
+    shifted_dist: f64,
 
     points: Vec<Vec<usize>>,
     shader_manager: Rc<ShaderManager<'gl>>,
@@ -78,6 +79,7 @@ impl<'gl> BezierSurfaceC2<'gl> {
         let is_cylinder = matches!(args, BezierSurfaceArgs::Cylinder(..));
         let [displacement_texture, color_texture, normal_texture] = Self::load_textures(gl);
         let mut s = Self {
+            shifted_dist: 0.1,
             gl,
             mesh: BezierSurfaceMesh::empty(gl),
             shifted_mesh: LinesMesh::empty(gl),
@@ -128,9 +130,8 @@ impl<'gl> BezierSurfaceC2<'gl> {
     }
 
     fn recalc_shifted_mesh(&mut self) {
-        const SHIFT: f64 = 0.1;
         const RES: u32 = 30;
-        let shifted = ShiftedSurface::new(&self.surface, SHIFT);
+        let shifted = ShiftedSurface::new(&self.surface, self.shifted_dist);
 
         let (vertices, indices) = shifted.grid(RES, RES);
         self.shifted_mesh =
@@ -251,6 +252,11 @@ impl<'gl> ReferentialEntity<'gl> for BezierSurfaceC2<'gl> {
         ui.checkbox("Draw de Boor polygon", &mut self.draw_deboor_polygon);
         ui.checkbox("Draw Bernstein polygon", &mut self.draw_bernstein_polygon);
         ui.checkbox("Draw shifted surface", &mut self.draw_shifted);
+
+        if ui.slider("Shifted distance", -1.0, 1.0, &mut self.shifted_dist) {
+            self.recalc_shifted_mesh();
+        }
+
         ui.checkbox("GK2 mode", &mut self.gk_mode);
 
         if self.gk_mode {
@@ -343,7 +349,7 @@ impl<'gl> Drawable for BezierSurfaceC2<'gl> {
                 "projection_transform",
                 camera.projection_transform().as_slice(),
             );
-            program.uniform_color("vertex_color", &Color::lblue());
+            program.uniform_color("vertex_color", &Color::lime());
             self.shifted_mesh.draw();
         }
     }

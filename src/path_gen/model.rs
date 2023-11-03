@@ -1,11 +1,11 @@
-use super::utils::*;
+use super::{gen::CUTTER_RADIUS_DETAIL, utils::*};
 use crate::{
     cnc::block::Block,
     math::{
         geometry::{
             intersection::{Intersection, IntersectionFinder},
             parametric_form::DifferentialParametricForm,
-            surfaces::XZPlane,
+            surfaces::{ShiftedSurface, XZPlane},
         },
         utils::vec_64_to_32,
     },
@@ -47,41 +47,57 @@ const INTERSECTIONS: [InterGuide; 8] = [
         id_0: BODY_ID,
         id_1: LEFT_SHIELD_ID,
         guide: point![0.0, 1.0, 3.0],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: RIGHT_SHIELD_ID,
         guide: point![0.0, 1.0, 1.0],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: LEFT_SHIELD_ID,
         id_1: LEFT_SCREW_ID,
         guide: point![0.0, 1.0, 3.5],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: -1.0,
     },
     InterGuide {
         id_0: RIGHT_SHIELD_ID,
         id_1: RIGHT_SCREW_ID,
         guide: point![0.0, 1.0, 1.5],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: -1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: LEFT_SHACKLE_ID,
         guide: point![-1.0, 0.0, 4.0],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: LEFT_SHACKLE_ID,
         guide: point![-1.0, 0.0, 3.0],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: RIGHT_SHACKLE_ID,
         guide: point![-1.0, 0.0, 2.0],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: RIGHT_SHACKLE_ID,
         guide: point![-1.0, 0.0, 1.0],
+        shifted_sign_0: 1.0,
+        shifted_sign_1: 1.0,
     },
 ];
 
@@ -179,10 +195,16 @@ impl Model {
 
     pub fn find_model_intersections(&self) -> [Intersection; INTERSECTIONS.len()] {
         INTERSECTIONS.map(|ig| {
-            let mut finder = IntersectionFinder::new(
+            let shifted_0 = ShiftedSurface::new(
                 self.surfaces[&ig.id_0].as_ref(),
-                self.surfaces[&ig.id_1].as_ref(),
+                ig.shifted_sign_0 * (CUTTER_RADIUS_DETAIL / MODEL_SCALE) as f64,
             );
+            let shifted_1 = ShiftedSurface::new(
+                self.surfaces[&ig.id_1].as_ref(),
+                ig.shifted_sign_1 * (CUTTER_RADIUS_DETAIL / MODEL_SCALE) as f64,
+            );
+
+            let mut finder = IntersectionFinder::new(&shifted_0, &shifted_1);
             finder.numerical_step = NUMERICAL_STEP;
             finder.intersection_step = INTERSECTION_STEP;
             finder.guide_point = Some(ig.guide);
