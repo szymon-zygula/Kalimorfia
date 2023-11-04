@@ -1,4 +1,4 @@
-use super::model::{Model, BLOCK_SIZE, INTERSECTION_STEP, MODEL_SCALE, PLANE_CENTER};
+use super::model::*;
 use crate::{
     cnc::{
         block::Block,
@@ -6,7 +6,11 @@ use crate::{
         program as cncp,
     },
     math::{
-        geometry::intersection::{Intersection, IntersectionPoint},
+        geometry::{
+            intersection::{Intersection, IntersectionPoint},
+            parametric_form::DifferentialParametricForm,
+            surfaces::ShiftedSurface,
+        },
         utils::vec_64_to_32,
     },
 };
@@ -19,7 +23,7 @@ use std::collections::{BTreeMap, HashMap};
 const SAFE_CONTOUR_ADD: usize = 3;
 const INTERSECTION_IN_BLOCK: f32 = INTERSECTION_STEP as f32 * MODEL_SCALE;
 
-const SAFE_HEIGHT: f32 = 66.0;
+pub const SAFE_HEIGHT: f32 = 66.0;
 const CUTTER_DIAMETER_ROUGH: f32 = 16.0;
 const CUTTER_RADIUS_ROUGH: f32 = CUTTER_DIAMETER_ROUGH * 0.5;
 const CUTTER_RADIUS_ROUGH_SQRT_2: f32 = CUTTER_RADIUS_ROUGH * std::f32::consts::SQRT_2 * 0.5;
@@ -32,7 +36,6 @@ const FLAT_EPS: f32 = 0.1 * CUTTER_RADIUS_FLAT;
 
 const CUTTER_DIAMETER_DETAIL: f32 = 8.0;
 pub const CUTTER_RADIUS_DETAIL: f32 = 0.5 * CUTTER_DIAMETER_DETAIL;
-const HOLE_NET_SAFE_DIST: f32 = CUTTER_RADIUS_DETAIL * 0.3;
 
 pub fn rough(model: &Model) -> cncp::Program {
     const UPPER_PLANE_HEIGHT: f32 = 35.0;
@@ -290,10 +293,7 @@ fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
     Some(locs)
 }
 
-fn btree_closest(
-    btree: &BTreeMap<NotNan<f64>, IntersectionPoint>,
-    query: NotNan<f64>,
-) -> IntersectionPoint {
+fn btree_closest<T: Copy>(btree: &BTreeMap<NotNan<f64>, T>, query: NotNan<f64>) -> T {
     let lower_bound = btree.range(..query).next_back();
     let upper_bound = btree.range(query..).next();
 
@@ -315,10 +315,33 @@ pub fn detail(model: &Model) -> cncp::Program {
     const CUTTER_DIAMETER: f32 = 8.0;
     const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER;
 
+    let start = std::time::Instant::now();
+
     let mut locs = initial_locations();
-    locs.extend(grill(model));
-    locs.extend(inters(model));
+    std::thread::scope(|scope| {
+        let grill_thread = scope.spawn(|| grill(model));
+        let intersections = model.find_model_intersections();
+        let elevated_silhouette = model.elevated_silhouette().unwrap();
+
+        std::thread::scope(|scope| {
+            let sand_thread = scope.spawn(|| sand(&intersections, model));
+            let inters_thread = scope.spawn(|| inters(&intersections, &elevated_silhouette));
+
+            let sand = sand_thread.join().unwrap();
+            locs.extend(sand);
+
+            let inters = inters_thread.join().unwrap();
+            locs.extend(inters);
+        });
+
+        let grill = grill_thread.join().unwrap();
+        locs.extend(grill);
+    });
+    let end = std::time::Instant::now();
+
     add_ending_locs(&mut locs);
+
+    println!("Time: {}", (end - start).as_secs_f32());
 
     cncp::Program::from_locations(
         locs,
@@ -334,14 +357,12 @@ fn grill(model: &Model) -> Vec<Vector3<f32>> {
     let mut locs = Vec::new();
     let holes = model.find_holes();
 
-    for hole in holes {
-        let p0 = hole.points[0].point.xz();
-        let p1 = hole.points[1].point.xz();
-        let mut first_high = cutter_at_inter_base::<true>(CUTTER_RADIUS_DETAIL, p0, p1).unwrap();
+    for hole in holes.iter() {
+        let mut first_high = wrld_to_mod(&hole.points[0].point.xzy().coords);
         first_high.z = SAFE_HEIGHT;
         locs.push(first_high);
 
-        let contour = grill_contour(&hole);
+        let contour = grill_contour(hole);
 
         locs.extend(grill_net(&contour));
         locs.extend(
@@ -361,18 +382,16 @@ fn grill(model: &Model) -> Vec<Vector3<f32>> {
 
 fn grill_contour(hole: &Intersection) -> Vec<Vector3<f32>> {
     let len = hole.points.len();
-    let mut points = hole
-        .points
+    hole.points
         .iter()
-        .map(|p| p.point.xz())
+        .map(|p| {
+            let mut at_base = wrld_to_mod(&p.point.coords);
+            at_base.z = BASE_HEIGHT;
+            at_base
+        })
         .cycle()
-        .take(len + SAFE_CONTOUR_ADD) // + 3 to make sure that the whole hole
-        .tuple_windows()
-        .filter_map(|(a, b)| cutter_at_inter_base::<true>(CUTTER_RADIUS_DETAIL, a, b))
-        .collect();
-
-    clean_cutter_at_inter_base(&mut points);
-    points
+        .take(len + SAFE_CONTOUR_ADD) // to make sure that the whole hole is milled
+        .collect()
 }
 
 fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
@@ -389,25 +408,15 @@ fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
     let paths = (2.0 * span / CUTTER_RADIUS_DETAIL).ceil() as i32;
     let x_step = span / paths as f32;
 
-    let mut x = min_x + HOLE_NET_SAFE_DIST;
+    let mut x = min_x;
+
+    let [mut first_safe, _] = grill_point_pair(0, x, &x_map);
+    first_safe.z = SAFE_HEIGHT;
+    locs.push(first_safe);
+
     for i in 0..paths {
-        let max_y = x_map
-            .range(x - INTERSECTION_IN_BLOCK..x + INTERSECTION_IN_BLOCK)
-            .map(|(_, v)| *v)
-            .fold(-f32::INFINITY, f32::max);
-
-        let min_y = x_map
-            .range(x - INTERSECTION_IN_BLOCK..x + INTERSECTION_IN_BLOCK)
-            .map(|(_, v)| *v)
-            .fold(f32::INFINITY, f32::min);
-
-        if i % 2 == 0 {
-            locs.push(vector![*x, min_y + HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
-            locs.push(vector![*x, max_y - HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
-        } else {
-            locs.push(vector![*x, max_y - HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
-            locs.push(vector![*x, min_y + HOLE_NET_SAFE_DIST, BASE_HEIGHT]);
-        }
+        let points = grill_point_pair(i, x, &x_map);
+        locs.extend(points);
 
         x += x_step;
     }
@@ -415,25 +424,208 @@ fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
     locs
 }
 
-fn inters(model: &Model) -> Vec<Vector3<f32>> {
-    let mut locs = Vec::new();
-    let intersections = model.find_model_intersections();
+fn grill_point_pair(
+    i: i32,
+    x: NotNan<f32>,
+    x_map: &BTreeMap<NotNan<f32>, f32>,
+) -> [Vector3<f32>; 2] {
+    let range = x - INTERSECTION_IN_BLOCK..x + INTERSECTION_IN_BLOCK;
+    let vals = x_map.range(range).map(|(_, v)| *v);
+    let len = vals.clone().count();
+    let average: f32 = vals.clone().sum::<f32>() / len as f32;
 
-    for intersection in intersections {
+    let max_y = vals
+        .clone()
+        .filter(|v| *v > average)
+        .fold(f32::INFINITY, f32::min);
+
+    let min_y = vals
+        .filter(|v| *v <= average)
+        .fold(-f32::INFINITY, f32::max);
+
+    if i % 2 == 0 {
+        [
+            vector![*x, min_y, BASE_HEIGHT],
+            vector![*x, max_y, BASE_HEIGHT],
+        ]
+    } else {
+        [
+            vector![*x, max_y, BASE_HEIGHT],
+            vector![*x, min_y, BASE_HEIGHT],
+        ]
+    }
+}
+
+fn sand(intersections: &[Intersection; INTERSECTIONS.len()], model: &Model) -> Vec<Vector3<f32>> {
+    let mut locs = Vec::new();
+
+    extend_sand(&mut locs, sand_shackle(Side::Left, intersections, model));
+    extend_sand(&mut locs, sand_shackle(Side::Right, intersections, model));
+    extend_sand(&mut locs, sand_shield(Side::Left, intersections, model));
+    extend_sand(&mut locs, sand_shield(Side::Right, intersections, model));
+    extend_sand(&mut locs, sand_screw(Side::Left, intersections, model));
+    extend_sand(&mut locs, sand_screw(Side::Right, intersections, model));
+    extend_sand(&mut locs, sand_body(intersections, model));
+
+    locs
+}
+
+fn extend_sand(locs: &mut Vec<Vector3<f32>>, extension: Vec<Vector3<f32>>) {
+    let Some(mut first_safe) = extension.first().copied() else {
+        return;
+    };
+    first_safe.z = SAFE_HEIGHT;
+
+    let Some(mut last_safe) = extension.last().copied() else {
+        return;
+    };
+    last_safe.z = SAFE_HEIGHT;
+
+    locs.push(first_safe);
+    locs.extend(extension);
+    locs.push(last_safe);
+}
+
+enum Side {
+    Left,
+    Right,
+}
+
+fn sand_shackle(
+    shackle: Side,
+    intersections: &[Intersection; INTERSECTIONS.len()],
+    model: &Model,
+) -> Vec<Vector3<f32>> {
+    const U_STEP: f64 = 0.025;
+    const V_STEP: f64 = 0.005;
+
+    let mut locs = Vec::<Vector3<f32>>::new();
+
+    let surface = match shackle {
+        Side::Left => model.surfaces[&LEFT_SHACKLE_ID].as_ref(),
+        Side::Right => model.surfaces[&RIGHT_SHACKLE_ID].as_ref(),
+    };
+
+    let inters = match shackle {
+        Side::Left => [
+            &intersections[LEFT_SHACKLE_INTERS[0]],
+            &intersections[LEFT_SHACKLE_INTERS[1]],
+        ],
+        Side::Right => [
+            &intersections[RIGHT_SHACKLE_INTERS[0]],
+            &intersections[RIGHT_SHACKLE_INTERS[1]],
+        ],
+    };
+
+    let shifted_sufrace = ShiftedSurface::new(surface, (CUTTER_RADIUS_DETAIL / MODEL_SCALE) as f64);
+
+    let btree: BTreeMap<_, _> = inters
+        .iter()
+        .flat_map(|i| &i.points)
+        .map(|p| (NotNan::new(p.surface_1.x).unwrap(), p))
+        .collect();
+
+    let bounds = surface.bounds();
+
+    let mut break_occured = false;
+    let mut u = bounds.x.0;
+    let mut reverse = false;
+    while u <= bounds.x.1 {
+        let range = NotNan::new(u - U_STEP).unwrap()..NotNan::new(u + U_STEP).unwrap();
+        let max_v = btree
+            .range(range.clone())
+            .filter(|p| p.1.surface_1.y > 0.5)
+            .map(|p| NotNan::new(p.1.surface_1.y).unwrap())
+            .min()
+            .unwrap();
+
+        let min_v = btree
+            .range(range)
+            .filter(|p| p.1.surface_1.y < 0.5)
+            .map(|p| NotNan::new(p.1.surface_1.y).unwrap())
+            .max()
+            .unwrap();
+
+        let mut v = if !reverse { min_v } else { max_v };
+        while min_v <= v && v <= max_v {
+            let value = shifted_sufrace.value(&vector![u, *v]);
+            let mod_value = wrld_to_mod(&value.coords) - vector![0.0, 0.0, CUTTER_RADIUS_DETAIL];
+
+            if mod_value.z < BASE_HEIGHT {
+                if !break_occured {
+                    let mut last_safe = *locs.last().unwrap();
+                    last_safe.z = SAFE_HEIGHT;
+                    locs.push(last_safe);
+                    break_occured = true;
+                }
+            } else {
+                if break_occured {
+                    let mut first_safe = mod_value;
+                    first_safe.z = SAFE_HEIGHT;
+                    locs.push(first_safe);
+                    break_occured = false;
+                }
+
+                locs.push(mod_value);
+            }
+
+            v += if !reverse { V_STEP } else { -V_STEP };
+        }
+
+        u += U_STEP;
+        reverse = !reverse;
+    }
+
+    locs
+}
+
+fn sand_shield(
+    shackle: Side,
+    intersections: &[Intersection; INTERSECTIONS.len()],
+    model: &Model,
+) -> Vec<Vector3<f32>> {
+    vec![]
+}
+
+fn sand_screw(
+    shackle: Side,
+    intersections: &[Intersection; INTERSECTIONS.len()],
+    model: &Model,
+) -> Vec<Vector3<f32>> {
+    vec![]
+}
+
+fn sand_body(
+    intersections: &[Intersection; INTERSECTIONS.len()],
+    model: &Model,
+) -> Vec<Vector3<f32>> {
+    vec![]
+}
+
+fn wrld_to_mod(vec: &Vector3<f64>) -> Vector3<f32> {
+    let mut v = vec_64_to_32(vec - PLANE_CENTER).xzy() * MODEL_SCALE;
+    v.z += BASE_HEIGHT;
+    v
+}
+
+fn inters(
+    intersections: &[Intersection; INTERSECTIONS.len()],
+    elevated_silhouette: &Intersection,
+) -> Vec<Vector3<f32>> {
+    let mut locs = Vec::new();
+
+    for intersection in intersections.iter().chain([elevated_silhouette]) {
         let mut initial_locs = intersection
             .points
             .iter()
-            .map(|p| {
-                (vec_64_to_32(p.point.coords) - vec_64_to_32(PLANE_CENTER)).xzy() * MODEL_SCALE
-                    + vector![0.0, 0.0, BASE_HEIGHT - CUTTER_RADIUS_DETAIL]
-            })
+            .map(|p| wrld_to_mod(&p.point.coords) - vector![0.0, 0.0, CUTTER_RADIUS_DETAIL])
             .collect_vec();
 
-        if let Some(first_under) = initial_locs.iter().position(|p| p.z <= BASE_HEIGHT) {
+        if let Some(first_under) = initial_locs.iter().position(|p| p.z < BASE_HEIGHT) {
             let first_over = initial_locs
                 .iter()
                 .skip(first_under + 1)
-                .position(|p| p.z > BASE_HEIGHT)
+                .position(|p| p.z >= BASE_HEIGHT)
                 .unwrap()
                 + first_under
                 + 1;

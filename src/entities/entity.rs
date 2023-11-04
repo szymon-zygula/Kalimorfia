@@ -143,7 +143,9 @@ pub trait SceneObject {
         None
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(
+        &self,
+    ) -> Option<Box<dyn DifferentialParametricForm<2, 3> + Send + Sync>> {
         None
     }
 
@@ -210,7 +212,9 @@ pub trait ReferentialSceneObject<'gl> {
         None
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(
+        &self,
+    ) -> Option<Box<dyn DifferentialParametricForm<2, 3> + Send + Sync>> {
         None
     }
 
@@ -279,7 +283,9 @@ impl<'gl, T: SceneObject> ReferentialSceneObject<'gl> for T {
         self.location()
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(
+        &self,
+    ) -> Option<Box<dyn DifferentialParametricForm<2, 3> + Send + Sync>> {
         self.as_parametric_2_to_3()
     }
 

@@ -1,10 +1,14 @@
 use crate::{main_control::MainControl, state::State};
 use kalimorfia::{
+    cnc::{
+        block::Block, mill::Mill, milling_player::MillingPlayer, milling_process::MillingProcess,
+    },
     entities::cnc_block::{CNCBlock, CNCBlockArgs},
     path_gen::gen::*,
     path_gen::model::*,
 };
 use nalgebra::vector;
+use std::path::Path;
 use std::rc::Rc;
 
 const SAVE_PATH: &str = "gen-paths";
@@ -23,13 +27,13 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
 
             if ui.button("Rough paths") {
                 rough(&get_model(state, control))
-                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/1.k16")));
+                    .save_to_file(Path::new(&format!("{SAVE_PATH}/1.k16")));
                 add_block = true;
             }
 
             if ui.button("Flat paths") {
                 if let Some(prog) = flat(&get_model(state, control)) {
-                    prog.save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/2.f10")));
+                    prog.save_to_file(Path::new(&format!("{SAVE_PATH}/2.f10")));
                 } else {
                     println!("Failed to find flat paths -- try again");
                 }
@@ -39,13 +43,13 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
 
             if ui.button("Detailed paths") {
                 detail(&get_model(state, control))
-                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/3.k08")));
+                    .save_to_file(Path::new(&format!("{SAVE_PATH}/3.k08")));
                 add_block = true;
             }
 
             if ui.button("Signature paths") {
                 signa(&get_model(state, control))
-                    .save_to_file(std::path::Path::new(&format!("{SAVE_PATH}/4.k01")));
+                    .save_to_file(Path::new(&format!("{SAVE_PATH}/4.k01")));
                 add_block = true;
             }
 
@@ -63,8 +67,12 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
             ui.text("Tests");
             ui.separator();
 
-            if ui.button("Find silhouette") {
+            if ui.button("Silhouette") {
                 test_silhouette(state, control);
+            }
+
+            if ui.button("Elevated silhouette") {
+                test_elevated_silhouette(state, control);
             }
 
             if ui.button("Heightmap") {
@@ -77,6 +85,10 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
 
             if ui.button("Holes") {
                 test_holes(state, control);
+            }
+
+            if ui.button("Rough-Flat and save Detailed") {
+                test_rough_flat(state, control);
             }
         });
 }
@@ -97,6 +109,15 @@ fn get_model(state: &mut State, control: &mut MainControl) -> Model {
 fn test_silhouette(state: &mut State, control: &mut MainControl) {
     let model = get_model(state, control);
     let Some(intersection) = model.silhouette() else {
+        println!("Model has no intersection with the XZ plane");
+        return;
+    };
+    control.add_intersection_curve(state, intersection);
+}
+
+fn test_elevated_silhouette(state: &mut State, control: &mut MainControl) {
+    let model = get_model(state, control);
+    let Some(intersection) = model.elevated_silhouette() else {
         println!("Model has no intersection with the XZ plane");
         return;
     };
@@ -128,4 +149,45 @@ fn test_holes(state: &mut State, control: &mut MainControl) {
     for intersection in model.find_holes() {
         control.add_intersection_curve(state, intersection);
     }
+}
+
+fn test_rough_flat(state: &mut State, control: &mut MainControl) {
+    let block = Block::new(
+        vector![TEST_SAMPLING as usize, TEST_SAMPLING as usize],
+        vector![BLOCK_SIZE, BLOCK_SIZE, BLOCK_HEIGHT],
+    );
+
+    let model = get_model(state, control);
+    let rough = rough(&model);
+    rough.save_to_file(Path::new(&format!("{SAVE_PATH}/1.k16")));
+    let flat = flat(&model).expect("Flat milling failed");
+    rough.save_to_file(Path::new(&format!("{SAVE_PATH}/2.f10")));
+
+    println!("Rough paths");
+    let mut mill = Mill::new(rough.shape());
+    mill.move_to(vector![0.0, 0.0, SAFE_HEIGHT]).unwrap();
+    let process = MillingProcess::new(mill, rough, block);
+    let mut player = MillingPlayer::new(process);
+    player.complete().expect("Milling error");
+    let (_, _, block) = player.take().retake_all();
+
+    println!("Flat paths");
+    let mut mill = Mill::new(flat.shape());
+    mill.move_to(vector![0.0, 0.0, SAFE_HEIGHT]).unwrap();
+    let process = MillingProcess::new(mill, flat, block);
+    let mut player = MillingPlayer::new(process);
+    player.complete().expect("Milling error");
+    let (_, _, block) = player.take().retake_all();
+
+    let block = Box::new(CNCBlock::with_block(
+        control.gl,
+        Rc::clone(&state.name_repo),
+        Rc::clone(&control.shader_manager),
+        block,
+    ));
+
+    let id = control.entity_manager.borrow_mut().add_entity(block);
+    state.selector.add_selectable(id);
+
+    detail(&get_model(state, control)).save_to_file(Path::new(&format!("{SAVE_PATH}/3.k08")));
 }

@@ -150,7 +150,7 @@ impl Mill {
                     .sqrt();
 
             if depth < block.base_height {
-                return Err(MillingError::CutTooDeep);
+                return Err(MillingError::CutTooDeep(depth));
             }
 
             if block.height(x_r, y_r) > depth {
@@ -173,7 +173,7 @@ impl Mill {
                 }
 
                 if self.position.z < block.base_height {
-                    return Err(MillingError::CutTooDeep);
+                    return Err(MillingError::CutTooDeep(self.position.z));
                 }
 
                 *block.height_mut(x, y) = self.position.z;

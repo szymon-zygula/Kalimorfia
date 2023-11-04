@@ -33,8 +33,8 @@ pub enum MillingError {
     LowerDeadZoneCollision,
     #[error("upper non-cutting part of the mill is being pushed into the material")]
     UpperDeadZoneCollision,
-    #[error("the mill is lowered too deeply")]
-    CutTooDeep,
+    #[error("the mill is lowered too deeply to {0}")]
+    CutTooDeep(f32),
     #[error("movement speed {0} not in allowed range")]
     MovementSpeed(f32),
     #[error("rotation speed {0} not in allowed range")]

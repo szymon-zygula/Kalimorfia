@@ -15,6 +15,10 @@ impl XZPlane {
     pub fn new(origin: Point3<f64>, size: Vector2<f64>) -> Self {
         Self { size, origin }
     }
+
+    pub fn height(&mut self, height: f64) {
+        self.origin.y = height;
+    }
 }
 
 impl DifferentialParametricForm<2, 3> for XZPlane {
@@ -36,6 +40,10 @@ impl DifferentialParametricForm<2, 3> for XZPlane {
             0.0, 0.0;
             0.0, 1.0;
         ]
+    }
+
+    fn hessian(&self, _vec: &Vector2<f64>, _var_0: usize, _var_1: usize) -> Vector3<f64> {
+        Vector3::zeros()
     }
 }
 

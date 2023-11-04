@@ -130,7 +130,9 @@ impl<'gl> SceneObject for Torus<'gl> {
         Some(self.linear_transform.translation.translation.into())
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(
+        &self,
+    ) -> Option<Box<dyn DifferentialParametricForm<2, 3> + Send + Sync>> {
         Some(Box::new(geometry::torus::AffineTorus::new(
             self.torus,
             mat_32_to_64(self.linear_transform.matrix()),

@@ -355,7 +355,9 @@ impl<'gl> SceneObject for BezierSurfaceC0<'gl> {
         Some(&self.intersection_texture)
     }
 
-    fn as_parametric_2_to_3(&self) -> Option<Box<dyn DifferentialParametricForm<2, 3>>> {
+    fn as_parametric_2_to_3(
+        &self,
+    ) -> Option<Box<dyn DifferentialParametricForm<2, 3> + Send + Sync>> {
         Some(Box::new(self.surface.clone()))
     }
 }
