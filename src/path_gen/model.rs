@@ -106,7 +106,7 @@ pub const RIGHT_SHACKLE_INTERS: [usize; 2] = [6, 7];
 pub const LEFT_SCREW_INTER: usize = 2;
 pub const RIGHT_SCREW_INTER: usize = 3;
 pub const LEFT_SHIELD_INTER: usize = 0;
-pub const RIGHT_SHIELD_INTER: usize = 0;
+pub const RIGHT_SHIELD_INTER: usize = 1;
 
 const HOLE_INTERSECTIONS: [InterPlaneGuide; 2] = [
     InterPlaneGuide {

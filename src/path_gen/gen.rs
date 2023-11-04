@@ -526,6 +526,8 @@ fn sand_shackle(
                 -NotNan::new(f64::INFINITY).unwrap(),
                 NotNan::new(f64::INFINITY).unwrap(),
             ),
+            BASE_HEIGHT + 20.0,
+            None,
         ),
     );
 }
@@ -577,6 +579,8 @@ fn sand_shield(
                 -NotNan::new(f64::INFINITY).unwrap(),
                 NotNan::new(0.5).unwrap(),
             ),
+            SAFE_HEIGHT,
+            None,
         ),
     );
     extend_sand(
@@ -595,6 +599,8 @@ fn sand_shield(
                 NotNan::new(0.5).unwrap(),
                 NotNan::new(f64::INFINITY).unwrap(),
             ),
+            SAFE_HEIGHT,
+            None,
         ),
     );
 }
@@ -634,6 +640,8 @@ fn sand_screw(
                 -NotNan::new(f64::INFINITY).unwrap(),
                 NotNan::new(f64::INFINITY).unwrap(),
             ),
+            SAFE_HEIGHT,
+            None,
         ),
     );
 }
@@ -643,6 +651,51 @@ fn sand_body(
     model: &Model,
     locs: &mut Vec<Vector3<f32>>,
 ) {
+    const U_STEP: f64 = 0.010;
+    const V_STEP: f64 = 0.010;
+
+    let surface = model.surfaces[&BODY_ID].as_ref();
+
+    let i0 = intersections[LEFT_SHACKLE_INTERS[0]].inverted();
+    let i1 = intersections[LEFT_SHACKLE_INTERS[1]].inverted();
+    let i2 = intersections[RIGHT_SHACKLE_INTERS[0]].inverted();
+    let i3 = intersections[RIGHT_SHACKLE_INTERS[1]].inverted();
+    let i4 = intersections[LEFT_SHIELD_INTER].inverted();
+    let i5 = intersections[RIGHT_SHIELD_INTER].inverted();
+
+    let inters = [&i0, &i1, &i2, &i3, &i4, &i5];
+
+    let u_bounds = [0.0, 0.33, 0.66].map(|n| NotNan::new(n).unwrap());
+    let v_bounds = [0.0, 0.20, 0.40, 0.60, 0.80, 1.0].map(|n| NotNan::new(n).unwrap());
+    let u_axes = [0.1, 0.225, 0.50, 0.775, 0.9];
+
+    for u_bound in u_bounds
+        .iter()
+        .copied()
+        .tuple_windows::<(NotNan<f64>, NotNan<f64>)>()
+    {
+        for (v_bound, u_axis) in v_bounds
+            .iter()
+            .copied()
+            .tuple_windows::<(NotNan<f64>, NotNan<f64>)>()
+            .zip(u_axes.iter())
+        {
+            extend_sand(
+                locs,
+                sand_element(
+                    &inters,
+                    surface,
+                    NotNan::new(U_STEP).unwrap(),
+                    NotNan::new(V_STEP).unwrap(),
+                    false,
+                    u_bound,
+                    v_bound,
+                    BASE_HEIGHT + 1.0,
+                    Some(*u_axis),
+                ),
+            );
+        }
+    }
 }
 
 fn sand_element(
@@ -653,6 +706,8 @@ fn sand_element(
     invert_surface: bool,
     u_bound: (NotNan<f64>, NotNan<f64>),
     v_bound: (NotNan<f64>, NotNan<f64>),
+    safe_break: f32,
+    u_axis: Option<f64>,
 ) -> Vec<Vector3<f32>> {
     let mut locs = Vec::<Vector3<f32>>::new();
     let multiplier = if invert_surface { -1.0 } else { 1.0 };
@@ -670,23 +725,31 @@ fn sand_element(
         .map(|p| (NotNan::new(p.surface_1.x).unwrap(), p))
         .collect();
 
-    let min_u = *btree_u
-        .first_key_value()
-        .unwrap()
-        .0
-        .clamp(&u_bound.0, &u_bound.1);
+    let min_u = if u_bound.0.is_finite() {
+        u_bound.0
+    } else {
+        *btree_u
+            .first_key_value()
+            .map(|p| p.0)
+            .unwrap_or(&u_bound.0)
+            .clamp(&u_bound.0, &u_bound.1)
+    };
 
-    let max_u = *btree_u
-        .last_key_value()
-        .unwrap()
-        .0
-        .clamp(&u_bound.0, &u_bound.1);
+    let max_u = if u_bound.1.is_finite() {
+        u_bound.1
+    } else {
+        *btree_u
+            .last_key_value()
+            .map(|p| p.0)
+            .unwrap_or(&u_bound.1)
+            .clamp(&u_bound.0, &u_bound.1)
+    };
 
     let mut break_occured = false;
     let mut u = min_u + u_step * 0.75;
     let mut reverse = false;
     while u <= max_u {
-        let Some((min_v, max_v)) = min_max_v(u, u_step, &btree_u, v_bound) else {
+        let Some((min_v, max_v)) = min_max_v(u, u_step, &btree_u, v_bound, u_axis) else {
             u += u_step;
             continue;
         };
@@ -699,16 +762,16 @@ fn sand_element(
             let mod_value = wrld_to_mod(&value.coords) - vector![0.0, 0.0, CUTTER_RADIUS_DETAIL];
 
             if mod_value.z < BASE_HEIGHT {
-                if !break_occured {
+                if !break_occured && locs.last().is_some() {
                     let mut last_safe = *locs.last().unwrap();
-                    last_safe.z = SAFE_HEIGHT;
+                    last_safe.z = safe_break;
                     locs.push(last_safe);
                     break_occured = true;
                 }
             } else {
                 if break_occured {
                     let mut first_safe = mod_value;
-                    first_safe.z = SAFE_HEIGHT;
+                    first_safe.z = safe_break;
                     locs.push(first_safe);
                     break_occured = false;
                 }
@@ -736,18 +799,18 @@ fn min_max_v(
     u_step: NotNan<f64>,
     btree_u: &BTreeMap<NotNan<f64>, &IntersectionPoint>,
     v_bound: (NotNan<f64>, NotNan<f64>),
+    u_axis: Option<f64>,
 ) -> Option<(f64, f64)> {
-    let avg_range = btree_u.range((u - u_step * 4.0)..(u + u_step * 4.0));
-    let len = avg_range.clone().count();
-    let average = avg_range.clone().map(|p| p.1.surface_1.y).sum::<f64>() / len as f64;
+    let pivot = if let Some(u_axis) = u_axis {
+        u_axis
+    } else {
+        let avg_range = btree_u.range((u - u_step * 4.0)..(u + u_step * 4.0));
+        let len = avg_range.clone().count();
+        avg_range.clone().map(|p| p.1.surface_1.y).sum::<f64>() / len as f64
+    };
 
-    let max_v = extr_v(u, u_step, btree_u, v_bound.1, |p| {
-        p.1.surface_1.y >= average
-    })?;
-
-    let min_v = extr_v(u, u_step, btree_u, v_bound.0, |p| {
-        p.1.surface_1.y <= average
-    })?;
+    let max_v = extr_v(u, u_step, btree_u, v_bound.1, |p| p.1.surface_1.y >= pivot)?;
+    let min_v = extr_v(u, u_step, btree_u, v_bound.0, |p| p.1.surface_1.y <= pivot)?;
 
     Some((min_v, max_v))
 }
@@ -759,14 +822,23 @@ fn extr_v<F: FnMut(&(&NotNan<f64>, &&IntersectionPoint)) -> bool + Copy>(
     v_bound: NotNan<f64>,
     filter: F,
 ) -> Option<f64> {
+    const DIST_TOLERANCE: f64 = 1.0;
+
     let lower_bound_u = btree_u.range(..u).filter(filter).max_by_key(|(k, _)| *k);
     let upper_bound_u = btree_u.range(u..).filter(filter).min_by_key(|(k, _)| *k);
 
-    let lower_bound_u = lower_bound_u.or(upper_bound_u)?;
+    let Some(lower_bound_u) = lower_bound_u.or(upper_bound_u) else {
+        return Some(*v_bound);
+    };
     let upper_bound_u = upper_bound_u.unwrap_or(lower_bound_u);
 
     Some(
-        if upper_bound_u.1.surface_1.x - lower_bound_u.1.surface_1.x > 3.0 * *u_step {
+        if v_bound.is_finite()
+            && (upper_bound_u.1.surface_1.x - lower_bound_u.1.surface_1.x
+                > DIST_TOLERANCE * *u_step
+                || (upper_bound_u.1.surface_1.x - *u).abs() > DIST_TOLERANCE * *u_step
+                || (lower_bound_u.1.surface_1.x - *u).abs() > DIST_TOLERANCE * *u_step)
+        {
             *v_bound
         } else {
             let range_high = upper_bound_u.0 - lower_bound_u.0;
