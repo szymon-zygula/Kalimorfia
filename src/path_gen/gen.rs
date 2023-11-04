@@ -5,7 +5,10 @@ use crate::{
         mill::{Cutter, CutterShape},
         program as cncp,
     },
-    math::geometry::intersection::{Intersection, IntersectionPoint},
+    math::{
+        geometry::intersection::{Intersection, IntersectionPoint},
+        utils::vec_64_to_32,
+    },
 };
 use itertools::Itertools;
 use nalgebra::{vector, Point2, Vector2, Vector3};
@@ -314,6 +317,7 @@ pub fn detail(model: &Model) -> cncp::Program {
 
     let mut locs = initial_locations();
     locs.extend(grill(model));
+    locs.extend(inters(model));
     add_ending_locs(&mut locs);
 
     cncp::Program::from_locations(
@@ -406,6 +410,53 @@ fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
         }
 
         x += x_step;
+    }
+
+    locs
+}
+
+fn inters(model: &Model) -> Vec<Vector3<f32>> {
+    let mut locs = Vec::new();
+    let intersections = model.find_model_intersections();
+
+    for intersection in intersections {
+        let mut initial_locs = intersection
+            .points
+            .iter()
+            .map(|p| {
+                (vec_64_to_32(p.point.coords) - vec_64_to_32(PLANE_CENTER)).xzy() * MODEL_SCALE
+                    + vector![0.0, 0.0, BASE_HEIGHT - CUTTER_RADIUS_DETAIL]
+            })
+            .collect_vec();
+
+        if let Some(first_under) = initial_locs.iter().position(|p| p.z <= BASE_HEIGHT) {
+            let first_over = initial_locs
+                .iter()
+                .skip(first_under + 1)
+                .position(|p| p.z > BASE_HEIGHT)
+                .unwrap()
+                + first_under
+                + 1;
+
+            initial_locs.drain(first_under..first_over);
+            let mut new_start = initial_locs.split_off(first_under);
+            new_start.extend(initial_locs);
+            initial_locs = new_start;
+        } else {
+            for i in 0..SAFE_CONTOUR_ADD {
+                initial_locs.push(initial_locs[i]);
+            }
+        }
+
+        let mut first_safe = *initial_locs.first().unwrap();
+        first_safe.z = SAFE_HEIGHT;
+        locs.push(first_safe);
+
+        locs.extend(initial_locs);
+
+        let mut last_safe = *locs.last().unwrap();
+        last_safe.z = SAFE_HEIGHT;
+        locs.push(last_safe);
     }
 
     locs

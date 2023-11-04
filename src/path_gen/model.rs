@@ -16,7 +16,7 @@ use nalgebra::{geometry::Rotation2, point, vector, Point3, Vector2, Vector3};
 use std::collections::HashMap;
 
 const PLANE_SIZE: f64 = 7.0;
-pub const PLANE_CENTER: [f64; 3] = [0.0, 0.0, 2.5];
+pub const PLANE_CENTER: Vector3<f64> = vector![0.0, 0.0, 2.5];
 
 const NUMERICAL_STEP: f64 = 0.005;
 pub const INTERSECTION_STEP: f64 = 0.01;
@@ -74,28 +74,28 @@ const INTERSECTIONS: [InterGuide; 8] = [
     InterGuide {
         id_0: BODY_ID,
         id_1: LEFT_SHACKLE_ID,
-        guide: point![-1.0, 0.0, 4.0],
+        guide: point![-1.0, 1.0, 4.0],
         shifted_sign_0: 1.0,
         shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: LEFT_SHACKLE_ID,
-        guide: point![-1.0, 0.0, 3.0],
+        guide: point![-1.0, 1.0, 3.0],
         shifted_sign_0: 1.0,
         shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: RIGHT_SHACKLE_ID,
-        guide: point![-1.0, 0.0, 2.0],
+        guide: point![-1.0, 1.0, 2.0],
         shifted_sign_0: 1.0,
         shifted_sign_1: 1.0,
     },
     InterGuide {
         id_0: BODY_ID,
         id_1: RIGHT_SHACKLE_ID,
-        guide: point![-1.0, 0.0, 1.0],
+        guide: point![-1.0, 1.0, 1.0],
         shifted_sign_0: 1.0,
         shifted_sign_1: 1.0,
     },
@@ -124,7 +124,7 @@ impl Model {
     }
 
     pub fn sampled_block(&self) -> Block {
-        let origin = Vector3::from_row_slice(&PLANE_CENTER);
+        let origin = PLANE_CENTER;
         let block_convert = HEIGHTMAP_SAMPLING as f32 / BLOCK_SIZE;
         let mut block = Block::new(
             vector![HEIGHTMAP_SAMPLING, HEIGHTMAP_SAMPLING],
@@ -240,7 +240,7 @@ impl Model {
 
     pub fn plane() -> XZPlane {
         XZPlane::new(
-            Point3::from_slice(&PLANE_CENTER) - vector![PLANE_SIZE / 2.0, 0.0, PLANE_SIZE / 2.0],
+            (PLANE_CENTER - vector![PLANE_SIZE / 2.0, 0.0, PLANE_SIZE / 2.0]).into(),
             vector![PLANE_SIZE, PLANE_SIZE],
         )
     }

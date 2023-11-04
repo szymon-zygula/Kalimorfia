@@ -68,6 +68,7 @@ impl<'gl> ReferentialEntity<'gl> for IntersectionCurve<'gl> {
         _subscriptions: &mut HashMap<usize, HashSet<usize>>,
     ) -> ControlResult {
         self.name_control_ui(ui);
+        ui.text(format!("Points: {}", self.intersection.points.len()));
         // TODO: show textures, enable trimming
         ControlResult::default()
     }
