@@ -370,7 +370,6 @@ impl<'a> NormalField<'a> {
         jacobian
             .fixed_columns::<1>(0)
             .cross(&jacobian.fixed_columns::<1>(1))
-            .normalize()
     }
 }
 
@@ -395,15 +394,17 @@ impl<'a> DifferentialParametricForm<2, 3> for NormalField<'a> {
         let diff_vu = self.0.hessian(vec, 1, 0);
         let diff_vv = self.0.hessian(vec, 1, 1);
 
-        let norm_diff_u = diff_uu.cross(&diff_v) + diff_u.cross(&diff_vu);
-        let norm_diff_v = diff_vu.cross(&diff_v) + diff_u.cross(&diff_vv);
+        let anorm_diff_u = diff_uu.cross(&diff_v) + diff_u.cross(&diff_vu);
+        let anorm_diff_v = diff_vu.cross(&diff_v) + diff_u.cross(&diff_vv);
 
         let anormal = self.anormal(vec);
         let norm = anormal.norm();
 
         Matrix3x2::from_columns(&[
-            norm_diff_u / norm - anormal * Vector3::dot(&anormal, &norm_diff_u),
-            norm_diff_v / norm - anormal * Vector3::dot(&anormal, &norm_diff_v),
+            anorm_diff_u / norm
+                - anormal * Vector3::dot(&anormal, &anorm_diff_u) / (norm * norm * norm),
+            anorm_diff_v / norm
+                - anormal * Vector3::dot(&anormal, &anorm_diff_v) / (norm * norm * norm),
         ])
     }
 }
