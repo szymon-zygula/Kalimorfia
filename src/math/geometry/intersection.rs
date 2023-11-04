@@ -74,6 +74,21 @@ impl Intersection {
     pub fn reverse(&mut self) {
         self.points.reverse();
     }
+
+    pub fn inverted(&self) -> Self {
+        Self {
+            looped: self.looped,
+            points: self
+                .points
+                .iter()
+                .map(|p| IntersectionPoint {
+                    point: p.point,
+                    surface_0: p.surface_1,
+                    surface_1: p.surface_0,
+                })
+                .collect(),
+        }
+    }
 }
 
 pub struct IntersectionFinder<'f> {

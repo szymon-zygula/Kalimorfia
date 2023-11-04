@@ -18,7 +18,10 @@ use itertools::Itertools;
 use nalgebra::{vector, Point2, Vector2, Vector3};
 use ordered_float::NotNan;
 use rayon::prelude::*;
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    mem::MaybeUninit,
+};
 
 const SAFE_CONTOUR_ADD: usize = 3;
 const INTERSECTION_IN_BLOCK: f32 = INTERSECTION_STEP as f32 * MODEL_SCALE;
@@ -293,24 +296,6 @@ fn flat_silhouette(silhouette: &Intersection) -> Option<Vec<Vector3<f32>>> {
     Some(locs)
 }
 
-fn btree_closest<T: Copy>(btree: &BTreeMap<NotNan<f64>, T>, query: NotNan<f64>) -> T {
-    let lower_bound = btree.range(..query).next_back();
-    let upper_bound = btree.range(query..).next();
-
-    match (lower_bound, upper_bound) {
-        (None, None) => panic!("Empty tree"),
-        (None, Some(x)) => *x.1,
-        (Some(x), None) => *x.1,
-        (Some(x), Some(y)) => {
-            if (*x.0 - query).abs() > (*y.0 - query).abs() {
-                *x.1
-            } else {
-                *y.1
-            }
-        }
-    }
-}
-
 pub fn detail(model: &Model) -> cncp::Program {
     const CUTTER_DIAMETER: f32 = 8.0;
     const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER;
@@ -468,13 +453,13 @@ fn grill_point_pair(
 fn sand(intersections: &[Intersection; INTERSECTIONS.len()], model: &Model) -> Vec<Vector3<f32>> {
     let mut locs = Vec::new();
 
-    extend_sand(&mut locs, sand_shackle(Side::Left, intersections, model));
-    extend_sand(&mut locs, sand_shackle(Side::Right, intersections, model));
-    extend_sand(&mut locs, sand_shield(Side::Left, intersections, model));
-    extend_sand(&mut locs, sand_shield(Side::Right, intersections, model));
-    extend_sand(&mut locs, sand_screw(Side::Left, intersections, model));
-    extend_sand(&mut locs, sand_screw(Side::Right, intersections, model));
-    extend_sand(&mut locs, sand_body(intersections, model));
+    sand_shackle(Side::Left, intersections, model, &mut locs);
+    sand_shackle(Side::Right, intersections, model, &mut locs);
+    sand_shield(Side::Left, intersections, model, &mut locs);
+    sand_shield(Side::Right, intersections, model, &mut locs);
+    sand_screw(Side::Left, intersections, model, &mut locs);
+    sand_screw(Side::Right, intersections, model, &mut locs);
+    sand_body(intersections, model, &mut locs);
 
     locs
 }
@@ -504,7 +489,8 @@ fn sand_shackle(
     shackle: Side,
     intersections: &[Intersection; INTERSECTIONS.len()],
     model: &Model,
-) -> Vec<Vector3<f32>> {
+    locs: &mut Vec<Vector3<f32>>,
+) {
     const U_STEP: f64 = 0.025;
     const V_STEP: f64 = 0.005;
 
@@ -524,28 +510,101 @@ fn sand_shackle(
         ],
     };
 
-    sand_element(
-        &inters,
-        surface,
-        NotNan::new(U_STEP).unwrap(),
-        NotNan::new(V_STEP).unwrap(),
-        false,
-    )
+    extend_sand(
+        locs,
+        sand_element(
+            &inters,
+            surface,
+            NotNan::new(U_STEP).unwrap(),
+            NotNan::new(V_STEP).unwrap(),
+            false,
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+        ),
+    );
 }
 
 fn sand_shield(
-    shackle: Side,
+    shield: Side,
     intersections: &[Intersection; INTERSECTIONS.len()],
     model: &Model,
-) -> Vec<Vector3<f32>> {
-    vec![]
+    locs: &mut Vec<Vector3<f32>>,
+) {
+    const U_STEP: f64 = 0.025;
+    const V_STEP: f64 = 0.025;
+
+    let surface = match shield {
+        Side::Left => model.surfaces[&LEFT_SHIELD_ID].as_ref(),
+        Side::Right => model.surfaces[&RIGHT_SHIELD_ID].as_ref(),
+    };
+
+    let mut inverted = MaybeUninit::uninit();
+
+    let inters = match shield {
+        Side::Left => {
+            inverted.write(intersections[LEFT_SCREW_INTER].inverted());
+            [&intersections[LEFT_SHIELD_INTER], unsafe {
+                inverted.assume_init_ref()
+            }]
+        }
+        Side::Right => {
+            inverted.write(intersections[RIGHT_SCREW_INTER].inverted());
+            [&intersections[RIGHT_SHIELD_INTER], unsafe {
+                inverted.assume_init_ref()
+            }]
+        }
+    };
+
+    extend_sand(
+        locs,
+        sand_element(
+            &inters,
+            surface,
+            NotNan::new(U_STEP).unwrap(),
+            NotNan::new(V_STEP).unwrap(),
+            false,
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(0.5).unwrap(),
+            ),
+        ),
+    );
+    extend_sand(
+        locs,
+        sand_element(
+            &inters,
+            surface,
+            NotNan::new(U_STEP).unwrap(),
+            NotNan::new(V_STEP).unwrap(),
+            false,
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+            (
+                NotNan::new(0.5).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+        ),
+    );
 }
 
 fn sand_screw(
     screw: Side,
     intersections: &[Intersection; INTERSECTIONS.len()],
     model: &Model,
-) -> Vec<Vector3<f32>> {
+    locs: &mut Vec<Vector3<f32>>,
+) {
     const U_STEP: f64 = 0.015;
     const V_STEP: f64 = 0.015;
 
@@ -559,20 +618,31 @@ fn sand_screw(
         Side::Right => [&intersections[RIGHT_SCREW_INTER]],
     };
 
-    sand_element(
-        &inters,
-        surface,
-        NotNan::new(U_STEP).unwrap(),
-        NotNan::new(V_STEP).unwrap(),
-        true,
-    )
+    extend_sand(
+        locs,
+        sand_element(
+            &inters,
+            surface,
+            NotNan::new(U_STEP).unwrap(),
+            NotNan::new(V_STEP).unwrap(),
+            true,
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+            (
+                -NotNan::new(f64::INFINITY).unwrap(),
+                NotNan::new(f64::INFINITY).unwrap(),
+            ),
+        ),
+    );
 }
 
 fn sand_body(
     intersections: &[Intersection; INTERSECTIONS.len()],
     model: &Model,
-) -> Vec<Vector3<f32>> {
-    vec![]
+    locs: &mut Vec<Vector3<f32>>,
+) {
 }
 
 fn sand_element(
@@ -581,6 +651,8 @@ fn sand_element(
     u_step: NotNan<f64>,
     v_step: NotNan<f64>,
     invert_surface: bool,
+    u_bound: (NotNan<f64>, NotNan<f64>),
+    v_bound: (NotNan<f64>, NotNan<f64>),
 ) -> Vec<Vector3<f32>> {
     let mut locs = Vec::<Vector3<f32>>::new();
     let multiplier = if invert_surface { -1.0 } else { 1.0 };
@@ -593,20 +665,33 @@ fn sand_element(
     let btree_u: BTreeMap<_, _> = inters
         .iter()
         .flat_map(|i| &i.points)
+        .filter(|p| *u_bound.0 <= p.surface_1.x && p.surface_1.x <= *u_bound.1)
+        .filter(|p| *v_bound.0 <= p.surface_1.y && p.surface_1.y <= *v_bound.1)
         .map(|p| (NotNan::new(p.surface_1.x).unwrap(), p))
         .collect();
 
-    let (&min_u, _) = btree_u.first_key_value().unwrap();
-    let (&max_u, _) = btree_u.last_key_value().unwrap();
+    let min_u = *btree_u
+        .first_key_value()
+        .unwrap()
+        .0
+        .clamp(&u_bound.0, &u_bound.1);
+
+    let max_u = *btree_u
+        .last_key_value()
+        .unwrap()
+        .0
+        .clamp(&u_bound.0, &u_bound.1);
 
     let mut break_occured = false;
-    let mut u = min_u;
+    let mut u = min_u + u_step * 0.75;
     let mut reverse = false;
     while u <= max_u {
-        let Some((min_v, max_v)) = min_max_v(u, u_step, &btree_u) else {
+        let Some((min_v, max_v)) = min_max_v(u, u_step, &btree_u, v_bound) else {
             u += u_step;
             continue;
         };
+        let min_v = min_v.clamp(*v_bound.0, *v_bound.1) + *v_step * 0.5;
+        let max_v = max_v.clamp(*v_bound.0, *v_bound.1) - *v_step * 0.5;
 
         let mut v = if !reverse { min_v } else { max_v };
         while min_v <= v && v <= max_v {
@@ -631,7 +716,12 @@ fn sand_element(
                 locs.push(mod_value);
             }
 
+            // Make sure both both limits are accounted for
+            let clamp = min_v < v && v < max_v;
             v += if !reverse { *v_step } else { -*v_step };
+            if clamp {
+                v = v.clamp(min_v, max_v);
+            }
         }
 
         u += u_step;
@@ -645,72 +735,51 @@ fn min_max_v(
     u: NotNan<f64>,
     u_step: NotNan<f64>,
     btree_u: &BTreeMap<NotNan<f64>, &IntersectionPoint>,
+    v_bound: (NotNan<f64>, NotNan<f64>),
 ) -> Option<(f64, f64)> {
-    let avg_range = btree_u.range((u - u_step * 3.0)..(u + u_step * 3.0));
+    let avg_range = btree_u.range((u - u_step * 4.0)..(u + u_step * 4.0));
     let len = avg_range.clone().count();
     let average = avg_range.clone().map(|p| p.1.surface_1.y).sum::<f64>() / len as f64;
 
-    let lower_bound_high_u = btree_u
-        .range(..u)
-        .filter(|p| p.1.surface_1.y > average)
-        .max_by_key(|(k, _)| *k);
+    let max_v = extr_v(u, u_step, btree_u, v_bound.1, |p| {
+        p.1.surface_1.y >= average
+    })?;
 
-    let upper_bound_high_u = btree_u
-        .range(u..)
-        .filter(|p| p.1.surface_1.y > average)
-        .min_by_key(|(k, _)| *k);
-
-    if lower_bound_high_u.is_none() && upper_bound_high_u.is_none() {
-        return None;
-    }
-
-    let any_high = lower_bound_high_u.unwrap_or(upper_bound_high_u.unwrap());
-    let upper_bound_high_u = upper_bound_high_u.unwrap_or(any_high);
-    let lower_bound_high_u = lower_bound_high_u.unwrap_or(any_high);
-
-    let range_high = upper_bound_high_u.0 - lower_bound_high_u.0;
-    let interpol_high = if range_high == 0.0 {
-        NotNan::new(0.0).unwrap()
-    } else {
-        (u - lower_bound_high_u.0) / range_high
-    };
-
-    let lower_bound_low_u = btree_u
-        .range(..u)
-        .filter(|p| p.1.surface_1.y < average)
-        .max_by_key(|(k, _)| **k);
-
-    let upper_bound_low_u = btree_u
-        .range(u..)
-        .filter(|p| p.1.surface_1.y < average)
-        .min_by_key(|(k, _)| **k);
-
-    if lower_bound_low_u.is_none() && upper_bound_low_u.is_none() {
-        return None;
-    }
-
-    if lower_bound_low_u.is_none() && upper_bound_low_u.is_none() {
-        return None;
-    }
-
-    let any_low = lower_bound_low_u.unwrap_or(upper_bound_low_u.unwrap());
-    let upper_bound_low_u = upper_bound_low_u.unwrap_or(any_low);
-    let lower_bound_low_u = lower_bound_low_u.unwrap_or(any_low);
-
-    let range_low = upper_bound_low_u.0 - lower_bound_low_u.0;
-    let interpol_low = if range_low == 0.0 {
-        NotNan::new(0.0).unwrap()
-    } else {
-        (u - lower_bound_low_u.0) / range_low
-    };
-
-    let max_v = lower_bound_high_u.1.surface_1.y * *interpol_high
-        + upper_bound_high_u.1.surface_1.y * (1.0 - *interpol_high);
-
-    let min_v = lower_bound_low_u.1.surface_1.y * *interpol_low
-        + upper_bound_low_u.1.surface_1.y * (1.0 - *interpol_low);
+    let min_v = extr_v(u, u_step, btree_u, v_bound.0, |p| {
+        p.1.surface_1.y <= average
+    })?;
 
     Some((min_v, max_v))
+}
+
+fn extr_v<F: FnMut(&(&NotNan<f64>, &&IntersectionPoint)) -> bool + Copy>(
+    u: NotNan<f64>,
+    u_step: NotNan<f64>,
+    btree_u: &BTreeMap<NotNan<f64>, &IntersectionPoint>,
+    v_bound: NotNan<f64>,
+    filter: F,
+) -> Option<f64> {
+    let lower_bound_u = btree_u.range(..u).filter(filter).max_by_key(|(k, _)| *k);
+    let upper_bound_u = btree_u.range(u..).filter(filter).min_by_key(|(k, _)| *k);
+
+    let lower_bound_u = lower_bound_u.or(upper_bound_u)?;
+    let upper_bound_u = upper_bound_u.unwrap_or(lower_bound_u);
+
+    Some(
+        if upper_bound_u.1.surface_1.x - lower_bound_u.1.surface_1.x > 3.0 * *u_step {
+            *v_bound
+        } else {
+            let range_high = upper_bound_u.0 - lower_bound_u.0;
+            let interpol = if range_high == 0.0 {
+                NotNan::new(0.0).unwrap()
+            } else {
+                (u - lower_bound_u.0) / range_high
+            };
+
+            lower_bound_u.1.surface_1.y * *interpol
+                + upper_bound_u.1.surface_1.y * (1.0 - *interpol)
+        },
+    )
 }
 
 fn wrld_to_mod(vec: &Vector3<f64>) -> Vector3<f32> {
