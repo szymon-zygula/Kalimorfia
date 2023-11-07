@@ -1,4 +1,7 @@
-use super::{gen::CUTTER_RADIUS_DETAIL, utils::*};
+use super::{
+    gen::{CUTTER_RADIUS_DETAIL, CUTTER_RADIUS_ROUGH},
+    utils::*,
+};
 use crate::{
     cnc::block::Block,
     math::{
@@ -31,8 +34,9 @@ pub const BLOCK_BASE: f32 = 16.0;
 
 pub const MODEL_SCALE: f32 = 30.0;
 
-const HEIGHTMAP_SAMPLING: usize = 250;
-const HEIGHTMAP_PARAMETER_SAMPLING: usize = 300;
+const HEIGHTMAP_SAMPLING: usize = 200;
+const HEIGHTMAP_PARAMETER_SAMPLING: usize = 325;
+const BLOCK_CONVERT: f32 = HEIGHTMAP_SAMPLING as f32 / BLOCK_SIZE;
 
 pub const BODY_ID: usize = 181;
 pub const LEFT_SHACKLE_ID: usize = 210;
@@ -134,8 +138,6 @@ impl Model {
     }
 
     pub fn sampled_block(&self) -> Block {
-        let origin = PLANE_CENTER;
-        let block_convert = HEIGHTMAP_SAMPLING as f32 / BLOCK_SIZE;
         let mut block = Block::new(
             vector![HEIGHTMAP_SAMPLING, HEIGHTMAP_SAMPLING],
             vector![BLOCK_SIZE, BLOCK_SIZE, BLOCK_HEIGHT],
@@ -148,36 +150,59 @@ impl Model {
             }
         }
 
-        for surface in self.surfaces.values() {
-            let bounds = surface.bounds();
-            let u_step = (bounds.x.1 - bounds.x.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
-            let v_step = (bounds.y.1 - bounds.y.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
+        for (id, surface) in &self.surfaces {
+            let multiplier = if *id == LEFT_SCREW_ID || *id == RIGHT_SCREW_ID {
+                -1.0
+            } else {
+                1.0
+            };
 
-            // Intentionally skip the last sample so that dealing with numerical errors of `u` and
-            // `v` at the border is not necessary
-            let mut u = bounds.x.0;
-            for _ in 0..HEIGHTMAP_PARAMETER_SAMPLING {
-                let mut v = bounds.y.0;
-                for _ in 0..HEIGHTMAP_PARAMETER_SAMPLING {
-                    let mut value =
-                        vec_64_to_32(surface.value(&vector![u, v]).coords - origin) * MODEL_SCALE;
+            let shifted = ShiftedSurface::new(
+                surface.as_ref(),
+                multiplier * (CUTTER_RADIUS_ROUGH / MODEL_SCALE) as f64,
+            );
 
-                    value.y += BLOCK_BASE;
-                    let x = ((value.x as f32 + BLOCK_SIZE * 0.5) * block_convert).round() as usize;
-                    let y = ((value.z as f32 + BLOCK_SIZE * 0.5) * block_convert).round() as usize;
-
-                    if block.height(x, y) < value.y as f32 {
-                        *block.height_mut(x, y) = value.y as f32;
-                    }
-
-                    v += v_step;
-                }
-
-                u += u_step;
-            }
+            Self::create_height(&shifted, 0.0, &mut block);
+            Self::create_height(surface.as_ref(), CUTTER_RADIUS_ROUGH, &mut block);
         }
 
         block
+    }
+
+    fn create_height(surface: &dyn DifferentialParametricForm<2, 3>, bump: f32, block: &mut Block) {
+        let bounds = surface.bounds();
+        let u_step = (bounds.x.1 - bounds.x.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
+        let v_step = (bounds.y.1 - bounds.y.0) / HEIGHTMAP_PARAMETER_SAMPLING as f64;
+
+        // Intentionally skip the last sample so that dealing with numerical errors of `u` and
+        // `v` at the border is not necessary
+        let mut u = bounds.x.0;
+        for _ in 0..HEIGHTMAP_PARAMETER_SAMPLING {
+            let mut v = bounds.y.0;
+            for _ in 0..HEIGHTMAP_PARAMETER_SAMPLING {
+                let mut value =
+                    vec_64_to_32(surface.value(&vector![u, v]).coords - PLANE_CENTER) * MODEL_SCALE;
+
+                value.y += BLOCK_BASE + bump;
+
+                let x = ((value.x as f32 + BLOCK_SIZE * 0.5) * BLOCK_CONVERT).floor() as i64;
+                let y = ((value.z as f32 + BLOCK_SIZE * 0.5) * BLOCK_CONVERT).floor() as i64;
+
+                if x >= 0
+                    && y >= 0
+                    && x < block.sampling().x as i64
+                    && y < block.sampling().y as i64
+                    && block.height(x as usize, y as usize) < value.y as f32 - CUTTER_RADIUS_ROUGH
+                {
+                    *block.height_mut(x as usize, y as usize) =
+                        value.y as f32 - CUTTER_RADIUS_ROUGH;
+                }
+
+                v += v_step;
+            }
+
+            u += u_step;
+        }
     }
 
     pub fn silhouette(&self) -> Option<Intersection> {
