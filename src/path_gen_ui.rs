@@ -48,8 +48,7 @@ pub fn path_gen_ui(ui: &imgui::Ui, state: &mut State, control: &mut MainControl)
             }
 
             if ui.button("Signature paths") {
-                signa(&get_model(state, control))
-                    .save_to_file(Path::new(&format!("{SAVE_PATH}/4.k01")));
+                signa().save_to_file(Path::new(&format!("{SAVE_PATH}/4.k01")));
                 add_block = true;
             }
 

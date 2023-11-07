@@ -1,4 +1,4 @@
-use super::model::*;
+use super::{model::*, svg};
 use crate::{
     cnc::{
         block::Block,
@@ -395,7 +395,7 @@ fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
     let (&min_x, _) = x_map.first_key_value().unwrap();
     let (&max_x, _) = x_map.last_key_value().unwrap();
     let span = (min_x - max_x).abs();
-    let paths = (2.0 * span / CUTTER_RADIUS_DETAIL).ceil() as i32;
+    let paths = (3.5 * span / CUTTER_RADIUS_DETAIL).ceil() as i32;
     let x_step = span / paths as f32;
 
     let mut x = min_x;
@@ -491,7 +491,7 @@ fn sand_shackle(
     model: &Model,
     locs: &mut Vec<Vector3<f32>>,
 ) {
-    const U_STEP: f64 = 0.025;
+    const U_STEP: f64 = 0.012;
     const V_STEP: f64 = 0.005;
 
     let surface = match shackle {
@@ -538,8 +538,8 @@ fn sand_shield(
     model: &Model,
     locs: &mut Vec<Vector3<f32>>,
 ) {
-    const U_STEP: f64 = 0.025;
-    const V_STEP: f64 = 0.025;
+    const U_STEP: f64 = 0.017;
+    const V_STEP: f64 = 0.017;
 
     let surface = match shield {
         Side::Left => model.surfaces[&LEFT_SHIELD_ID].as_ref(),
@@ -611,8 +611,8 @@ fn sand_screw(
     model: &Model,
     locs: &mut Vec<Vector3<f32>>,
 ) {
-    const U_STEP: f64 = 0.015;
-    const V_STEP: f64 = 0.015;
+    const U_STEP: f64 = 0.005;
+    const V_STEP: f64 = 0.005;
 
     let surface = match screw {
         Side::Left => model.surfaces[&LEFT_SCREW_ID].as_ref(),
@@ -651,8 +651,8 @@ fn sand_body(
     model: &Model,
     locs: &mut Vec<Vector3<f32>>,
 ) {
-    const U_STEP: f64 = 0.010;
-    const V_STEP: f64 = 0.010;
+    const U_STEP: f64 = 0.005;
+    const V_STEP: f64 = 0.005;
 
     let surface = model.surfaces[&BODY_ID].as_ref();
 
@@ -667,7 +667,7 @@ fn sand_body(
 
     let u_bounds = [0.0, 0.33, 0.66].map(|n| NotNan::new(n).unwrap());
     let v_bounds = [0.0, 0.20, 0.40, 0.60, 0.80, 1.0].map(|n| NotNan::new(n).unwrap());
-    let u_axes = [0.1, 0.225, 0.50, 0.775, 0.9];
+    let u_axes = [0.1, 0.25, 0.50, 0.75, 0.9];
 
     for u_bound in u_bounds
         .iter()
@@ -746,15 +746,19 @@ fn sand_element(
     };
 
     let mut break_occured = false;
-    let mut u = min_u + u_step * 0.75;
+    let u_pillow = u_step * 0.75;
+    let mut u = min_u + u_pillow;
     let mut reverse = false;
     while u <= max_u {
         let Some((min_v, max_v)) = min_max_v(u, u_step, &btree_u, v_bound, u_axis) else {
             u += u_step;
             continue;
         };
-        let min_v = min_v.clamp(*v_bound.0, *v_bound.1) + *v_step * 0.5;
-        let max_v = max_v.clamp(*v_bound.0, *v_bound.1) - *v_step * 0.5;
+
+        let v_pillow = *v_step * 0.25;
+
+        let min_v = min_v.clamp(*v_bound.0, *v_bound.1) + v_pillow;
+        let max_v = max_v.clamp(*v_bound.0, *v_bound.1) - v_pillow;
 
         let mut v = if !reverse { min_v } else { max_v };
         while min_v <= v && v <= max_v {
@@ -974,11 +978,16 @@ fn round_vec(vec: &Vector3<f32>) -> Vector2<i32> {
     ]
 }
 
-pub fn signa(model: &Model) -> cncp::Program {
+pub fn signa() -> cncp::Program {
     const CUTTER_DIAMETER: f32 = 1.0;
     const CUTTER_HEIGHT: f32 = 4.0 * CUTTER_DIAMETER;
+    const TEXT: &str = "szymon\n\rzygul\x08{a";
+    const POS: Vector3<f32> = vector![50.0, -60.0, 0.0];
 
     let mut locs = initial_locations();
+
+    locs.extend(svg::parse_signature(TEXT, &POS));
+
     add_ending_locs(&mut locs);
 
     cncp::Program::from_locations(
