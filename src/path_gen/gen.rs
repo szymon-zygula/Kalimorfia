@@ -344,7 +344,7 @@ fn grill(model: &Model) -> Vec<Vector3<f32>> {
 
     for hole in holes.iter() {
         let mut first_high = wrld_to_mod(&hole.points[0].point.xzy().coords);
-        first_high.z = SAFE_HEIGHT;
+        first_high.z = SAFE_HEIGHT - 40.0;
         locs.push(first_high);
 
         let contour = grill_contour(hole);
@@ -357,13 +357,13 @@ fn grill(model: &Model) -> Vec<Vector3<f32>> {
         );
 
         let mut first_high = *contour.first().unwrap();
-        first_high.z = SAFE_HEIGHT;
+        first_high.z = SAFE_HEIGHT - 40.0;
         locs.push(first_high);
 
         locs.extend(contour);
 
         let mut last_high = *locs.last().unwrap();
-        last_high.z = SAFE_HEIGHT;
+        last_high.z = SAFE_HEIGHT - 40.0;
         locs.push(last_high);
     }
 
@@ -401,7 +401,7 @@ fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
     let mut x = min_x;
 
     let [mut first_safe, _] = grill_point_pair(0, x, &x_map);
-    first_safe.z = SAFE_HEIGHT;
+    first_safe.z = SAFE_HEIGHT - 40.0;
     locs.push(first_safe);
 
     for i in 0..paths {
@@ -412,7 +412,7 @@ fn grill_net(contour: &[Vector3<f32>]) -> Vec<Vector3<f32>> {
     }
 
     let mut last_safe = *locs.last().unwrap();
-    last_safe.z = SAFE_HEIGHT;
+    last_safe.z = SAFE_HEIGHT - 40.0;
     locs.push(last_safe);
 
     locs
@@ -468,12 +468,12 @@ fn extend_sand(locs: &mut Vec<Vector3<f32>>, extension: Vec<Vector3<f32>>) {
     let Some(mut first_safe) = extension.first().copied() else {
         return;
     };
-    first_safe.z = SAFE_HEIGHT;
+    first_safe.z = SAFE_HEIGHT - 15.0;
 
     let Some(mut last_safe) = extension.last().copied() else {
         return;
     };
-    last_safe.z = SAFE_HEIGHT;
+    last_safe.z = SAFE_HEIGHT - 15.0;
 
     locs.push(first_safe);
     locs.extend(extension);
@@ -526,7 +526,7 @@ fn sand_shackle(
                 -NotNan::new(f64::INFINITY).unwrap(),
                 NotNan::new(f64::INFINITY).unwrap(),
             ),
-            BASE_HEIGHT + 20.0,
+            BASE_HEIGHT + 15.0,
             None,
         ),
     );
@@ -577,9 +577,9 @@ fn sand_shield(
             ),
             (
                 -NotNan::new(f64::INFINITY).unwrap(),
-                NotNan::new(0.5).unwrap(),
+                NotNan::new(0.51).unwrap(),
             ),
-            SAFE_HEIGHT,
+            SAFE_HEIGHT - 15.0,
             None,
         ),
     );
@@ -596,10 +596,10 @@ fn sand_shield(
                 NotNan::new(f64::INFINITY).unwrap(),
             ),
             (
-                NotNan::new(0.5).unwrap(),
+                NotNan::new(0.49).unwrap(),
                 NotNan::new(f64::INFINITY).unwrap(),
             ),
-            SAFE_HEIGHT,
+            SAFE_HEIGHT - 15.0,
             None,
         ),
     );
@@ -666,20 +666,22 @@ fn sand_body(
     let inters = [&i0, &i1, &i2, &i3, &i4, &i5];
 
     let u_bounds = [0.0, 0.33, 0.66].map(|n| NotNan::new(n).unwrap());
-    let v_bounds = [0.0, 0.20, 0.40, 0.60, 0.80, 1.0].map(|n| NotNan::new(n).unwrap());
-    let u_axes = [0.1, 0.25, 0.50, 0.75, 0.9];
+    let v_bounds = [
+        (0.0, 0.205),
+        (0.1975, 0.4025),
+        (0.3975, 0.6025),
+        (0.5975, 0.8025),
+        (0.7975, 1.0),
+    ]
+    .map(|(a, b)| (NotNan::new(a).unwrap(), NotNan::new(b).unwrap()));
+    let u_axes = [0.1, 0.255, 0.50, 0.745, 0.9];
 
     for u_bound in u_bounds
         .iter()
         .copied()
         .tuple_windows::<(NotNan<f64>, NotNan<f64>)>()
     {
-        for (v_bound, u_axis) in v_bounds
-            .iter()
-            .copied()
-            .tuple_windows::<(NotNan<f64>, NotNan<f64>)>()
-            .zip(u_axes.iter())
-        {
+        for (v_bound, u_axis) in v_bounds.iter().copied().zip(u_axes.iter()) {
             extend_sand(
                 locs,
                 sand_element(
@@ -866,11 +868,11 @@ fn wrld_to_mod(vec: &Vector3<f64>) -> Vector3<f32> {
 
 fn inters(
     intersections: &[Intersection; INTERSECTIONS.len()],
-    elevated_silhouette: &Intersection,
+    _elevated_silhouette: &Intersection,
 ) -> Vec<Vector3<f32>> {
     let mut locs = Vec::new();
 
-    for intersection in intersections.iter().chain([elevated_silhouette]) {
+    for intersection in intersections.iter()/*.chain([elevated_silhouette])*/ {
         let mut initial_locs = intersection
             .points
             .iter()
