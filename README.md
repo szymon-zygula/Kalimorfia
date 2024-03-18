@@ -1,5 +1,5 @@
 # Kalimorfia
-Kalimorifa is a simple CAD/CAM modelling software. It supports cubic spline curves, Bezier surfaces, Gregory patches and tori.
+Kalimorifa is a simple CAD/CAM modelling software written in Rust using OpenGL ([glutin](https://github.com/rust-windowing/glutin)) and [nalgebra](https://nalgebra.org/). It supports cubic spline curves, Bezier surfaces, Gregory patches and tori.
 Also includes a built-in CNC mill simulator capable of reading gcode files.
 There are also some minor hidden features, like 3D stereoscopy.
 
