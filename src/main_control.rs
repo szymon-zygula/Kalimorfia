@@ -92,7 +92,7 @@ impl<'gl, 'a> MainControl<'gl, 'a> {
         self.main_control_window(ui, state);
         self.entities_window(ui, state);
         self.selection_window(ui, state);
-        path_gen_ui(ui, state, self);
+        // path_gen_ui(ui, state, self);
 
         if self.bezier_surface_args.is_some() {
             match self.added_surface_type {
